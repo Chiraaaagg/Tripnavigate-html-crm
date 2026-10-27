@@ -1,0 +1,4 @@
+/* Agent F (Accounts). Live .field / .note / flex boxes set display, which beats the
+   UA [hidden] rule. These parts are shown and hidden in place (payment mode, claim
+   panels, add-account kind, expense return form), so keep [hidden] winning. */
+[data-modes][hidden], [data-claim-panel][hidden], [data-kind][hidden], [data-kind-none][hidden], form[data-act][hidden] { display: none !important; }

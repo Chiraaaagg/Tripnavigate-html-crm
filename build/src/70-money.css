@@ -1,0 +1,19 @@
+/* 70-money.css · Agent G. Only what live.css has no class for.
+   1. The document preview dialog is wider than the live max-w-lg dialog so the
+      A4 customer document (live .tn-doc, max 52rem) fits.
+   2. Printing one document: everything except the print root is hidden
+      (the live .tn-print-root rules do the rest). */
+#tn-overlay [role='dialog'].money-doc-dialog {
+  max-width: min(56rem, calc(100vw - 2rem));
+}
+.money-doc-frame {
+  border-radius: var(--radius-card, 14px);
+  background: var(--color-canvas, #f6f8fb);
+  padding: 0.75rem;
+}
+.money-doc-frame .tn-doc { max-width: none; }
+.money-print-root { display: none; }
+@media print {
+  body.money-printing > *:not(.money-print-root) { display: none !important; }
+  body.money-printing .money-print-root { display: block; }
+}
