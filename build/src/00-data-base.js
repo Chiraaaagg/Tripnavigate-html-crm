@@ -329,3 +329,32 @@ TN.service = (id) => TN.DATA.services[id];
 TN.supplier = (id) => TN.DATA.suppliers[id];
 TN.person = (key) => TN.PEOPLE[key];
 TN.servicesOf = (dealId) => Object.entries(TN.DATA.services).filter(([, s]) => s.deal === dealId).map(([id, s]) => ({ id, ...s }));
+
+/* ---------- Travellers per Deal (Book now "Passengers") ----------
+   Name as on the ID, adult or child, date of birth, ID proof [kind, size].
+   kind: 'aadhaar' | 'passport' | null (not attached yet). The file is attached on the Deal's ID date. */
+TN.DATA.travellers = (() => {
+  const T = {
+    'BX-38412': ['2026-10-18', [['Rohan Agarwal', 'adult', '1984-03-12', 'aadhaar'], ['Anita Agarwal', 'adult', '1987-07-25', 'aadhaar'], ['Vihaan Agarwal', 'child', '2019-05-14', null]]],
+    'BX-38455': ['2026-10-25', [['Meenal Khatri', 'adult', '1996-04-09', 'aadhaar'], ['Arjun Khatri', 'adult', '1994-11-30', null]]],
+    'BX-38390': ['2026-10-13', [['Suresh Bhandari', 'adult', '1980-03-03', 'passport'], ['Anita Bhandari', 'adult', '1983-08-17', 'passport'], ['Kabir Bhandari', 'child', '2014-01-09', 'passport'], ['Myra Bhandari', 'child', '2018-06-21', 'passport']]],
+    'BX-38377': ['2026-10-08', [['Deepak Purohit', 'adult', '1991-02-14', 'aadhaar'], ['Vikas Bhati', 'adult', '1990-09-05', 'aadhaar'], ['Rahul Joshi', 'adult', '1992-12-19', 'aadhaar'], ['Sandeep Parihar', 'adult', '1991-06-28', 'aadhaar']]],
+    'BX-38301': ['2026-10-02', [['Nidhi Mathur', 'adult', '1992-02-11', 'passport'], ['Karan Mathur', 'adult', '1990-09-27', 'passport']]],
+    'BX-38264': ['2026-09-27', [['Rajesh Soni', 'adult', '1971-08-22', 'aadhaar'], ['Sarla Soni', 'adult', '1974-01-30', 'aadhaar'], ['Mahesh Soni', 'adult', '1968-11-03', 'aadhaar'], ['Kanta Soni', 'adult', '1970-05-16', 'aadhaar'], ['Dinesh Soni', 'adult', '1976-02-08', 'aadhaar'], ['Rekha Soni', 'adult', '1979-10-12', 'aadhaar']]],
+    'BX-38520': ['2026-10-23', [['Pooja Vyas', 'adult', '1993-07-04', 'aadhaar'], ['Nikhil Vyas', 'adult', '1991-03-18', 'aadhaar']]],
+    'BX-38198': ['2026-10-05', [['Harish Tak', 'adult', '1978-04-26', 'aadhaar'], ['Sunita Tak', 'adult', '1981-09-09', 'aadhaar'], ['Kamla Devi Tak', 'adult', '1953-12-01', 'aadhaar'], ['Aarav Tak', 'child', '2016-08-15', null]]],
+    'BX-38547': ['2026-10-21', [['Ankit Jain', 'adult', '1985-06-11', 'aadhaar'], ['Ramesh Choudhary', 'adult', '1979-02-23', 'aadhaar'], ['Suman Bothra', 'adult', '1988-10-07', 'aadhaar'], ['Vijay Singh Rathore', 'adult', '1975-12-15', 'aadhaar'], ['Neelam Mehta', 'adult', '1990-04-29', 'aadhaar'], ['Prakash Sharma', 'adult', '1983-07-19', 'aadhaar'], ['Kavita Gehlot', 'adult', '1992-01-05', 'aadhaar'], ['Sunil Bhati', 'adult', '1986-09-13', 'aadhaar'], ['Manoj Purohit', 'adult', '1981-03-27', 'aadhaar'], ['Priya Kachhawaha', 'adult', '1994-08-02', 'aadhaar'], ['Hemant Bohra', 'adult', '1987-11-21', 'aadhaar'], ['Lokesh Jangid', 'adult', '1989-05-10', 'aadhaar'], ['Ritu Mathur', 'adult', '1993-02-17', 'aadhaar'], ['Gajendra Singh', 'adult', '1977-06-30', 'aadhaar'], ['Shweta Lodha', 'adult', '1991-10-24', 'aadhaar'], ['Naresh Prajapat', 'adult', '1984-01-08', null], ['Anil Tanwar', 'adult', '1982-12-03', 'aadhaar'], ['Deepika Sankhla', 'adult', '1995-09-16', null]]],
+  };
+  const slug = (s) => s.toLowerCase().replace(/[^a-z]+/g, '-');
+  const SIZE = { 'Rohan Agarwal': 220, 'Anita Agarwal': 214, 'Suresh Bhandari': 410, 'Anita Bhandari': 398, 'Kabir Bhandari': 402, 'Myra Bhandari': 395, 'Nidhi Mathur': 388, 'Karan Mathur': 391 };
+  const out = {};
+  Object.entries(T).forEach(([deal, [at, list]]) => {
+    out[deal] = list.map(([name, type, dob, kind]) => ({ name, type, dob, id: kind ? { file: `${kind}-${slug(name)}.pdf`, kind: kind === 'aadhaar' ? 'Aadhaar' : 'Passport', size: `${SIZE[name] || (kind === 'passport' ? 380 : 200) + (name.length * 7) % 40} KB`, at } : null }));
+  });
+  return out;
+})();
+TN.travellersOf = (dealId) => TN.DATA.travellers[dealId] || [];
+/** Age in full years on a date (both 'YYYY-MM-DD'). */
+TN.ageOn = (dob, on) => { const [y, m, d] = dob.split('-').map(Number); const [Y, M, D] = on.split('-').map(Number); return Y - y - (M < m || (M === m && D < d) ? 1 : 0); };
+/** The client (who booked): a person, or a company with its contact. */
+TN.clientName = (cust) => (cust.business ? `${cust.name} (contact: ${cust.contact})` : cust.name);

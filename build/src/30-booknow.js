@@ -816,7 +816,7 @@ function openPaxDrawer(id){
     ${p.type!=='Adult'?`<div class="f"><label>Age at travel</label><input class="in" inputmode="numeric" style="max-width:120px"></div>`:''}
     ${mselField('pdReqs','Special requests',reqs,'')}
     <div class="f"><label>Other requirements <span class="opt">(optional)</span></label><textarea class="in" rows="2"></textarea></div>
-    <div class="grp"><h3>Private details</h3><div class="note lock">${ic('lock')}<div>Only the deal owner, the branch Manager and the Flight or Visa &amp; Passport colleague who needs them see these. Purchase never does.</div></div>
+    <div class="grp"><h3>Private details</h3><div class="note lock">${ic('lock')}<div>Phone, email and date of marriage: only the deal owner, the branch Manager and the Flight or Visa &amp; Passport colleague who needs them. Date of birth is also shown to Purchase on its task, with the ID proof.</div></div>
       <div class="g2"><div class="f"><label>Date of birth <span class="opt">(optional)</span></label><input class="in" type="date"></div><div class="f"><label>Date of marriage <span class="opt">(optional)</span></label><input class="in" type="date"></div>
       <div class="f"><label>Phone <span class="opt">(optional)</span></label><input class="in" type="tel"></div><div class="f"><label>Email <span class="opt">(optional)</span></label><input class="in" type="email"></div></div></div>`,
    'Save passenger',()=>{p.name=$('#pdName').value;p.reqs=reqs;return true},'Passenger details saved. They are visible only to the people who need them.',()=>bindMsel('pdReqs',PAX_REQS,reqs));

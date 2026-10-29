@@ -687,10 +687,31 @@
     const [tone, icon, word] = serviceState(s);
     const owner = s.assignee ? who(s.assignee) : `${DEPT_LABEL[s.dept]} · not taken yet`;
     const [path, linkText] = taskLink(s);
-    const goAhead = s.dept === 'purchase' && 'goAhead' in s
-      ? `<dt class="font-medium text-quiet">Accounts go-ahead</dt><dd class="m-0 text-copy">${s.goAhead ? badge(...GO_AHEAD[s.goAhead], 'Go-ahead:', true) : 'Not needed'}</dd>` : '';
-    return `<li class="m-0 flex flex-col gap-2 px-4.5 py-3.5"><div class="flex flex-wrap items-start justify-between gap-x-3 gap-y-2"><div class="flex min-w-0 flex-wrap items-center gap-2">${typePill(s.kind)}<span class="font-semibold wrap-break-word text-ink">${esc(s.title)}</span></div>${badge(tone, icon, word, 'Service status:', true)}</div><dl class="m-0 grid grid-cols-[max-content_1fr] gap-x-3 gap-y-0.5 text-sm max-sm:grid-cols-1"><dt class="font-medium text-quiet">Dates</dt><dd class="m-0 text-copy">${s.start === s.end ? TN.fmt.date(s.start) : `${TN.fmt.date(s.start)} to ${TN.fmt.date(s.end)}`} · ${esc(s.detail)}</dd><dt class="font-medium text-quiet">Department</dt><dd class="m-0 text-copy">${DEPT_LABEL[s.dept]}</dd><dt class="font-medium text-quiet">Owner</dt><dd class="m-0 text-copy">${esc(owner)}</dd>${goAhead}<dt class="font-medium text-quiet">Next step</dt><dd class="m-0 text-copy">${esc(nextStep(s))} <a class="${LINK_SOFT}" href="#/app/${path}/${s.id}">${linkText}</a></dd></dl></li>`;
+    const goAheadRow = s.dept === 'purchase' && 'goAhead' in s
+      ? `<div class="flex items-center justify-between gap-2 border-t border-line pt-1.5"><dt class="font-medium text-quiet">Accounts go-ahead</dt><dd class="m-0">${s.goAhead ? badge(...GO_AHEAD[s.goAhead], 'Go-ahead:', true) : '<span class="text-quiet">Not needed</span>'}</dd></div>` : '';
+    const dateStr = s.start === s.end ? TN.fmt.date(s.start) : `${TN.fmt.date(s.start)} to ${TN.fmt.date(s.end)}`;
+    return `<li class="m-0 flex flex-col"><article class="flex h-full flex-col justify-between rounded-card border border-line bg-canvas p-4 transition-colors hover:border-line-strong hover:bg-wash" aria-label="${esc(s.title)}"><div class="flex flex-col gap-3"><div class="flex flex-wrap items-center justify-between gap-2">${typePill(s.kind)}${badge(tone, icon, word, 'Service status:', true)}</div><div><h3 class="m-0 text-base font-semibold leading-snug text-ink wrap-break-word">${esc(s.title)}</h3><div class="mt-1.5 flex items-center gap-1.5 text-xs text-quiet">${ic('calendar', 'size-3.5 shrink-0')}<span class="tabular-nums font-medium">${dateStr}</span></div>${s.detail ? `<p class="m-0 mt-1 text-xs text-copy">${esc(s.detail)}</p>` : ''}</div><dl class="m-0 flex flex-col gap-1.5 rounded-control border border-line bg-card p-2.5 text-xs"><div class="flex items-center justify-between gap-2"><dt class="font-medium text-quiet">Department</dt><dd class="m-0 font-medium text-ink">${DEPT_LABEL[s.dept]}</dd></div><div class="flex items-center justify-between gap-2"><dt class="font-medium text-quiet">Owner</dt><dd class="m-0 truncate font-medium text-copy" title="${esc(owner)}">${esc(owner)}</dd></div>${goAheadRow}</dl></div><div class="mt-3.5 flex flex-col gap-2 border-t border-line pt-2.5"><div class="flex items-center justify-between gap-2 text-xs"><span class="truncate text-quiet" title="${esc(nextStep(s))}">${esc(nextStep(s))}</span><a class="${LINK_SOFT} inline-flex shrink-0 items-center gap-1 text-xs font-semibold" href="#/app/${path}/${s.id}">${linkText} ${ic('arrow-right', 'size-3')}</a></div>${askUpdateRow(s)}</div></article></li>`;
   }
+  /* "In progress · not booked yet": Sales (deal owner) or the Manager can ask Purchase for an update. Purchase sees the request on the same row. */
+  const notBookedYet = (s) => s.dept === 'purchase' && s.taskStatus === 'in_progress' && !isDone(s);
+  function askUpdateRow(s) {
+    if (!notBookedYet(s)) return '';
+    const asked = s.updateAsk;
+    const askedText = asked ? `${who(asked.by)} asked Purchase for an update on ${TN.fmt.dateTime(asked.at)}.` : '';
+    if (TN.is('sales', 'manager') && canEditBooking(TN.deal(s.deal))) {
+      return `<div class="flex flex-wrap items-center gap-2">${btn(asked ? 'Ask again' : 'Ask Purchase for an update', { size: 'sm', icon: 'bell', act: 'sales-ask-update', attrs: ` data-id="${s.id}"`, sr: `for ${s.title}` })}${asked ? `<span class="text-sm text-quiet" role="status">${esc(askedText)}</span>` : ''}</div>`;
+    }
+    if (asked && TN.is('purchase')) return `<p class="m-0 text-sm text-copy" role="status">${ic('bell', 'size-3.5 shrink-0')} ${esc(askedText)} Book it or add a note on the task.</p>`;
+    return '';
+  }
+  TN.act('sales-ask-update', (el) => {
+    const s = D.services[el.dataset.id];
+    if (!s || !notBookedYet(s)) { TN.toast('This service is no longer waiting to be booked.', 'danger'); TN.refresh(); return; }
+    s.updateAsk = { by: me().key, at: nowStamp() };
+    pushNotice(['purchase'], `${me().name} asked for an update on ${s.title} (${s.deal}). It is in progress but not booked yet. Travel starts ${TN.fmt.date(s.start)}.`, s.deal, `#/app/purchase/${el.dataset.id}`);
+    TN.toast('Purchase was asked for an update.');
+    TN.refresh();
+  });
   function progressPill(svcs) {
     const live = svcs.filter((s) => s.taskStatus !== 'cancelled');
     const done = live.filter(isDone).length, inP = live.filter((s) => s.taskStatus === 'in_progress').length, notS = live.filter((s) => s.taskStatus === 'new').length;
@@ -745,7 +766,8 @@
     }
     const shown = DEPT_OF_ROLE[TN.role] ? svcs.filter((s) => s.dept === DEPT_OF_ROLE[TN.role]) : svcs;
     const editor = canEditBooking(d);
-    const servicesCard = card(`<section aria-labelledby="services-heading" id="services-sold">${cardHead('services-heading', 'Services sold', { desc: submitted(d) ? 'Booking version 1 · submitted' : 'Not submitted yet', aside: progressPill(svcs) })}<ol class="m-0 flex list-none flex-col divide-y divide-line p-0" aria-label="Sold services">${shown.map(serviceRow).join('')}</ol>${editor ? `<div class="px-4.5 border-t border-line py-3">${btn('Open the booking', { size: 'sm', href: bookHref(d.id) })}</div>` : ''}</section>`);
+    const gridCols = shown.length === 1 ? 'grid-cols-1 max-w-xl' : shown.length === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3';
+    const servicesCard = card(`<section aria-labelledby="services-heading" id="services-sold">${cardHead('services-heading', 'Services sold', { desc: submitted(d) ? 'Booking version 1 · submitted' : 'Not submitted yet', aside: progressPill(svcs) })}<ol class="m-0 grid list-none ${gridCols} gap-4 p-4.5" aria-label="Sold services">${shown.map(serviceRow).join('')}</ol>${editor ? `<div class="px-4.5 border-t border-line py-3">${btn('Open the booking', { size: 'sm', href: bookHref(d.id) })}</div>` : ''}</section>`);
     const waiting = svcs.filter((s) => s.goAhead === 'waiting').length;
     const goNote = waiting && !DEPT_OF_ROLE[TN.role] ? notice('info', `<p>${TN.fmt.plural(waiting, 'hotel')} on this deal ${waiting === 1 ? 'waits' : 'wait'} for the Accounts go-ahead. Purchase books a hotel only after Accounts gives it.</p>`, { icon: 'hourglass' }) : '';
     const goNoteDept = waiting && TN.is('purchase') ? notice('info', '<p>Wait for the Accounts go-ahead before you commit any hotel on this deal.</p>', { icon: 'hourglass' }) : '';

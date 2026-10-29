@@ -59,8 +59,8 @@
   };
 
   /* ---------- Formatting ---------- */
-  // Live Purchase screens always show paise (₹42,000.00).
-  const money = (n) => (n == null || n === '' ? '—' : TN.fmt.inr(Math.round(Number(n))) + '.00');
+  // Live Purchase screens always show paise (₹42,000.00); TN.fmt.inr adds them.
+  const money = (n) => (n == null || n === '' ? '—' : TN.fmt.inr(Math.round(Number(n))));
   const pad = (n) => String(n).padStart(2, '0');
   const now = () => { const d = new Date(); return `${TN.TODAY} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   const dt = (s) => TN.fmt.dateTime(s);
@@ -109,6 +109,8 @@
   /** Pill status badge (rounded-full), as on offer cards. */
   const pill = (tone, icon, label, sr) => `<span class="inline-flex max-w-full items-center gap-1.5 rounded-full border py-0.5 pr-2.5 pl-2 font-sans text-sm leading-5 font-semibold whitespace-nowrap [&amp;_svg]:size-3.5 [&amp;_svg]:shrink-0 ${TONE[tone]} self-start" data-slot="status-badge" data-tone="${tone}">${ic(icon)}<span class="truncate">${sr ? `<span class="sr-only">${esc(sr)}: </span>` : ''}${esc(label)}</span></span>`;
   const KIND = { hotel: ['Hotel', 'bed-double'], transfer: ['Transfer or cab', 'car-front'], activity: ['Activity', 'compass'], package: ['Package', 'map'] };
+  const BOOKS = { hotel: 'the hotel', transfer: 'the cab', activity: 'the activity', package: 'the package' };
+  const books = (s) => BOOKS[s.kind] || BOOKS.hotel;
   const typePill = (kind) => { const [l, i] = KIND[kind] || KIND.hotel; return `<span class="inline-flex max-w-full items-center gap-1.5 rounded-full border border-brand-line bg-brand-tint py-0.5 pr-2.5 pl-2 font-sans text-sm leading-5 font-semibold whitespace-nowrap text-brand-strong" data-slot="service-type-pill" data-type="${kind}">${ic(i, 'size-3.5 shrink-0')}<span class="sr-only">Service type: </span><span class="truncate">${l}</span></span>`; };
   const NOTICE = {
     info: ['border-status-info-line bg-status-info-tint', 'info', 'text-status-info'],
@@ -429,9 +431,9 @@
       return 'Nothing waiting.';
     }
     if (!s.assignee) return '<span class="font-semibold text-ink">Next:</span> take this task';
+    if (overBudgetWaiting(id, s)) return `<span class="font-semibold text-ink">Next:</span> ${TN.is('manager') ? 'you approve the cost above budget on the Work tab' : 'the branch Manager approves the cost above budget'}`;
     if (s.assignee !== meKey()) return `<span class="font-semibold text-ink">Next:</span> ${esc(name(s.assignee))} works on this task`;
     const is = issues(id, s);
-    if (is.includes('over_budget')) return '<span class="font-semibold text-ink">Next:</span> the branch Manager approves the cost above budget';
     if (is.includes('missing_quote')) return '<span class="font-semibold text-ink">Next:</span> ask suppliers for rates and add their offers';
     if (is.includes('missing_cost')) return '<span class="font-semibold text-ink">Next:</span> propose the cost you agreed with the supplier';
     if (is.includes('go_ahead')) return '<span class="font-semibold text-ink">Next:</span> wait for Accounts’ go-ahead, then book with the supplier';
@@ -440,8 +442,9 @@
   function internalLine(id, s) {
     const w = W[id];
     if (isConfirmed(s)) return internal(`Internal task — supplier confirmed on ${esc(dt(w.confirmedAt))}. The CRM sent nothing to the customer. No payment, bill or invoice was created.`);
-    if (!s.assignee) return internal('Internal task — the hotel is not booked yet. Nothing has been sent to the hotel or the customer by the CRM.');
-    return internal(`Internal task — the hotel is not booked yet. Taking the task did not book the hotel. Nothing has been sent to ${w.emails.length ? '' : 'the hotel or '}the customer by the CRM.`);
+    const who = s.kind === 'hotel' ? 'the hotel' : 'the supplier';
+    if (!s.assignee) return internal(`Internal task — ${books(s)} is not booked yet. Nothing has been sent to ${who} or the customer by the CRM.`);
+    return internal(`Internal task — ${books(s)} is not booked yet. Taking the task did not book ${books(s)}. Nothing has been sent to ${w.emails.length ? '' : `${who} or `}the customer by the CRM.`);
   }
 
   function renderTask(params, q) {
@@ -455,7 +458,7 @@
     const kindLabel = (KIND[s.kind] || KIND.hotel)[0];
     let actions = '';
     if (TN.is('purchase') && !s.assignee && s.taskStatus !== 'cancelled') {
-      actions = `<form class="flex flex-col items-start gap-2 sm:items-end" data-act="pur-take" data-id="${id}"><p id="claim-help" class="m-0 text-sm text-quiet">Shows colleagues you are handling it. It does not book the hotel.</p><button type="submit" class="${C.btnPrimary}" data-slot="button" aria-describedby="claim-help">Take this task</button><div role="status" aria-live="polite" class="w-full"></div></form>`;
+      actions = `<form class="flex flex-col items-start gap-2 sm:items-end" data-act="pur-take" data-id="${id}"><p id="claim-help" class="m-0 text-sm text-quiet">Shows colleagues you are handling it. It does not book ${books(s)}.</p><button type="submit" class="${C.btnPrimary}" data-slot="button" aria-describedby="claim-help">Take this task</button><div role="status" aria-live="polite" class="w-full"></div></form>`;
     }
     const viewOnly = !sales && s.assignee && s.assignee !== meKey() ? `<p class="m-0 text-sm text-copy">You can view this but not change it. Purchase in Jodhpur works on it.</p>` : '';
     const tabs = [
@@ -474,6 +477,141 @@
     </div>`;
   }
 
+  /* Traveller details and ID proofs: compact card with "View all ID proofs" button opening the popup modal */
+  function travellerCard(id, deal, cust) {
+    const people = TN.travellersOf(deal.id);
+    const missing = people.filter((p) => !p.id).length;
+    const attached = people.length - missing;
+
+    const summaryBadge = missing
+      ? `<span class="inline-flex items-center gap-1 rounded-full border border-status-warning-line bg-status-warning-tint px-2.5 py-0.5 text-xs font-semibold text-status-warning">${ic('circle-alert', 'size-3 shrink-0')}${missing} missing</span>`
+      : `<span class="inline-flex items-center gap-1 rounded-full border border-status-success-line bg-status-success-tint px-2.5 py-0.5 text-xs font-semibold text-status-success">${ic('circle-check', 'size-3 shrink-0')}All ID proofs attached</span>`;
+
+    const headActions = people.length
+      ? `<button type="button" class="button secondary sm inline-flex items-center gap-2 font-semibold shrink-0 cursor-pointer" data-act="pur-view-id-proofs" data-id="${id}" data-deal="${deal.id}">${ic('file-text', 'size-4 shrink-0 text-brand-strong')}View all ID proofs (${attached}/${people.length})</button>`
+      : '';
+
+    return `<div class="${C.card}" data-slot="card">
+      <section aria-labelledby="id-proofs-heading">
+        <div class="p-4 flex flex-wrap items-center justify-between gap-4">
+          <div class="min-w-0 flex-1 flex flex-col gap-1">
+            <div class="flex items-center gap-2.5 flex-wrap">
+              <h2 class="${C.h2}" id="id-proofs-heading">Traveller details and ID proofs</h2>
+              ${summaryBadge}
+            </div>
+            <p class="m-0 text-sm text-copy">
+              <strong class="font-semibold text-ink">Client:</strong> ${esc(TN.clientName(cust))}
+              <span class="text-quiet"> · ${people.length} travellers in booking</span>
+            </p>
+            <p class="m-0 text-xs text-quiet">
+              <span class="inline-flex items-center gap-1.5">${ic('lock', 'size-3.5 shrink-0 text-faint')}Private identity details for this work. Every view is recorded. Do not copy or forward them.</span>
+            </p>
+          </div>
+          ${headActions}
+        </div>
+      </section>
+    </div>`;
+  }
+
+  /* Action: Show all passenger ID proofs in a modal popup */
+  TN.act('pur-view-id-proofs', (el) => {
+    const dealId = el.dataset.deal;
+    const serviceId = el.dataset.id;
+    const focusName = el.dataset.focus;
+    const deal = TN.deal(dealId);
+    if (!deal) return;
+    const cust = TN.customer(deal.customer);
+    const people = TN.travellersOf(deal.id);
+    const missing = people.filter((p) => !p.id).length;
+    const attached = people.length - missing;
+
+    const listHtml = people.map((p, idx) => {
+      const kind = p.type === 'child' ? 'Child' : 'Adult';
+      const age = TN.ageOn(p.dob, deal.start);
+      const isFocused = focusName && p.name === focusName;
+
+      return `<li class="m-0 flex flex-col gap-2 rounded-control border ${isFocused ? 'border-brand-strong bg-brand-tint/30 ring-1 ring-brand-strong' : 'border-line bg-canvas'} p-3.5 transition-all">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="inline-flex items-center gap-2 min-w-0">
+            <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-brand-tint text-[11px] font-bold text-brand-strong">${idx + 1}</span>
+            <span class="font-semibold text-ink text-base truncate">${esc(p.name)}</span>
+            <span class="rounded bg-page border border-line px-1.5 py-0.5 text-xs text-quiet">${kind}</span>
+            ${isFocused ? '<span class="rounded bg-brand-tint px-1.5 py-0.5 text-[10px] font-bold text-brand-strong uppercase">Selected</span>' : ''}
+          </div>
+          <div class="text-xs text-quiet tabular-nums shrink-0">
+            DOB: <strong class="font-medium text-ink">${esc(date(p.dob))}</strong>${age != null ? ` (${plural(age, 'year')} old at travel)` : ''}
+          </div>
+        </div>
+
+        ${p.id ? `
+          <div class="flex flex-wrap items-center justify-between gap-3 rounded-control border border-line bg-wash/60 px-3 py-2 text-xs">
+            <div class="inline-flex items-center gap-2.5 min-w-0">
+              <span class="flex size-8 shrink-0 items-center justify-center rounded-md bg-status-success-tint text-status-success">
+                ${ic('file-check-corner', 'size-4.5')}
+              </span>
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="font-semibold text-ink">${esc(p.id.kind)}</span>
+                  <span class="text-quiet">·</span>
+                  <span class="font-mono text-copy font-medium truncate">${esc(p.id.file)}</span>
+                </div>
+                <div class="text-[11px] text-quiet">
+                  Size: ${esc(p.id.size)} · Attached: ${esc(date(p.id.at))}
+                </div>
+              </div>
+            </div>
+            <div class="shrink-0 flex items-center gap-2">
+              <a class="button secondary sm inline-flex items-center gap-1" href="#/app/purchase/${serviceId}?tab=files" data-close rel="noopener">
+                ${ic('folder-open', 'size-3.5 shrink-0')}Open in Files
+              </a>
+            </div>
+          </div>
+        ` : `
+          <div class="flex items-center gap-2.5 rounded-control border border-status-danger-line/60 bg-status-danger-tint/30 px-3 py-2 text-xs text-status-danger">
+            ${ic('circle-alert', 'size-4 shrink-0 text-status-danger')}
+            <span class="font-medium">No ID proof attached yet. Ask the salesperson to collect and attach it.</span>
+          </div>
+        `}
+      </li>`;
+    }).join('');
+
+    const bodyHtml = `
+      <div class="flex flex-col gap-3 font-sans">
+        <div class="rounded-control border border-line bg-wash p-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div class="inline-flex items-center gap-1.5 text-quiet">
+            ${ic('lock', 'size-3.5 text-faint shrink-0')}
+            <span>Private identity documents. Views are recorded. Do not forward.</span>
+          </div>
+          <div class="text-copy">
+            <strong class="font-medium text-ink">Client:</strong> ${esc(TN.clientName(cust))}
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between text-xs px-1">
+          <span class="text-quiet">${people.length} Travellers in this booking</span>
+          <span class="${missing ? 'text-status-warning font-semibold' : 'text-status-success font-semibold'}">
+            ${attached} of ${people.length} ID proofs attached${missing ? ` (${missing} missing)` : ''}
+          </span>
+        </div>
+
+        <ul class="m-0 flex list-none flex-col gap-2.5 p-0 max-h-[55vh] overflow-y-auto pr-1" aria-label="Passenger ID proofs list">
+          ${listHtml || '<li class="p-4 text-center text-quiet">No traveller details found.</li>'}
+        </ul>
+      </div>
+    `;
+
+    TN.dialog({
+      title: 'Traveller ID Proofs',
+      description: deal.title || `Deal ${deal.id}`,
+      body: bodyHtml,
+      footer: `<div class="flex w-full items-center justify-between">
+        <span class="text-xs text-quiet">${attached} attached · ${missing} missing</span>
+        <button type="button" class="button secondary" data-close>Close</button>
+      </div>`,
+      cls: 'max-w-2xl'
+    });
+  });
+
   function detailsTab(id, s, deal) {
     const f = FACTS[id];
     const cust = TN.customer(deal.customer);
@@ -481,22 +619,21 @@
     const stay = hotelish
       ? card('task-stay', 'Stay', '', dlist([['Check-in', date(s.start)], ['Check-out', date(s.end)], ['Nights', String(nights(s.start, s.end))], ['Rooms', String(f ? f[0] : 1)], ['Room type', esc(f ? f[1] : '—')], ['Meal plan', esc(f ? f[2] : '—')]]), { h: 'h2' })
       : card('task-stay', 'Service', '', dlist([['Dates', s.start === s.end ? date(s.start) : `${date(s.start)} → ${date(s.end)}`], ['Details', esc(s.detail)], ['Place', esc(deal.destination)]]), { h: 'h2' });
-    const trav = card('task-travellers', 'Travellers and budget', '', dlist([['Adults', String(deal.adults)], deal.children ? ['Children', String(deal.children)] : null, ['Approved budget', s.budget != null ? money(s.budget) : 'Budget not set', 'whitespace-nowrap tabular-nums']]), { h: 'h2' });
+    const trav = card('task-travellers', 'Travellers and budget', '', dlist([['Travellers', esc(travellers(deal))], ['Approved budget', s.budget != null ? money(s.budget) : 'Budget not set', 'whitespace-nowrap tabular-nums']]), { h: 'h2' });
     const notes = f && (f[3] || f[4]) ? card('task-notes', 'Notes from Sales', '', dlist([f[3] ? ['Inclusions', esc(f[3]), 'whitespace-pre-wrap wrap-break-word'] : null, f[4] ? ['Special requests', esc(f[4]), 'whitespace-pre-wrap wrap-break-word'] : null]), { h: 'h2', extra: 'md:col-span-2' }) : '';
-    const origin = card('task-origin', 'Where this came from', '', dlist([['Deal', esc(deal.id)], ['Branch', 'Jodhpur'], ['Booking version', '1'], ['Confirmed', `${esc(dt((deal.submittedAt || TN.TODAY) + ' 12:30'))} by ${esc(name(deal.owner))}`], ['Task created', esc(dt((deal.submittedAt || TN.TODAY) + ' 12:35'))]]), { h: 'h2' });
+    const origin = card('task-origin', 'Where this came from', '', dlist([['Deal', esc(deal.id)], ['Branch', 'Jodhpur'], ['Booking version', '1'], ['Task created', esc(dt((deal.submittedAt || TN.TODAY) + ' 12:35'))]]), { h: 'h2' });
     const w = W[id];
-    const steps = [{ state: 'done', sr: 'Done', title: 'Booking details confirmed by Sales', sub: `By ${esc(name(deal.owner))}` }];
+    const steps = [{ state: 'done', sr: 'Done', title: 'Booking details confirmed by Sales', sub: `By ${esc(name(deal.owner))} · ${esc(dt((deal.submittedAt || TN.TODAY) + ' 12:30'))}` }];
     steps.push(s.assignee ? { state: 'done', sr: 'Done', title: 'Take the task', sub: s.assignee === meKey() ? 'Taken by you' : `Taken by ${esc(name(s.assignee))}` } : { state: 'now', sr: 'Now', title: 'Take the task', sub: 'A Purchase colleague takes it from the queue.' });
     if (s.goAhead != null) {
       const g = s.goAhead === 'given';
       steps.push({ state: g ? 'done' : s.assignee ? 'now' : 'later', sr: g ? 'Done' : s.assignee ? 'Now' : 'Later', title: g ? 'Accounts gave the go-ahead' : 'Accounts gives the go-ahead', sub: g ? 'Accounts approved this hotel commitment.' : 'Purchase prepares offers and cost meanwhile. Accounts approves every hotel commitment.' });
     }
     const confState = isConfirmed(s) ? 'done' : s.assignee && (s.goAhead == null || s.goAhead === 'given') ? 'now' : 'later';
-    steps.push({ state: confState, sr: confState === 'done' ? 'Done' : confState === 'now' ? 'Now' : 'Later', title: confState === 'done' ? 'Supplier confirmed the hotel' : 'Supplier confirms the hotel', sub: confState === 'done' ? `Recorded by ${esc(byWho(w.confirmedBy))}` : 'Offers, agreed cost and the supplier’s confirmation are recorded by Purchase.' });
+    steps.push({ state: confState, sr: confState === 'done' ? 'Done' : confState === 'now' ? 'Now' : 'Later', title: confState === 'done' ? `Supplier confirmed ${books(s)}` : `Supplier confirms ${books(s)}`, sub: confState === 'done' ? `Recorded by ${esc(byWho(w.confirmedBy))}` : 'Offers, agreed cost and the supplier’s confirmation are recorded by Purchase.' });
     const hand = card('task-handoffs', 'Hand-offs', '', tl(steps, 'Task hand-offs'), { h: 'h2' });
-    const idFile = `id-proof-${cust.name.toLowerCase().replace(/[^a-z]+/g, '-')}.pdf`;
-    const ids = `<div class="md:col-span-2"><div class="${C.card}" data-slot="card"><section aria-labelledby="id-proofs-heading"><div class="${C.cardHead}"><h2 class="${C.h2}" id="id-proofs-heading">Traveller ID proofs</h2><p class="m-0 text-sm text-quiet"><span class="inline-flex gap-1.5">${ic('lock', 'mt-0.5 size-3.5 shrink-0 text-faint')}Private identity documents for this work. Every view is recorded. Do not copy or forward them.</span></p></div><div class="px-4.5 py-4"><ul class="m-0 flex list-none flex-col gap-3 p-0" aria-label="Travellers and their ID proofs"><li class="m-0 flex flex-col gap-2 rounded-control border border-line bg-canvas px-3.5 py-3"><p class="m-0 font-semibold text-ink">${esc(cust.business ? cust.contact : cust.name)} <span class="font-normal text-quiet">· Adult</span></p><ul class="m-0 flex list-none flex-col gap-2 p-0"><li class="m-0 flex flex-wrap items-center gap-3">${ic('file-check-corner', 'size-4 shrink-0 text-status-success')}<span class="min-w-40 flex-1 wrap-anywhere text-copy">${esc(idFile)} <span class="text-sm text-quiet">· 214 KB · attached ${esc(date(deal.submittedAt || TN.TODAY))}</span></span><a class="${C.btnSmall}" href="#/app/purchase/${id}?tab=files" rel="noopener">Open<span class="sr-only"> ID proof of ${esc(cust.business ? cust.contact : cust.name)}: ${esc(idFile)}</span></a></li></ul></li>${deal.adults + deal.children > 1 ? `<li class="m-0 flex flex-col gap-2 rounded-control border border-line bg-canvas px-3.5 py-3"><p class="m-0 font-semibold text-ink">Other travellers <span class="font-normal text-quiet">· ${esc(plural(deal.adults + deal.children - 1, 'person', 'people'))}</span></p><p class="m-0 flex gap-2 text-sm text-copy">${ic('circle-alert', 'mt-0.5 size-4 shrink-0 text-status-danger')}No ID proof attached yet. Ask the salesperson.</p></li>` : ''}</ul></div></section></div></div>`;
-    return `<div class="grid items-start gap-5 md:grid-cols-2">${stay}${trav}${notes}${origin}${hand}${TN.is('sales') ? '' : ids}</div>`;
+    const ids = `<div class="md:col-span-2">${travellerCard(id, deal, cust)}</div>`;
+    return `<div class="grid items-start gap-5 md:grid-cols-2">${notes}${stay}${trav}${origin}${hand}${TN.is('sales') ? '' : ids}</div>`;
   }
 
   function historyTab(id) {
@@ -611,7 +748,7 @@
 
     const cancelCard = cancellationCard(id, s, deal);
     const showPending = s.assignee || confirmed;
-    return `<div class="flex flex-col gap-5"><section class="flex flex-col gap-5" aria-labelledby="work-heading">${cancelCard}${head}${offers}${costCard}${files}${showPending ? mails + payCard : ''}${release}${reassign}</section>${deptCost}</div>`;
+    return `<div class="flex flex-col gap-5"><section class="flex flex-col gap-5" aria-labelledby="work-heading">${cancelCard}${showPending ? mails : ''}${head}${offers}${showPending ? payCard : ''}${files}${costCard}${release}${reassign}</section>${deptCost}</div>`;
   }
 
   /* ---------- PENDING: cancellation charges (BX-38198, c-198) ---------- */
@@ -647,7 +784,6 @@
   const invBadge = (i) => { const [t, ic2, l] = INV[i.status] || INV.uploaded; return badge(t, ic2, l, 'Accounts check'); };
   function filesTab(id, s, deal) {
     const w = W[id];
-    const cust = TN.customer(deal.customer);
     const purch = w.files.length ? `<ul class="m-0 flex list-none flex-col gap-2 p-0" aria-label="Purchase files">${w.files.map((f) => `<li class="m-0 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">${ic('file-text', 'size-4 shrink-0 text-faint')}<a href="#/app/purchase/${id}?tab=files" rel="noopener" class="rounded-chip font-medium wrap-anywhere text-brand-strong underline underline-offset-4 hover:text-brand-deep ${C.focus}">${esc(f.name)}</a><span class="text-quiet">${esc({ quote: 'Supplier quote', supplier_confirmation: 'Supplier confirmation email', other: 'Other Purchase file' }[f.kind])} · ${esc(f.size)} · ${esc(dt(f.at))}</span></li>`).join('')}</ul>` : '<p class="m-0 text-sm text-quiet">No Purchase files yet.</p>';
     const invs = invoicesOf(id);
     const mineSide = TN.is('purchase') && s.assignee === meKey();
@@ -655,12 +791,11 @@
     const invList = invs.length ? `<ul class="m-0 flex list-none flex-col gap-2 p-0" aria-label="Supplier invoices and credit notes">${invs.map((i) => `<li class="m-0 flex flex-wrap items-start gap-3 rounded-control border px-3.5 py-2.5 border-line bg-canvas">${ic('receipt', 'mt-0.5 size-4 shrink-0 text-quiet')}<div class="min-w-40 flex-1"><p class="m-0 font-medium wrap-anywhere text-ink"><a href="#/app/purchase/${id}?tab=files" class="${C.fileLink}">${esc(i.file)}</a></p><p class="m-0 text-sm text-quiet">${esc(i.kind)} ${esc(i.number)} · ${esc(date(i.date))} · ${money(i.amount)} · GST ${money(i.gst)} · uploaded by ${esc(byWho(i.by))}</p>${i.status === 'returned' && i.returnReason ? `<p class="m-0 text-sm text-copy">Reason: ${esc(i.returnReason)}</p>` : ''}</div><div class="shrink-0">${invBadge(i)}</div></li>`).join('')}</ul>` : '<p class="m-0 text-sm text-quiet">No supplier invoice or credit note yet.</p>';
     const remind = missing ? notice('warning', `<p>The trip ended on ${esc(date(deal.end))}. Upload the supplier’s original invoice so Accounts can check it and close this booking.</p>`, 'Original invoice missing') : '';
     const invBtns = mineSide && s.supplier ? `<div class="flex flex-wrap gap-2"><button type="button" class="button secondary" data-act="pur-invoice" data-id="${id}" data-kind="Invoice">Upload supplier invoice</button><button type="button" class="button secondary" data-act="pur-invoice" data-id="${id}" data-kind="Credit note">Upload credit note</button></div>` : '';
-    const idFile = `id-proof-${cust.name.toLowerCase().replace(/[^a-z]+/g, '-')}.pdf`;
     return `<div class="${C.card}" data-slot="card"><section aria-labelledby="task-files-heading"><div class="${C.cardHead}"><div class="min-w-0"><h2 class="${C.h2}" id="task-files-heading">Files</h2><p class="m-0 text-sm text-quiet">Only files for this task. Customer payment proofs and acceptance messages are never listed here.</p></div>${ic('folder-open', 'size-4 text-faint')}</div><div class="px-4.5 py-4 flex flex-col gap-4">
       ${flash && flash.key === 'invoice' ? msgHtml(true, flash.text) : ''}
       <section aria-labelledby="task-files-purchase" class="flex flex-col gap-2"><h3 id="task-files-purchase" class="m-0 text-base font-semibold text-ink">Purchase files</h3>${purch}</section>
       <section aria-labelledby="task-files-invoices" class="flex flex-col gap-2"><h3 id="task-files-invoices" class="m-0 text-base font-semibold text-ink">Supplier invoices and credit notes</h3><p class="m-0 text-sm text-quiet">The supplier’s original bill. Accounts checks each one against the payments.</p>${remind}${invList}${invBtns}</section>
-      <section aria-labelledby="task-files-id" class="flex flex-col gap-2"><h3 id="task-files-id" class="m-0 text-base font-semibold text-ink">Traveller ID proofs</h3><ul class="m-0 flex list-none flex-col gap-2 p-0" aria-label="Traveller ID proofs"><li class="m-0 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">${ic('file-text', 'size-4 shrink-0 text-faint')}<a href="#/app/purchase/${id}?tab=files" rel="noopener" class="rounded-chip font-medium wrap-anywhere text-brand-strong underline underline-offset-4 hover:text-brand-deep ${C.focus}">${esc(idFile)}</a><span class="text-quiet">ID proof of ${esc(cust.business ? cust.contact : cust.name)} · 214 KB</span></li></ul></section>
+      <section aria-labelledby="task-files-id" class="flex flex-col gap-2"><h3 id="task-files-id" class="m-0 text-base font-semibold text-ink">Traveller ID proofs</h3><ul class="m-0 flex list-none flex-col gap-2 p-0" aria-label="Traveller ID proofs">${TN.travellersOf(deal.id).filter((p) => p.id).map((p) => `<li class="m-0 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">${ic('file-text', 'size-4 shrink-0 text-faint')}<a href="#/app/purchase/${id}?tab=files" rel="noopener" class="rounded-chip font-medium wrap-anywhere text-brand-strong underline underline-offset-4 hover:text-brand-deep ${C.focus}">${esc(p.id.file)}</a><span class="text-quiet">${esc(p.id.kind)} of ${esc(p.name)} · born ${esc(date(p.dob))} · ${esc(p.id.size)}</span></li>`).join('') || '<li class="m-0 text-sm text-quiet">No ID proof attached yet.</li>'}</ul></section>
       ${internal('Private identity documents for this work. Every view is recorded.')}
     </div></section></div>`;
   }

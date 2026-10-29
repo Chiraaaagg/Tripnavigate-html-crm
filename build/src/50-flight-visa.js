@@ -442,15 +442,140 @@
 
   function idProofsCard(id, people) {
     const map = ID_PROOFS[id] || {};
-    const items = people.map((p) => {
+    const deal = TN.deal(S[id].deal);
+    const missing = people.filter((p) => !map[p.name]).length;
+    const attached = people.length - missing;
+
+    const summaryBadge = missing
+      ? `<span class="inline-flex items-center gap-1 rounded-full border border-status-warning-line bg-status-warning-tint px-2.5 py-0.5 text-xs font-semibold text-status-warning">${ic('circle-alert', 'size-3 shrink-0')}${missing} missing</span>`
+      : `<span class="inline-flex items-center gap-1 rounded-full border border-status-success-line bg-status-success-tint px-2.5 py-0.5 text-xs font-semibold text-status-success">${ic('circle-check', 'size-3 shrink-0')}All ID proofs attached</span>`;
+
+    const headActions = people.length
+      ? `<button type="button" class="button secondary sm inline-flex items-center gap-2 font-semibold shrink-0 cursor-pointer" data-act="fv-view-id-proofs" data-id="${id}">${ic('file-text', 'size-4 shrink-0 text-brand-strong')}View all ID proofs (${attached}/${people.length})</button>`
+      : '';
+
+    const cust = TN.customer(deal.customer);
+
+    return `<div class="${C.card}" data-slot="card">
+      <section aria-labelledby="id-proofs-heading">
+        <div class="p-4 flex flex-wrap items-center justify-between gap-4">
+          <div class="min-w-0 flex-1 flex flex-col gap-1">
+            <div class="flex items-center gap-2.5 flex-wrap">
+              <h2 class="${C.cardTitle}" id="id-proofs-heading">Traveller details and ID proofs</h2>
+              ${summaryBadge}
+            </div>
+            <p class="m-0 text-sm text-copy">
+              <strong class="font-semibold text-ink">Client:</strong> ${esc(TN.clientName(cust))}
+              <span class="text-quiet"> · ${people.length} travellers on this flight</span>
+            </p>
+            <p class="m-0 text-xs text-quiet">
+              <span class="inline-flex items-center gap-1.5">${ic('lock', 'size-3.5 shrink-0 text-faint')}Private identity documents for this work. Every view is recorded. Do not copy or forward them.</span>
+            </p>
+          </div>
+          ${headActions}
+        </div>
+      </section>
+    </div>`;
+  }
+
+  TN.act('fv-view-id-proofs', (el) => {
+    const id = el.dataset.id;
+    const focusName = el.dataset.focus;
+    const s = S[id];
+    if (!s) return;
+    const deal = TN.deal(s.deal);
+    const people = s.passengers || [];
+    const map = ID_PROOFS[id] || {};
+    const cust = deal ? TN.customer(deal.customer) : null;
+    const missing = people.filter((p) => !map[p.name]).length;
+    const attached = people.length - missing;
+
+    const listHtml = people.map((p, idx) => {
       const f = map[p.name];
       const kind = p.type === 'child' ? 'Child' : 'Adult';
-      return `<li class="m-0 flex flex-col gap-2 rounded-control border border-line bg-canvas px-3.5 py-3"><p class="m-0 font-semibold text-ink">${esc(p.name)} <span class="font-normal text-quiet">· ${kind}</span></p>${f
-        ? `<ul class="m-0 flex list-none flex-col gap-2 p-0"><li class="m-0 flex flex-wrap items-center gap-3">${ic('file-check', 'size-4 shrink-0 text-status-success')}<span class="min-w-40 flex-1 wrap-anywhere text-copy">${esc(f[0])} <span class="text-sm text-quiet">· ${f[1]} · attached ${TN.fmt.date(f[2])}</span></span><a class="${B.openSm}" href="#" data-act="fv-open-file" rel="noopener">Open<span class="sr-only"> ID proof of ${esc(p.name)}: ${esc(f[0])}</span></a></li></ul>`
-        : `<p class="m-0 flex gap-2 text-sm text-copy">${ic('circle-alert', 'mt-0.5 size-4 shrink-0 text-status-warning')}No ID proof attached yet. Ask the salesperson.</p>`}</li>`;
+      const t = deal ? TN.travellersOf(deal.id).find((x) => x.name === p.name) : null;
+      const age = t && deal ? TN.ageOn(t.dob, deal.start) : null;
+      const isFocused = focusName && p.name === focusName;
+
+      return `<li class="m-0 flex flex-col gap-2 rounded-control border ${isFocused ? 'border-brand-strong bg-brand-tint/30 ring-1 ring-brand-strong' : 'border-line bg-canvas'} p-3.5 transition-all">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="inline-flex items-center gap-2 min-w-0">
+            <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-brand-tint text-[11px] font-bold text-brand-strong">${idx + 1}</span>
+            <span class="font-semibold text-ink text-base truncate">${esc(p.name)}</span>
+            <span class="rounded bg-page border border-line px-1.5 py-0.5 text-xs text-quiet">${kind}</span>
+            ${isFocused ? '<span class="rounded bg-brand-tint px-1.5 py-0.5 text-[10px] font-bold text-brand-strong uppercase">Selected</span>' : ''}
+          </div>
+          <div class="text-xs text-quiet tabular-nums shrink-0">
+            DOB: <strong class="font-medium text-ink">${t ? esc(TN.fmt.date(t.dob)) : '—'}</strong>${age != null ? ` (${age} yrs at travel)` : ''}
+          </div>
+        </div>
+
+        ${f ? `
+          <div class="flex flex-wrap items-center justify-between gap-3 rounded-control border border-line bg-wash/60 px-3 py-2 text-xs">
+            <div class="inline-flex items-center gap-2.5 min-w-0">
+              <span class="flex size-8 shrink-0 items-center justify-center rounded-md bg-status-success-tint text-status-success">
+                ${ic('file-check', 'size-4.5')}
+              </span>
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="font-semibold text-ink">${esc(f[1] || 'ID proof')}</span>
+                  <span class="text-quiet">·</span>
+                  <span class="font-mono text-copy font-medium truncate">${esc(f[0])}</span>
+                </div>
+                <div class="text-[11px] text-quiet">
+                  Attached on ${esc(TN.fmt.date(f[2]))}
+                </div>
+              </div>
+            </div>
+            <div class="shrink-0 flex items-center gap-2">
+              <button type="button" class="button secondary sm" data-act="fv-open-file">Open file</button>
+            </div>
+          </div>
+        ` : `
+          <div class="flex items-center gap-2.5 rounded-control border border-status-warning-line/60 bg-status-warning-tint/30 px-3 py-2 text-xs text-status-warning">
+            ${ic('circle-alert', 'size-4 shrink-0 text-status-warning')}
+            <span class="font-medium">No ID proof attached yet. Ask the salesperson.</span>
+          </div>
+        `}
+      </li>`;
     }).join('');
-    return card({ id: 'id-proofs-heading', title: 'Traveller ID proofs', extra: `<p class="m-0 text-sm text-quiet"><span class="inline-flex gap-1.5">${ic('lock', 'mt-0.5 size-3.5 shrink-0 text-faint')}Private identity documents for this work. Every view is recorded. Do not copy or forward them.</span></p>`, body: `<ul class="m-0 flex list-none flex-col gap-3 p-0" aria-label="Travellers and their ID proofs">${items}</ul>` });
-  }
+
+    const bodyHtml = `
+      <div class="flex flex-col gap-3 font-sans">
+        <div class="rounded-control border border-line bg-wash p-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div class="inline-flex items-center gap-1.5 text-quiet">
+            ${ic('lock', 'size-3.5 text-faint shrink-0')}
+            <span>Private identity documents. Views are recorded. Do not forward.</span>
+          </div>
+          <div class="text-copy">
+            <strong class="font-medium text-ink">Client:</strong> ${esc(cust ? TN.clientName(cust) : '—')}
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between text-xs px-1">
+          <span class="text-quiet">${people.length} Travellers on this flight</span>
+          <span class="${missing ? 'text-status-warning font-semibold' : 'text-status-success font-semibold'}">
+            ${attached} of ${people.length} ID proofs attached${missing ? ` (${missing} missing)` : ''}
+          </span>
+        </div>
+
+        <ul class="m-0 flex list-none flex-col gap-2.5 p-0 max-h-[55vh] overflow-y-auto pr-1" aria-label="Passenger ID proofs list">
+          ${listHtml || '<li class="p-4 text-center text-quiet">No traveller details found.</li>'}
+        </ul>
+      </div>
+    `;
+
+    TN.dialog({
+      title: 'Traveller ID Proofs',
+      description: deal ? esc(deal.title) : `Deal ${s.deal}`,
+      body: bodyHtml,
+      footer: `<div class="flex w-full items-center justify-between">
+        <span class="text-xs text-quiet">${attached} attached · ${missing} missing</span>
+        <button type="button" class="button secondary" data-close>Close</button>
+      </div>`,
+      cls: 'max-w-2xl'
+    });
+  });
 
   /* ------------------------------------------------------------------
      Cost card (live DepartmentCostCard) + pending payment request line
