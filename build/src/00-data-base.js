@@ -167,6 +167,58 @@ TN.DATA = {
     's-547-a':  { deal: 'BX-38547', kind: 'activity', dept: 'purchase', title: 'Sam sand dunes camel safari and cultural evening', detail: '18 people · 7 Nov', start: '2026-11-07', end: '2026-11-07', assignee: 'purchase', taskStatus: 'new', goAhead: null, budget: 13500 },
   },
 
+  /* ---------- Approved Purchase Budget Breakups (official approved costing records) ---------- */
+  budgetBreakups: {
+    's-547-h': [
+      { particular: 'Hotel room charges (Twin sharing room, 9 rooms × 2 nights)', qty: 18, unit: 'room-nights', rate: 9000, total: 162000 },
+      { particular: 'Meal charges (All meals package: Breakfast, Lunch & Dinner for 18 pax × 2 days)', qty: 36, unit: 'pax-days', rate: 1000, total: 36000 },
+      { particular: 'Other approved charges: Conference hall half day rental (7 Nov)', qty: 1, unit: 'session', rate: 15000, total: 15000 },
+      { particular: 'Other approved charges: Gala dinner setup & evening event (18 pax)', qty: 18, unit: 'pax', rate: 500, total: 9000 },
+      { particular: 'Taxes (Approved hotel GST component)', qty: 1, unit: 'lot', rate: 14000, total: 14000 },
+    ],
+    's-412-h': [
+      { particular: 'Hotel room charges (Deluxe garden view room, 4 nights)', qty: 4, unit: 'room-nights', rate: 15000, total: 60000 },
+      { particular: 'Meal charges (Buffet breakfast supplement)', qty: 4, unit: 'nights', rate: 1500, total: 6000 },
+      { particular: 'Taxes (Hotel GST @ 12%)', qty: 1, unit: 'lot', rate: 6000, total: 6000 },
+    ],
+    's-455-h1': [
+      { particular: 'Hotel room charges (Premium room, 2 nights)', qty: 2, unit: 'room-nights', rate: 13000, total: 26000 },
+      { particular: 'Other approved charges: Honeymoon cake & floral bed decoration', qty: 1, unit: 'package', rate: 3000, total: 3000 },
+      { particular: 'Taxes (Hotel GST @ 12%)', qty: 1, unit: 'lot', rate: 3000, total: 3000 },
+    ],
+    's-455-h2': [
+      { particular: 'Hotel room charges (Cottage, 2 nights)', qty: 2, unit: 'room-nights', rate: 14000, total: 28000 },
+      { particular: 'Meal charges (Breakfast & dinner - MAP plan for 2)', qty: 2, unit: 'nights', rate: 2500, total: 5000 },
+      { particular: 'Taxes (Hotel GST @ 12%)', qty: 1, unit: 'lot', rate: 3000, total: 3000 },
+    ],
+    's-390-h': [
+      { particular: 'Hotel room charges (Family room, 5 nights)', qty: 5, unit: 'room-nights', rate: 18000, total: 90000 },
+      { particular: 'Extra bed charges (2 children, 5 nights)', qty: 5, unit: 'nights', rate: 2500, total: 12500 },
+      { particular: 'Meal charges (Daily breakfast for family of 4)', qty: 5, unit: 'nights', rate: 1500, total: 7500 },
+      { particular: 'Taxes & fees (Tourism Dirham fee & UAE VAT)', qty: 1, unit: 'lot', rate: 8000, total: 8000 },
+    ],
+    's-377-h1': [
+      { particular: 'Hotel room charges (2 Deluxe rooms × 3 nights)', qty: 6, unit: 'room-nights', rate: 7000, total: 42000 },
+      { particular: 'Meal charges (Breakfast & dinner - MAP plan)', qty: 6, unit: 'room-nights', rate: 1500, total: 9000 },
+      { particular: 'Taxes (Hotel GST @ 12%)', qty: 1, unit: 'lot', rate: 3000, total: 3000 },
+    ],
+    's-377-h2': [
+      { particular: 'Hotel room charges (2 rooms × 2 nights)', qty: 4, unit: 'room-nights', rate: 7500, total: 30000 },
+      { particular: 'Meal charges (Breakfast & dinner)', qty: 4, unit: 'room-nights', rate: 1500, total: 6000 },
+      { particular: 'Taxes (Hotel GST @ 12%)', qty: 1, unit: 'lot', rate: 2000, total: 2000 },
+    ],
+    's-547-t': [
+      { particular: 'Coach hire charges (2 × 20 seater Volvo coaches, return)', qty: 2, unit: 'coaches', rate: 16000, total: 32000 },
+      { particular: 'Other approved charges: Driver allowances, highway tolls & parking', qty: 2, unit: 'coaches', rate: 2000, total: 4000 },
+      { particular: 'Taxes (Transport GST @ 5%)', qty: 1, unit: 'lot', rate: 2000, total: 2000 },
+    ],
+    's-547-a': [
+      { particular: 'Camel safari & Sam dunes access (18 persons)', qty: 18, unit: 'pax', rate: 450, total: 8100 },
+      { particular: 'Other approved charges: Cultural Rajasthani folk program & evening snacks', qty: 18, unit: 'pax', rate: 250, total: 4500 },
+      { particular: 'Taxes (Activity GST @ 5%)', qty: 1, unit: 'lot', rate: 900, total: 900 },
+    ],
+  },
+
   /* ---------- Suppliers (Purchase register) ---------- */
   suppliers: {
     'sp-taj':          { name: 'Taj Holiday Village Resort and Spa', city: 'Goa', type: 'Hotel', verified: true, bank: 'approved', email: 'reservations.goa@tajhotels.example' },

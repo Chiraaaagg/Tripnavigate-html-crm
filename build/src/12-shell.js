@@ -21,7 +21,7 @@
     { href: '/app/deals', label: 'Deals', group: 'Work', icon: 'briefcase', roles: ALL },
     { href: '/app/quotations', label: 'Quotations', group: 'Work', icon: 'file-text', roles: ['sales', 'manager'] },
     { href: '/app/itineraries', label: 'Itineraries', group: 'Work', icon: 'map', roles: ['sales', 'manager'] },
-    { href: '/app/purchase', label: 'Purchase tasks', group: 'Work', icon: 'clipboard-list', roles: ['purchase', 'manager'] },
+    { href: '/app/purchase', label: 'Purchase tasks', group: 'Work', icon: 'clipboard-list', roles: ['purchase', 'manager', 'sales'] },
     { href: '/app/purchase/suppliers', label: 'Suppliers', group: 'Work', icon: 'building-2', roles: ['purchase', 'manager'] },
     { href: '/app/purchase/payments', label: 'Payment requests', group: 'Work', icon: 'wallet', roles: ['purchase'] },
     { href: '/app/flight', label: 'Flight tasks', group: 'Work', icon: 'plane', roles: ['flight'] },
