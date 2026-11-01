@@ -2,6 +2,10 @@
 
 This file records the major committed changes and the current uncommitted work in the repository.
 
+## 1 November 2026 — Cc on supplier e-mails
+
+- Ask for rates and Send booking request now have an optional Cc field (several addresses, comma separated). Cc goes into Open in e-mail app, Copy draft, the History record and View e-mail; wrong addresses are refused with the live error summary (`build/src/40-purchase.js`).
+
 ## 1 November 2026 — Purchase Work tab, round 2: rate tiles and the booking request on the final rate
 
 Owner’s notes on the Work tab of s-547-h:

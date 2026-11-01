@@ -12019,7 +12019,9 @@ TN.bookNow={stateFor:id=>STATES[id]||null};
       : `Dear Reservations team,\n\nPlease share your best rate and availability for:\n\n${lines.join('\n')}\n\nOur reference: ${s.deal}\n\nPlease include your cancellation terms and how long you can hold ${isHotelish(s) ? 'the rooms' : 'the booking'}.\n\nRegards,\n${who}\n${SENDER_SIGN}`;
     return { to: (TN.supplier(sid) || {}).email || '', subject, body };
   }
-  const mailtoHref = (to, subject, body) => `mailto:${encodeURIComponent(to || '').replace(/%40/g, '@')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const mailtoHref = (to, subject, body, cc) => `mailto:${encodeURIComponent(to || '').replace(/%40/g, '@')}?${cc ? `cc=${encodeURIComponent(cc).replace(/%40/g, '@')}&` : ''}subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  /** Cc: optional, several addresses separated by commas. */
+  const ccList = (v) => String(v || '').split(/[,;]/).map((x) => x.trim()).filter(Boolean);
   function openMail(el) {
     if (blockedClick(el)) return;
     const [id, s] = getTask(el);
@@ -12037,12 +12039,13 @@ TN.bookNow={stateFor:id=>STATES[id]||null};
     const inner = `${notice('info', '<p>The CRM does not send e-mails. Copy the draft or open it in your e-mail app, send it, then press Mark as sent.</p>')}
       ${supplierField}
       ${field('mail-to', 'To', `<input id="mail-to" type="email" inputmode="email" maxlength="254" required name="to" value="${esc(t.to)}" autocomplete="off"/>`)}
+      ${field('mail-cc', 'Cc (optional)', `<input id="mail-cc" aria-describedby="mail-cc-hint" type="text" inputmode="email" maxlength="500" name="cc" value="" autocomplete="off"/>`, 'For example the Sales owner or the Purchase team mailbox. Separate several addresses with commas.')}
       ${field('mail-subject', 'Subject', `<input id="mail-subject" maxlength="200" required name="subject" value="${esc(t.subject)}"/>`)}
       ${field('mail-body', 'Message', `<textarea id="mail-body" name="body" rows="14" maxlength="6000" required>${esc(t.body)}</textarea>`)}`;
     const foot = `<div class="flex flex-wrap justify-end gap-2"><button type="button" class="button secondary" data-act="pur-mail-copy">${ic('copy', 'size-4')}Copy draft</button><a class="button secondary" id="pur-mailto" href="${esc(mailtoHref(t.to, t.subject, t.body))}">${ic('external-link', 'size-4')}Open in e-mail app</a><button type="submit" form="pur-mail-form" class="button">${ic('check', 'size-4')}Mark as sent</button></div>`;
     TN.drawer({ title: kind === 'booking' ? 'Send booking request' : 'Ask for rates', description: `${s.title} · ${s.deal}`, body: drawerForm('pur-mail-form', 'pur-mail-sent', id, inner, ` data-kind="${kind}"`), footer: foot, wide: true });
     const form = document.getElementById('pur-mail-form');
-    const sync = () => { const fd = new FormData(form); const a = document.getElementById('pur-mailto'); if (a) a.href = mailtoHref(String(fd.get('to') || ''), String(fd.get('subject') || ''), String(fd.get('body') || '')); };
+    const sync = () => { const fd = new FormData(form); const a = document.getElementById('pur-mailto'); if (a) a.href = mailtoHref(String(fd.get('to') || ''), String(fd.get('subject') || ''), String(fd.get('body') || ''), ccList(fd.get('cc')).join(',')); };
     form.addEventListener('input', sync);
     const sel = form.querySelector('#mail-supplier');
     if (sel) sel.addEventListener('change', () => { form.querySelector('#mail-to').value = (TN.supplier(sel.value) || {}).email || ''; sync(); });
@@ -12052,7 +12055,8 @@ TN.bookNow={stateFor:id=>STATES[id]||null};
     const form = document.getElementById('pur-mail-form');
     if (!form) return;
     const fd = new FormData(form);
-    const text = `To: ${fd.get('to')}\nSubject: ${fd.get('subject')}\n\n${fd.get('body')}`;
+    const cc = ccList(fd.get('cc')).join(', ');
+    const text = `To: ${fd.get('to')}\n${cc ? `Cc: ${cc}\n` : ''}Subject: ${fd.get('subject')}\n\n${fd.get('body')}`;
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(text);
       else { const area = document.createElement('textarea'); area.value = text; form.appendChild(area); area.select(); const ok = document.execCommand('copy'); area.remove(); if (!ok) throw Error('copy'); }
@@ -12068,17 +12072,19 @@ TN.bookNow={stateFor:id=>STATES[id]||null};
     const f = new FormData(el);
     const sid = String(f.get('supplierId') || '');
     const to = String(f.get('to') || '').trim();
+    const cc = ccList(f.get('cc'));
     const subject = String(f.get('subject') || '').trim();
     const body = String(f.get('body') || '').trim();
     const items = [];
     if (!offerSuppliers(s).some(([k]) => k === sid) || (kind === 'booking' && sid !== s.supplier)) items.push('Choose the supplier.');
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) items.push('Enter the supplier’s e-mail address.');
+    if (cc.some((x) => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))) items.push('Check the Cc addresses. Separate them with commas.');
     if (!subject) items.push('Enter a subject.');
     if (!body) items.push('Enter the message.');
     const fin = kind === 'booking' ? finalTile(id) : null;
     if (kind === 'booking' && (!fin || String(f.get('rateId') || '') !== fin.id)) items.push('The final rate changed. Close this and send the booking request from the final rate again.');
     if (items.length) return refuse(el, ERR.invalid, items);
-    W[id].emails.push({ dir: 'out', kind, to, subject, body, supplier: sid, rateId: fin ? fin.id : null, amount: fin ? fin.amount : null, at: now(), by: meKey(), status: 'sent' });
+    W[id].emails.push({ dir: 'out', kind, to, cc, subject, body, supplier: sid, rateId: fin ? fin.id : null, amount: fin ? fin.amount : null, at: now(), by: meKey(), status: 'sent' });
     const what = kind === 'booking' ? 'Booking request' : 'Rate request';
     log(id, `${what} e-mailed to ${supName(sid)} (marked as sent)`, { mail: W[id].emails.length - 1, amount: fin ? fin.amount : null });
     TN.closeOverlay();
@@ -12090,7 +12096,7 @@ TN.bookNow={stateFor:id=>STATES[id]||null};
     const w = W[id];
     const e = w && w.emails[Number(el.dataset.idx)];
     if (!e || !TN.is('purchase', 'manager')) return;
-    TN.dialog({ title: e.subject || 'E-mail', description: `${e.kind === 'booking' ? 'Booking request' : 'Rate request'} · marked as sent`, body: `<div class="flex flex-col gap-3">${summary([['To', esc(e.to || '—')], ['Sent', `${esc(dt(e.at))} · ${esc(byWho(e.by))}`]])}<p class="m-0 whitespace-pre-wrap wrap-break-word rounded-control border border-line bg-canvas px-3.5 py-3 text-sm text-copy">${esc(e.body || '')}</p></div>`, footer: '<div class="flex justify-end"><button type="button" class="button secondary" data-close>Close</button></div>' });
+    TN.dialog({ title: e.subject || 'E-mail', description: `${e.kind === 'booking' ? 'Booking request' : 'Rate request'} · marked as sent`, body: `<div class="flex flex-col gap-3">${summary([['To', esc(e.to || '—')], ...(e.cc && e.cc.length ? [['Cc', esc(e.cc.join(', '))]] : []), ['Sent', `${esc(dt(e.at))} · ${esc(byWho(e.by))}`]])}<p class="m-0 whitespace-pre-wrap wrap-break-word rounded-control border border-line bg-canvas px-3.5 py-3 text-sm text-copy">${esc(e.body || '')}</p></div>`, footer: '<div class="flex justify-end"><button type="button" class="button secondary" data-close>Close</button></div>' });
   });
 
   // Seeded tasks: the rate request (and, once confirmed, the booking request) Purchase marked as sent.
