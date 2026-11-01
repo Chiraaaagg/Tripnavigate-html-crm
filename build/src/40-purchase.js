@@ -164,8 +164,8 @@
     bankHold: 'On hold until the Manager approves the new bank details.',
   };
   const ISSUE = {
-    missing_quote: 'Add at least one open supplier offer.',
-    missing_cost: 'Propose the cost you agreed with the supplier.',
+    missing_quote: 'Add at least one rate from the supplier.',
+    missing_cost: 'Choose a final rate.',
     cost_not_for_quote: 'The latest cost belongs to an offer that is no longer open. Propose the cost again for an open offer.',
     over_budget: 'The cost is above the approved Purchase budget. The manager of the deal’s branch must approve this cost version before the supplier confirmation can be recorded.',
     missing_confirmation: 'Upload the supplier’s confirmation email, saved as a PDF or a screenshot (JPG, PNG or WebP).',
@@ -290,40 +290,31 @@
     const quoted = Math.round((s.cost * 1.04) / 100) * 100;
     const oid = `o-${id}-1`;
     const f = FACTS[id];
-    const cust = TN.customer(deal.customer);
     const hotelish = s.kind === 'hotel' || s.kind === 'package';
-    const lines = hotelish
-      ? [`Hotel: ${s.title}`, `Check-in: ${date(s.start)}`, `Check-out: ${date(s.end)} (${plural(nights(s.start, s.end), 'night')})`, `Rooms: ${f ? `${f[0]} × ${f[1]}` : s.detail}`, `Meal plan: ${f ? f[2] : '—'}`, `Guests: ${travellers(deal)}`]
-      : [`Service: ${s.title}`, `Dates: ${s.start === s.end ? date(s.start) : `${date(s.start)} to ${date(s.end)}`}`, `Details: ${s.detail}`, `Guests: ${travellers(deal)}`];
-    if (f && f[4]) lines.push(`Special requests: ${f[4]}`);
-    const leadGuest = cust.business ? `${cust.contact} (${cust.name})` : cust.name;
-    const senderTitle = `${name(who)}\nPurchase, Holiday Chacha Pvt Ltd, Jodhpur`;
-
-    const source = (sup && sup.type === 'Destination company') ? 'supplier' : ((s.kind === 'hotel' || s.kind === 'package') ? 'hotel' : 'supplier');
-    const ourOfferAmt = quoted !== s.cost ? Math.round((s.cost * 0.96) / 100) * 100 : null;
+    const source = (sup && sup.type === 'Destination company') ? 'supplier' : (hotelish ? 'hotel' : 'supplier');
     const isDone = s.taskStatus === 'supplier_confirmed' || s.taskStatus === 'done';
-    const finalAmt = (isDone || quoted !== s.cost) ? s.cost : null;
     const partyName = s.kind === 'hotel' ? shortHotel(s.title) : (sup ? sup.name : s.title);
-    const rates = [{ kind: 'hotel_said', amount: quoted, at: `${d1} 10:40`, by: who, party: partyName }];
-    if (ourOfferAmt) rates.push({ kind: 'we_offered', amount: ourOfferAmt, at: `${d1} 11:05`, by: who, party: partyName });
     const finalAt = isDone ? `${nextDay(d1, 1)} 10:00` : `${d1} 11:30`;
-    if (finalAmt) rates.push({ kind: 'final_agreed', amount: finalAmt, at: finalAt, by: who, party: partyName, remark: ourOfferAmt ? 'Came down after our offer.' : '' });
-    w.offers.push({ id: oid, supplier: s.supplier, hotel: s.kind === 'hotel' ? shortHotel(s.title) : s.title, room: f ? f[1] : '', meal: f ? f[2] : '', price: quoted, ourOffer: ourOfferAmt, finalRate: finalAmt, source, rates, hold: s.kind === 'hotel' ? nextDay(d1, 5) : null, cancel: s.kind === 'hotel' ? 'Free cancellation until 15 days before arrival. 50% charge after that; no refund inside 3 days.' : 'Free cancellation until 48 hours before pick-up.', status: 'open', at: `${d1} 10:40`, by: who });
-    w.history.push({ text: `${hotelish ? 'Hotel' : 'Supplier'} quoted a price (${sup.name})`, at: `${d1} 10:40`, by: who });
-    if (ourOfferAmt) w.history.push({ text: `We made an offer to ${sup.name}`, at: `${d1} 11:05`, by: who });
+    // One tile per rate the supplier gave: a first quote, (Suryagarh) a revised quote, then the rate chosen as final.
+    const quotes = [{ id: `rate-${id}-q1`, amount: quoted, at: `${d1} 10:40`, remark: '' }];
+    if (id === 's-547-h') quotes.push({ id: `rate-${id}-q2`, amount: 231500, at: `${d1} 11:10`, remark: 'Revised after our call.' });
+    quotes.push({ id: `rate-${id}-q${quotes.length + 1}`, amount: s.cost, at: `${d1} 11:25`, remark: 'Best rate after negotiation.' });
+    const rates = quotes.map((q) => ({ ...q, kind: 'hotel_said', by: who, party: partyName }));
+    const finalQ = quotes[quotes.length - 1];
+    rates.push({ id: `rate-${id}-final`, kind: 'final_agreed', amount: finalQ.amount, chosenRateId: finalQ.id, at: finalAt, by: who, party: partyName, remark: '' });
+    w.offers.push({ id: oid, supplier: s.supplier, hotel: s.kind === 'hotel' ? shortHotel(s.title) : s.title, room: f ? f[1] : '', meal: f ? f[2] : '', price: finalQ.amount, ourOffer: null, finalRate: finalQ.amount, source, rates, hold: s.kind === 'hotel' ? nextDay(d1, 5) : null, cancel: s.kind === 'hotel' ? 'Free cancellation until 15 days before arrival. 50% charge after that; no refund inside 3 days.' : 'Free cancellation until 48 hours before pick-up.', status: 'open', at: `${d1} 10:40`, by: who });
+    quotes.forEach((q) => w.history.push({ text: `Rate added: ${sup.name}`, at: q.at, by: who, amount: q.amount, note: q.remark }));
 
-    // Cost versions come only from a final agreed price (append-only).
-    if (finalAmt) {
-      w.costs.push({ v: 1, stage: 'proposed', amount: finalAmt, offer: oid, due: s.start ? nextDay(s.start, -7) : null, note: ourOfferAmt ? 'Came down after our offer.' : 'Final agreed price', at: finalAt, by: who });
-      w.history.push({ text: `Final price agreed with ${sup.name}`, at: finalAt, by: who });
-    }
+    // Cost versions come only from the rate chosen as final (append-only).
+    w.costs.push({ v: 1, stage: 'proposed', amount: finalQ.amount, offer: oid, rateId: finalQ.id, choiceId: `rate-${id}-final`, due: s.start ? nextDay(s.start, -7) : null, note: finalQ.remark || 'Final rate', at: finalAt, by: who });
+    w.history.push({ text: `Final rate chosen: ${sup.name}`, at: finalAt, by: who, amount: finalQ.amount });
     w.files.push({ id: `f-${id}-q`, kind: 'quote', name: `${s.supplier.replace('sp-', '')}-quote.pdf`, size: '182 KB', at: `${d1} 10:42`, by: who, state: 'stored' });
     w.history.push({ text: 'File added', at: `${d1} 10:42`, by: who });
     if (s.taskStatus === 'supplier_confirmed' || s.taskStatus === 'done') {
       const d2 = nextDay(d1, 1);
       w.files.push({ id: `f-${id}-c`, kind: 'supplier_confirmation', name: `${s.supplier.replace('sp-', '')}-confirmation.pdf`, size: '96 KB', at: `${d2} 11:55`, by: who, state: 'stored' });
       w.history.push({ text: 'File added', at: `${d2} 11:55`, by: who });
-      w.costs.push({ v: w.costs.length + 1, stage: 'committed', amount: s.cost, offer: oid, due: s.start ? nextDay(s.start, -7) : null, note: '', at: `${d2} 12:00`, by: who });
+      w.costs.push({ v: w.costs.length + 1, stage: 'committed', amount: s.cost, offer: oid, rateId: finalQ.id, due: s.start ? nextDay(s.start, -7) : null, note: '', at: `${d2} 12:00`, by: who });
       w.offers[0].status = 'selected';
       w.confirmedAt = `${d2} 12:00`; w.confirmedBy = who;
       if (!s.hotelConfirmationNo) s.hotelConfirmationNo = s.confirmationNo;
@@ -332,7 +323,7 @@
       if (!s.hotelConfirmedPhone) s.hotelConfirmedPhone = ex[1] || '';
       if (!s.supplierConfirmedBy) s.supplierConfirmedBy = ex[0] || '';
       if (!s.supplierConfirmedPhone) s.supplierConfirmedPhone = ex[1] || '';
-      w.history.push({ text: 'Supplier confirmation recorded; the agreed price is locked', at: `${d2} 12:00`, by: who });
+      w.history.push({ text: `Supplier confirmation recorded (${s.confirmationNo}); the final rate is locked`, at: `${d2} 12:00`, by: who, amount: s.cost });
     }
   }
   Object.entries(D.services).forEach(([id, s]) => { if (s.dept === 'purchase') seed(id, s); });
@@ -342,7 +333,9 @@
     if (!w) return;
     const why = 'Cottages are in peak season; the hotel will not go lower. Breakfast and dinner included.';
     Object.assign(w.costs[0], { due: '2026-11-13', note: why });
-    w.offers[0].rates.filter((r) => r.kind === 'final_agreed').forEach((r) => { r.remark = why; });
+    const tile = w.offers[0].rates.find((r) => r.id === w.costs[0].rateId);
+    if (tile) tile.remark = why;
+    w.history.filter((h) => h.amount === 38400 && /^Rate added/.test(h.text)).forEach((h) => { h.note = why; });
   })();
   // Kashmir cab and Goa cab: Purchase added a second, withdrawn offer, as in live use.
   if (W['s-412-t']) W['s-412-t'].offers.push({ id: 'o-s-412-t-2', supplier: 'sp-goacabs', hotel: 'Airport transfers, Goa', room: 'Tempo Traveller', meal: '', price: 8200, hold: null, cancel: '', status: 'withdrawn', note: 'Above the approved budget.', at: '2026-10-20 11:05', by: 'purchase' });
@@ -366,15 +359,15 @@
   }
 
   // Static preview persistence, local to this browser/origin; not a database.
-  const PURCHASE_STORE = 'tripnavigate.purchase.v3'; // v3: one negotiation log (1 Nov 2026); older saved states are dropped
+  const PURCHASE_STORE = 'tripnavigate.purchase.v4'; // v4: rate tiles, everything in History (1 Nov 2026); older saved states are dropped
   function persistPurchase() {
     const services = Object.fromEntries(Object.keys(W).map((id) => [id, D.services[id]]));
-    localStorage.setItem(PURCHASE_STORE, JSON.stringify({ version: 3, work: W, services,
+    localStorage.setItem(PURCHASE_STORE, JSON.stringify({ version: 4, work: W, services,
       suppliers: D.suppliers, payments: D.supplierPayments }));
   }
   try {
     const saved = JSON.parse(localStorage.getItem(PURCHASE_STORE) || 'null');
-    if (saved?.version === 3 && saved.work && saved.services) {
+    if (saved?.version === 4 && saved.work && saved.services) {
       for (const [id, w] of Object.entries(saved.work)) {
         if (!W[id] || !Array.isArray(w.offers) || !Array.isArray(w.costs) || !Array.isArray(w.files) || !Array.isArray(w.history) || !w.approvals || saved.services[id]?.deal !== D.services[id].deal) continue;
         if (w.offers.some((o) => (o.rates || []).some((r) => r.task && r.task !== id))) continue;
@@ -413,8 +406,10 @@
   };
 
   // Sort history newest first when shown.
-  const historyOf = (id) => (W[id] ? W[id].history.slice().sort((a, b) => (a.at < b.at ? 1 : -1)) : []);
-  const log = (id, text) => { if (W[id]) W[id].history.push({ text, at: now(), by: meKey() }); };
+  // Newest first; entries in the same minute keep their order (the later step first).
+  const historyOf = (id) => (W[id] ? W[id].history.map((e, i) => ({ ...e, i })).sort((a, b) => String(b.at).localeCompare(String(a.at)) || b.i - a.i) : []);
+  /** History entry; extra = { amount, perNight, was, note, mail } shown to those who may see supplier prices. */
+  const log = (id, text, extra) => { if (W[id]) W[id].history.push({ text, at: now(), by: meKey(), ...(extra || {}) }); };
   const pushNotice = (to, text, deal, href) => { D.notices.unshift({ id: uid('n'), to, kind: 'notice', text, deal, href, at: now() }); };
 
   /* ---------- Task-level derived state ---------- */
@@ -530,10 +525,10 @@
     if (overBudgetWaiting(id, s)) return `<span class="font-semibold text-ink">Next:</span> ${TN.is('manager') ? 'you approve or return the price above budget on the Work tab' : 'the Branch Manager approves the price above budget'}`;
     if (s.assignee !== meKey()) return `<span class="font-semibold text-ink">Next:</span> ${esc(name(s.assignee))} works on this task`;
     const is = issues(id, s);
-    if (is.includes('missing_quote')) return `<span class="font-semibold text-ink">Next:</span> ask ${isHotelish(s) ? 'the hotel' : 'the supplier'} for rates and add the price to the negotiation log`;
-    if (is.includes('missing_cost')) return '<span class="font-semibold text-ink">Next:</span> record the final agreed price in Rate negotiation';
+    if (is.includes('missing_quote')) return `<span class="font-semibold text-ink">Next:</span> ask ${isHotelish(s) ? 'the hotel' : 'the supplier'} for rates and add each rate in Rate negotiation`;
+    if (is.includes('missing_cost')) return '<span class="font-semibold text-ink">Next:</span> choose the final rate in Rate negotiation';
     if (is.includes('go_ahead')) return '<span class="font-semibold text-ink">Next:</span> wait for the Accounts go-ahead, then send the booking request';
-    if (!W[id].emails.some((e) => e.kind === 'booking')) return '<span class="font-semibold text-ink">Next:</span> send the booking request, then record the supplier’s confirmation';
+    if (!bookingSentFor(id).length) return '<span class="font-semibold text-ink">Next:</span> send the booking request from the final rate, then record the supplier’s confirmation';
     return '<span class="font-semibold text-ink">Next:</span> record the supplier’s confirmation';
   }
   function internalLine(id, s) {
@@ -763,8 +758,17 @@
 
   function historyTab(id) {
     const h = historyOf(id);
-    const items = h.map((e) => ({ state: 'done', title: esc(e.text), sub: `${esc(dt(e.at))}${e.by ? ` · by ${esc(byWho(e.by))}` : ''}` }));
-    return card('task-history-heading', 'History', 'What happened on this task. No amounts are shown here.', h.length ? tl(items, 'Task history, newest first') : '<p class="m-0 text-quiet">Nothing has happened on this task yet.</p>', { h: 'h2' }).replace('px-4.5 py-4 flex flex-col gap-4', 'px-4.5 py-4');
+    const prices = TN.can('seeSupplierCost'); // Sales can open History but never sees supplier prices
+    const w = W[id];
+    const items = h.map((e) => {
+      const lines = [];
+      if (prices && e.amount != null) lines.push(`<p class="m-0 text-sm text-copy tabular-nums">${money(e.amount)}${e.perNight ? ` · ${money(e.perNight)} per room per night` : ''}${e.was != null ? ` · was ${money(e.was)}` : ''}</p>`);
+      if (prices && e.note) lines.push(`<p class="m-0 text-sm text-copy wrap-break-word">${esc(e.note)}</p>`);
+      if (prices && e.mail != null && w.emails[e.mail]) lines.push(`<button type="button" class="${C.btnSmall} mt-1.5" data-act="pur-view-email" data-id="${id}" data-idx="${e.mail}">${ic('mail', 'size-4')}View e-mail</button>`);
+      return { state: 'done', title: esc(e.text), sub: `${esc(dt(e.at))}${e.by ? ` · by ${esc(byWho(e.by))}` : ''}`, extra: lines.join('') };
+    });
+    const sub = prices ? 'Everything that happened on this task, newest first: rates, final rate, e-mails, Manager decisions and confirmation.' : 'What happened on this task, newest first. Supplier prices are not shown here.';
+    return card('task-history-heading', 'History', sub, h.length ? tl(items, 'Task history, newest first') : '<p class="m-0 text-quiet">Nothing has happened on this task yet.</p>', { h: 'h2' }).replace('px-4.5 py-4 flex flex-col gap-4', 'px-4.5 py-4');
   }
 
   /* ---------- Work tab ---------- */
@@ -784,7 +788,7 @@
   function workCostIssue(id, s) {
     const c = latestCost(id);
     const o = c && W[id].offers.find((x) => x.id === c.offer && x.status !== 'withdrawn');
-    if (!c || !o || o.supplier !== s.supplier) return 'Record the final agreed price in Rate negotiation first.';
+    if (!c || !o || o.supplier !== s.supplier) return 'Choose a final rate in Rate negotiation first.';
     if (s.budget == null) return 'The budget must be set before booking or asking for a payment.';
     if (overBudgetWaiting(id, s)) return ISSUE.over_budget;
     return '';
@@ -800,12 +804,13 @@
     if (s.goAhead === 'refused') return ISSUE.go_ahead_refused;
     if (needsGoAhead(s)) return 'Waiting for the Accounts go-ahead. Accounts approves every hotel commitment before you book.';
     const c = latestCost(id);
-    if (!c) return 'Record the final agreed price in Rate negotiation first.';
+    if (!c) return 'Choose a final rate in Rate negotiation first.';
     const w = W[id];
     if (w.costReturned && w.costReturned.v === c.v && !w.approvals[c.v]) return `The Branch Manager did not approve this price: “${w.costReturned.reason}”. Agree a new price with the supplier.`;
     if (overBudgetWaiting(id, s)) return 'The agreed price is above the budget. Waiting for the Branch Manager to approve it.';
     const cost = workCostIssue(id, s);
     if (cost) return cost;
+    if (action === 'confirm' && !w.emails.some((e) => e.kind === 'booking' && e.dir !== 'in' && e.rateId === c.rateId)) return 'Send the booking request for the final rate first.';
     if (action === 'pay' && s.supplier && bankBlocked(s.supplier)) return ERR.bankHold;
     return '';
   }
@@ -832,7 +837,7 @@
   function purchaseProgress(id, s, w) {
     const records = rateRecords(id);
     const agreedCost = latestCost(id);
-    const final = agreedCost && records.filter((r) => r.kind === 'final_agreed' && r.offer.id === agreedCost.offer && r.amount === agreedCost.amount && (!agreedCost.rateId || r.id === agreedCost.rateId)).slice(-1)[0];
+    const final = agreedCost && records.find((r) => r.id === agreedCost.rateId);
     const payments = D.supplierPayments.filter((p) => p.service === id && p.supplier === s.supplier && (p.status === 'paid' || p.status === 'verified'));
     const paidTotal = payments.reduce((total, p) => total + p.amount, 0);
     const step1Done = !!s.assignee;
@@ -866,30 +871,18 @@
     }).join('')}</ol></div>`;
   }
 
-  /* Hotel (or service) summary: the full Sales breakup, the special request, and the two e-mails. */
+  /* Hotel (or service) summary: the full Sales breakup and the special request. No actions here:
+     "Ask for rates" lives in Rate negotiation, "Send booking request" on the final-rate tile. */
   function bookingSummaryCard(id, s, deal, w) {
-    const purchaseSide = TN.is('purchase');
     const title = isHotelish(s) ? `${shortHotel(s.title)} · ${(s.title.split(',')[1] || deal.destination).trim()}` : s.title;
-    const rateBlock = blockReason(id, s, 'rate');
-    const bookBlock = blockReason(id, s, 'booking');
-    const sentBooking = w.emails.some((e) => e.kind === 'booking' && e.dir !== 'in');
-    let actions = '';
-    if (purchaseSide && !isConfirmed(s) && s.taskStatus !== 'cancelled') {
-      const shared = rateBlock && rateBlock === bookBlock;
-      actions = `<div class="flex flex-col gap-2"><div class="flex flex-wrap gap-2">
-        <button type="button" class="button secondary" data-act="pur-mail" data-id="${id}" data-kind="rate"${btnState(shared ? 'mail' : 'rate', rateBlock)}>${ic('mail', 'size-4')}Ask for rates</button>
-        <button type="button" class="button" data-act="pur-mail" data-id="${id}" data-kind="booking"${btnState(shared ? 'mail' : 'booking', bookBlock)}>${ic('send', 'size-4')}${sentBooking ? 'Send booking request again' : 'Send booking request'}</button>
-      </div>${shared ? blockNotice('mail', rateBlock) : `${blockNotice('rate', rateBlock)}${bookBlock ? blockNotice('booking', `Send booking request: ${bookBlock}`) : ''}`}</div>`;
-    }
     const right = isConfirmed(s) ? badge('success', 'circle-check', 'Booked and confirmed', 'Booking') : badge('info', 'circle-play', 'Not booked yet', 'Booking');
-    return card('work-summary', title, `${typeLabel(s)} for ${esc(s.deal)}. Exactly what Sales entered in Book now.`, `${bookedBody(id, s, deal)}${actions}`, { right });
+    return card('work-summary', title, `${typeLabel(s)} for ${esc(s.deal)}. Exactly what Sales entered in Book now.`, bookedBody(id, s, deal), { right });
   }
   const typeLabel = (s) => (KIND[s.kind] || KIND.hotel)[0];
 
-  /* ---------- Rate negotiation: one summary line, one form, one log ---------- */
-  const LOG_KIND = { quoted: 'hotel_said', offered: 'we_offered', agreed: 'final_agreed' };
+  /* ---------- Rate negotiation: summary line, "Add rate" form, one tile per rate ---------- */
   const quotedWord = (s) => (isHotelish(s) ? 'Hotel quoted' : 'Supplier quoted');
-  const rateWord = (s, kind) => ({ hotel_said: quotedWord(s), supplier_revised: quotedWord(s), we_offered: 'We offered', final_agreed: 'Final agreed' }[kind] || kind);
+  const QUOTE_KINDS = ['hotel_said', 'supplier_revised'];
   const offerSuppliers = (s) => Object.entries(D.suppliers).filter(([, x]) => x.type !== 'Airline' && x.status === 'active' && (x.services || []).includes(s.kind === 'package' ? 'hotel' : s.kind));
   /** Suppliers worth listing for this task: those in its city or destination, plus any already used. */
   const nearSuppliers = (id, s) => {
@@ -900,99 +893,105 @@
     return near.length ? near : all;
   };
   const cap = (text) => String(text).charAt(0).toUpperCase() + String(text).slice(1);
-  /** Newest-first log: prices, e-mails marked as sent, Manager decisions, confirmation. */
-  function negotiationLog(id, s) {
-    const w = W[id];
-    const out = rateRecords(id).map((r) => ({ at: r.at, by: r.by, kind: r.kind, title: `<strong>${esc(rateWord(s, r.kind))}</strong> · <span class="tabular-nums">${money(r.amount)}</span>`, sub: supName(r.offer.supplier), note: r.remark, perNight: r.perNight }));
-    w.emails.forEach((e, idx) => {
-      if (e.dir === 'in' || (e.kind !== 'rate' && e.kind !== 'booking')) return;
-      out.push({ at: e.at, by: e.by, kind: 'mail', title: `<strong>${e.kind === 'booking' ? 'Booking request e-mailed' : 'Rate request e-mailed'}</strong>`, sub: `to ${esc(e.to || supName(e.supplier))}`, extra: `<button type="button" class="${C.btnSmall} mt-1.5" data-act="pur-view-email" data-id="${id}" data-idx="${idx}">${ic('mail', 'size-4')}View e-mail</button>` });
-    });
-    Object.entries(w.approvals || {}).forEach(([v, a]) => {
-      if (a.carriedFrom) return;
-      const c = w.costs.find((x) => String(x.v) === String(v));
-      if (c && c.stage === 'proposed') out.push({ at: a.at, by: a.by, kind: 'approved', title: `<strong>Branch Manager approved the price above budget</strong> · <span class="tabular-nums">${money(c.amount)}</span>` });
-    });
-    if (w.costReturned) { const c = w.costs.find((x) => x.v === w.costReturned.v); out.push({ at: w.costReturned.at, by: 'manager', kind: 'returned', title: `<strong>Branch Manager did not approve the price</strong>${c ? ` · <span class="tabular-nums">${money(c.amount)}</span>` : ''}`, note: w.costReturned.reason }); }
-    const committed = w.costs.filter((c) => c.stage === 'committed').slice(-1)[0];
-    if (isConfirmed(s) && committed) out.push({ at: w.confirmedAt || committed.at, by: w.confirmedBy || committed.by, kind: 'locked', title: `<strong>Supplier confirmed · price locked</strong> · <span class="tabular-nums">${money(committed.amount)}</span>` });
-    // Newest first; within the same minute the later step (approval, confirmation) comes first.
-    return out.map((e, i) => ({ ...e, i })).sort((a, b) => String(b.at).localeCompare(String(a.at)) || b.i - a.i);
+  /** The rates Purchase added (one tile each), oldest first. */
+  const rateTiles = (id) => rateRecords(id).filter((r) => QUOTE_KINDS.includes(r.kind));
+  /** The tile chosen as the final rate (the latest cost version points at it). */
+  const finalTile = (id) => { const lc = latestCost(id); return lc ? rateTiles(id).find((r) => r.id === lc.rateId) || null : null; };
+  /** Booking requests marked as sent for the current final rate. */
+  const bookingSentFor = (id) => { const lc = latestCost(id); return lc ? W[id].emails.filter((e) => e.kind === 'booking' && e.dir !== 'in' && e.rateId === lc.rateId) : []; };
+  const budgetBadge = (amount, s, approved) => {
+    if (amount == null || s.budget == null) return '';
+    const d = amount - s.budget;
+    if (d > 0) return approved ? badge('info', 'circle-check', `${rupees(d)} over budget · approved`, 'Budget') : badge('warning', 'triangle-alert', `${rupees(d)} over budget`, 'Budget');
+    return badge('success', 'circle-check', d < 0 ? `${rupees(-d)} under budget` : 'At budget', 'Budget');
+  };
+  function rateTile(id, s, w, r, opts) {
+    const lc = latestCost(id);
+    const isFinal = opts.final && opts.final.id === r.id;
+    const confirmed = isConfirmed(s);
+    const approved = isFinal && lc && !!w.approvals[lc.v];
+    const head = `<div class="flex flex-wrap items-start justify-between gap-2"><p class="m-0 min-w-0 font-semibold text-ink wrap-anywhere">${esc(supName(r.offer.supplier))}</p>${isFinal ? badge('success', confirmed ? 'lock' : 'badge-check', confirmed ? 'Final rate · locked' : 'Final rate', 'Rate') : ''}</div>`;
+    const amounts = `<p class="m-0 text-lg font-semibold text-ink tabular-nums">${money(r.amount)}</p>${r.perNight ? `<p class="m-0 text-sm text-copy tabular-nums">${money(r.perNight)} per room per night</p>` : ''}`;
+    const note = r.remark ? `<p class="m-0 text-sm text-copy wrap-break-word">${esc(r.remark)}</p>` : '';
+    const meta = `<p class="m-0 text-sm text-quiet">Added by ${esc(byWho(r.by))} · ${esc(dt(r.at))}</p>`;
+    let actions = '';
+    if (!isFinal && opts.mine) {
+      actions = `<form novalidate aria-label="Use ${esc(money(r.amount))} as the final rate" data-act="pur-final" data-id="${id}" data-rate="${esc(r.id)}">${slot('final-' + r.id)}<button type="submit" class="button secondary">Use as final rate</button></form>`;
+    } else if (isFinal && !confirmed && s.taskStatus !== 'cancelled') {
+      // Manager decision on a price above budget, on the tile itself (live refusal: nobody approves their own price).
+      if (lc && overBudgetWaiting(id, s)) {
+        const returned = w.costReturned && w.costReturned.v === lc.v;
+        if (returned) actions += notice('danger', `<p>The Branch Manager did not approve this price: “${esc(w.costReturned.reason)}”. Use another rate, or ask Sales to raise the budget.</p>`, 'Price not approved');
+        else if (TN.is('manager')) actions += notice('warning', `<p>${rupees(lc.amount - s.budget)} above the budget of ${money(s.budget)}. Approve it if you agree.</p><form novalidate aria-label="Approve the price above budget" data-act="pur-approve-cost" data-id="${id}" data-v="${lc.v}">${slot('approve')}<p id="approve-cost-help" class="hint mb-0">Approves only this price. A newer final rate needs a new approval. Nothing is paid.</p><button type="submit" class="button" aria-describedby="approve-cost-help">Approve this price above budget</button></form><p class="m-0 text-sm">To return it with a reason, use <a class="${C.rowLink}" href="#/app/approvals">Approvals</a>.</p>`, 'Above the budget');
+        else actions += notice('warning', `<p>${rupees(lc.amount - s.budget)} above the budget. The Branch Manager must approve it before you book.</p>`, 'Waiting for the Branch Manager');
+      } else if (TN.is('manager') && flash && flash.key === 'approve') actions += msgHtml(true, flash.text);
+      if (TN.is('purchase')) {
+        const sent = bookingSentFor(id);
+        if (!sent.length) {
+          const why = blockReason(id, s, 'booking');
+          actions += `<div class="flex flex-col gap-2"><div><button type="button" class="button" data-act="pur-mail" data-id="${id}" data-kind="booking" data-rate="${esc(r.id)}"${btnState('booking', why)}>${ic('send', 'size-4')}Send booking request</button></div>${blockNotice('booking', why)}</div>`;
+        } else {
+          const why = blockReason(id, s, 'confirm');
+          actions += `<p class="m-0 text-sm text-copy">Booking request sent ${esc(dt(sent[sent.length - 1].at))}. Next: record the supplier’s confirmation.</p><div class="flex flex-col gap-2"><div class="flex flex-wrap gap-2"><button type="button" class="button" aria-haspopup="dialog" data-act="pur-open-confirm"${btnState('confirm', why)}>Record supplier confirmation</button><button type="button" class="button secondary" data-act="pur-mail" data-id="${id}" data-kind="booking" data-rate="${esc(r.id)}"${btnState('booking', blockReason(id, s, 'booking'))}>Send booking request again</button></div>${blockNotice('confirm', why)}</div>${why ? '' : confirmDialog(id, s, w.files.filter((f) => f.kind === 'supplier_confirmation' && f.state === 'stored').slice(-1)[0])}`;
+        }
+      }
+    } else if (isFinal && confirmed) {
+      actions = `<p class="m-0 text-sm text-copy">Confirmed: ${esc(s.hotelConfirmationNo || s.confirmationNo || '—')}.</p>`;
+    }
+    const tone = isFinal ? 'border-brand-line bg-brand-tint' : 'border-line bg-canvas';
+    return `<li class="m-0 flex min-w-0 flex-col gap-2 rounded-control border px-3.5 py-3 ${tone}"${isFinal ? ' aria-current="true"' : ''}>${head}${amounts}${budgetBadge(r.amount, s, approved) ? `<div>${budgetBadge(r.amount, s, approved)}</div>` : ''}${note}${meta}${actions}</li>`;
   }
   function negotiationCard(id, s, w) {
     const mine = canWork(s);
-    const mgr = TN.is('manager');
-    const records = rateRecords(id);
-    const lastOf = (kinds) => records.filter((r) => kinds.includes(r.kind) && (!s.supplier || r.offer.supplier === s.supplier)).slice(-1)[0] || records.filter((r) => kinds.includes(r.kind)).slice(-1)[0];
-    const quoted = lastOf(['hotel_said', 'supplier_revised']);
-    const offered = lastOf(['we_offered']);
+    const tiles = rateTiles(id);
+    const final = finalTile(id);
     const lc = latestCost(id);
-    const compare = lc ? lc.amount : quoted ? quoted.amount : null;
-    let gap = '';
-    if (compare != null && s.budget != null) {
-      const d = compare - s.budget;
-      const what = lc ? '' : ' (latest quote)';
-      gap = d > 0 && lc && w.approvals[lc.v] ? badge('info', 'circle-check', `${rupees(d)} over budget · approved by the Branch Manager`, 'Budget') : d > 0 ? badge('warning', 'triangle-alert', `${rupees(d)} over budget${what}`, 'Budget') : d < 0 ? badge('success', 'circle-check', `${rupees(-d)} under budget${what}`, 'Budget') : badge('success', 'circle-check', `At budget${what}`, 'Budget');
-    }
+    const lowest = tiles.reduce((m, r) => (!m || r.amount < m.amount ? r : m), null);
     const cell = (k, v, sub) => `<div class="min-w-0"><dt class="text-sm font-medium text-quiet">${k}</dt><dd class="m-0 font-semibold text-ink tabular-nums">${v}</dd>${sub ? `<dd class="m-0 text-sm text-quiet">${sub}</dd>` : ''}</div>`;
-    const sumLine = `<div class="flex flex-col gap-2.5"><dl class="m-0 grid grid-cols-2 gap-x-4 gap-y-3 lg:grid-cols-4">${cell('Budget', s.budget != null ? money(s.budget) : 'Not set')}${cell(`Latest ${isHotelish(s) ? 'hotel' : 'supplier'} price`, quoted ? money(quoted.amount) : '—', quoted ? esc(supName(quoted.offer.supplier)) : '')}${cell('Our last offer', offered ? money(offered.amount) : '—')}${cell('Agreed price', lc ? money(lc.amount) : 'Not agreed yet', lc ? (lc.stage === 'committed' ? 'Locked by the supplier’s confirmation' : esc(supName((w.offers.find((o) => o.id === lc.offer) || {}).supplier))) : '')}</dl>${gap ? `<div>${gap}</div>` : ''}</div>`;
-
-    // Manager approval above budget (live refusal: nobody approves their own price).
-    let approval = '';
-    if (!isConfirmed(s) && lc && overBudgetWaiting(id, s)) {
-      const returned = w.costReturned && w.costReturned.v === lc.v;
-      if (returned) approval = notice('danger', `<p>The Branch Manager did not approve ${money(lc.amount)}: “${esc(w.costReturned.reason)}”. Agree a new price with the supplier, or ask Sales to raise the budget.</p>`, 'Price not approved');
-      else if (mgr) approval = notice('warning', `<p>The agreed price ${money(lc.amount)} is ${rupees(lc.amount - s.budget)} above the budget of ${money(s.budget)}. Approve it if you agree.</p><form novalidate aria-label="Approve the price above budget" data-act="pur-approve-cost" data-id="${id}" data-v="${lc.v}">${slot('approve')}<p id="approve-cost-help" class="hint mb-0">Approves only this price. A newer price needs a new approval. Nothing is paid.</p><button type="submit" class="button" aria-describedby="approve-cost-help">Approve this price above budget</button></form><p class="m-0 text-sm">To return it with a reason, use <a class="${C.rowLink}" href="#/app/approvals">Approvals</a>.</p>`, 'Above the budget');
-      else approval = notice('warning', `<p>The agreed price ${money(lc.amount)} is ${rupees(lc.amount - s.budget)} above the budget. The Branch Manager must approve it before you book.</p>`, 'Waiting for the Branch Manager');
-    } else if (mgr && flash && flash.key === 'approve') approval = msgHtml(true, flash.text);
-
+    const compare = lc ? lc.amount : lowest ? lowest.amount : null;
+    const gap = budgetBadge(compare, s, lc && !!w.approvals[lc.v]);
+    const sumLine = `<div class="flex flex-col gap-2.5"><dl class="m-0 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">${cell('Budget', s.budget != null ? money(s.budget) : 'Not set')}${cell('Lowest rate', lowest ? money(lowest.amount) : '—', lowest ? esc(supName(lowest.offer.supplier)) : '')}${cell('Final rate', lc ? money(lc.amount) : 'Not chosen yet', lc ? (lc.stage === 'committed' ? 'Locked by the supplier’s confirmation' : esc(supName((w.offers.find((o) => o.id === lc.offer) || {}).supplier))) : '')}</dl>${gap ? `<div class="flex flex-wrap items-center gap-2">${gap}${lc ? '' : '<span class="text-sm text-quiet">compared with the lowest rate</span>'}</div>` : ''}</div>`;
+    let ask = '';
+    if (TN.is('purchase') && !isConfirmed(s) && s.taskStatus !== 'cancelled') {
+      const why = blockReason(id, s, 'rate');
+      ask = `<div class="flex flex-col gap-2"><div><button type="button" class="button secondary" data-act="pur-mail" data-id="${id}" data-kind="rate"${btnState('rate', why)}>${ic('mail', 'size-4')}Ask for rates</button></div>${blockNotice('rate', why)}</div>`;
+    }
     let form = '';
     if (mine) {
       const sups = nearSuppliers(id, s);
       const def = s.supplier || (sups[0] && sups[0][0]);
       const b = isHotelish(s) ? TN.hotelBreakup(id) : null;
-      const kinds = [['quoted', quotedWord(s)], ['offered', 'We offered'], ['agreed', 'Final agreed']];
-      form = `<form novalidate aria-label="Add to the negotiation log" data-act="pur-log-add" data-id="${id}" class="flex flex-col gap-1 border-t border-line pt-4">${slot('log')}
-        <fieldset class="group fin-modes"><legend>What happened?</legend><div class="fin-segment">${kinds.map(([k, l], i) => `<label class="fin-segment-option${i === 0 ? ' is-selected' : ''}"><input type="radio" name="kind" value="${k}"${i === 0 ? ' checked' : ''} data-change="pur-log-kind"/><span class="fin-segment-label">${esc(l)}</span></label>`).join('')}</div></fieldset>
+      form = `<form novalidate aria-label="Add a rate" data-act="pur-rate-add" data-id="${id}" class="flex flex-col gap-1 border-t border-line pt-4">${slot('log')}
         <div class="form-grid">
           ${field('log-supplier', 'Supplier', `<select id="log-supplier" name="supplierId" required>${sups.map(([k, x]) => `<option value="${k}"${k === def ? ' selected' : ''}>${esc(x.name)}${x.city && !x.name.includes(x.city) ? ` · ${esc(x.city)}` : ''}</option>`).join('')}</select>`)}
           ${field('log-amount', isHotelish(s) ? 'Amount for the whole stay (₹)' : 'Total amount (₹)', '<input id="log-amount" name="amountRupees" inputmode="decimal" autocomplete="off" required aria-describedby="log-amount-hint"/>', isHotelish(s) ? 'All rooms, all nights.' : 'The full price for this service.')}
           ${b ? field('log-pernight', 'Or per room per night (₹)', `<input id="log-pernight" name="perNight" inputmode="decimal" autocomplete="off" aria-describedby="log-pernight-hint" data-pernight data-units="${b.rooms * b.nights}"/>`, `Optional. Fills the total for ${plural(b.rooms, 'room')} × ${plural(b.nights, 'night')}.`) : ''}
         </div>
-        ${field('log-note', 'Note (optional)', '<input id="log-note" name="note" maxlength="200" autocomplete="off" aria-describedby="log-note-hint"/>', isHotelish(s) ? 'For example: “Includes the gala dinner” or “Hotel will not go lower”.' : 'For example: “Includes pick-up and drop”.')}
-        <div><button type="submit" class="button">Add to log</button></div>
+        ${field('log-note', 'Note (optional)', '<input id="log-note" name="note" maxlength="200" autocomplete="off" aria-describedby="log-note-hint"/>', isHotelish(s) ? 'For example: “Revised after our call” or “Includes the gala dinner”.' : 'For example: “Includes pick-up and drop”.')}
+        <div><button type="submit" class="button">Add rate</button></div>
       </form>`;
     }
-    const items = negotiationLog(id, s).map((e) => ({ state: 'done', title: e.title, sub: `${e.sub ? `${e.sub} · ` : ''}${esc(dt(e.at))} · by ${esc(byWho(e.by))}`, extra: `${e.perNight ? `<p class="m-0 text-sm text-copy tabular-nums">${money(e.perNight)} per room per night</p>` : ''}${e.note ? `<p class="m-0 text-sm text-copy whitespace-pre-wrap wrap-break-word">${esc(e.note)}</p>` : ''}${e.extra || ''}` }));
-    const logHtml = `<section aria-labelledby="neg-log-heading" class="flex flex-col gap-3 border-t border-line pt-4"><h4 id="neg-log-heading" class="m-0 text-base font-semibold text-ink">Log, newest first</h4>${items.length ? tl(items, 'Negotiation log, newest first') : `<p class="m-0 text-quiet">Nothing recorded yet. Ask the ${isHotelish(s) ? 'hotel' : 'supplier'} for rates, then add what they quote.</p>`}</section>`;
-    const sub = mine ? `Record every price the ${isHotelish(s) ? 'hotel' : 'supplier'} gives and every offer you make. “Final agreed” sets the price you book at.` : isConfirmed(s) ? 'The agreed price is locked by the supplier’s confirmation.' : 'Prices recorded by Purchase while agreeing the price.';
-    return card('work-negotiation', 'Rate negotiation', sub, `${sumLine}${approval}${form}${logHtml}`);
+    const list = tiles.length
+      ? `<ul class="m-0 grid list-none gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3" aria-label="Rates, oldest first">${tiles.map((r) => rateTile(id, s, w, r, { mine, final })).join('')}</ul>`
+      : `<p class="m-0 text-quiet">No rates yet. Ask the ${isHotelish(s) ? 'hotel' : 'supplier'} for rates, then add each rate they give.</p>`;
+    const sub = mine ? `Add every rate the ${isHotelish(s) ? 'hotel' : 'supplier'} gives. Choose one as the final rate, then send the booking request from it. Everything is recorded in History.` : isConfirmed(s) ? 'The final rate is locked by the supplier’s confirmation.' : 'Rates recorded by Purchase.';
+    return card('work-negotiation', 'Rate negotiation', sub, `${sumLine}${ask}${list}${form}`);
   }
 
-  /* ---------- Supplier confirmation: the single next step after a final price ---------- */
+  /* ---------- Supplier confirmation details, once confirmed (the button sits on the final-rate tile) ---------- */
   function confirmationCard(id, s, w) {
-    const confirmed = isConfirmed(s);
+    if (!isConfirmed(s)) return '';
     const proof = w.files.filter((f) => f.kind === 'supplier_confirmation' && f.state === 'stored').slice(-1)[0];
-    if (confirmed) {
-      const committed = w.costs.filter((c) => c.stage === 'committed').slice(-1)[0];
-      const body = summary([
-        ['Confirmation number', `<strong>${esc(s.hotelConfirmationNo || s.confirmationNo || '—')}</strong>`],
-        s.confirmationNo && s.hotelConfirmationNo && s.confirmationNo !== s.hotelConfirmationNo ? ['Supplier’s reference', esc(s.confirmationNo)] : null,
-        ['Confirmed by', `${esc(s.hotelConfirmedBy || '—')}${s.hotelConfirmedPhone ? ` · ${esc(s.hotelConfirmedPhone)}` : ''}`],
-        ['Agreed price', committed ? `<span class="font-semibold tabular-nums">${money(committed.amount)}</span> · locked` : '—'],
-        ['Confirmation e-mail', proof ? `<a class="${C.fileLink}" href="#/app/purchase/${id}?tab=files">${esc(proof.name)}</a>` : 'Not attached'],
-        ['Recorded', `${esc(cap(byWho(w.confirmedBy)))} · ${esc(dt(w.confirmedAt))}`],
-      ]);
-      return card('work-confirm', 'Supplier confirmation', 'Nothing was paid and nothing was sent to the customer.', `${flash && flash.key === 'confirm' ? msgHtml(true, flash.text) : ''}${body}`, { right: badge('success', 'circle-check', 'Confirmed by supplier', 'Supplier') });
-    }
-    const purchaseSide = TN.is('purchase');
-    const reason = blockReason(id, s, 'confirm');
-    let body = `<p class="m-0 text-copy">When the ${isHotelish(s) ? 'hotel' : 'supplier'} confirms the booking, record its confirmation number and attach its confirmation e-mail. This locks the agreed price.</p>`;
-    if (purchaseSide && s.taskStatus !== 'cancelled') {
-      body += `<div class="flex flex-col gap-2"><div><button type="button" class="button" aria-haspopup="dialog" data-act="pur-open-confirm"${btnState('confirm', reason)}>Record supplier confirmation</button></div>${blockNotice('confirm', reason)}</div>`;
-      if (!reason) body += confirmDialog(id, s, proof);
-    } else if (!purchaseSide) body += `<p class="m-0 text-sm text-quiet">${s.assignee ? `${esc(name(s.assignee))} records the confirmation.` : 'The Purchase colleague who takes this task records the confirmation.'}</p>`;
-    return card('work-confirm', 'Supplier confirmation', '', body, { right: badge('info', 'circle-play', 'Not confirmed yet', 'Supplier') });
+    const committed = w.costs.filter((c) => c.stage === 'committed').slice(-1)[0];
+    const body = summary([
+      ['Confirmation number', `<strong>${esc(s.hotelConfirmationNo || s.confirmationNo || '—')}</strong>`],
+      s.confirmationNo && s.hotelConfirmationNo && s.confirmationNo !== s.hotelConfirmationNo ? ['Supplier’s reference', esc(s.confirmationNo)] : null,
+      ['Confirmed by', `${esc(s.hotelConfirmedBy || '—')}${s.hotelConfirmedPhone ? ` · ${esc(s.hotelConfirmedPhone)}` : ''}`],
+      ['Final rate', committed ? `<span class="font-semibold tabular-nums">${money(committed.amount)}</span> · locked` : '—'],
+      ['Confirmation e-mail', proof ? `<a class="${C.fileLink}" href="#/app/purchase/${id}?tab=files">${esc(proof.name)}</a>` : 'Not attached'],
+      ['Recorded', `${esc(cap(byWho(w.confirmedBy)))} · ${esc(dt(w.confirmedAt))}`],
+    ]);
+    return card('work-confirm', 'Supplier confirmation', 'Nothing was paid and nothing was sent to the customer.', `${flash && flash.key === 'confirm' ? msgHtml(true, flash.text) : ''}${body}`, { right: badge('success', 'circle-check', 'Confirmed by supplier', 'Supplier') });
   }
   function confirmDialog(id, s, proof) {
     const lc = latestCost(id);
@@ -1121,8 +1120,7 @@
     pushNotice(['purchase'], `${name(meKey())} moved the task “${s.title}” to ${name(to)}.`, s.deal);
     done('reassign', 'Task reassigned.');
   });
-  /* ----- Rate negotiation: add one line to the log ----- */
-  TN.act('pur-log-kind', (el) => { const f = el.form; f.querySelectorAll('.fin-segment-option').forEach((l) => l.classList.toggle('is-selected', l.contains(el))); });
+  /* ----- Rate negotiation: add a rate (one tile), choose the final rate ----- */
   // "Per room per night" fills the total for the whole stay as you type.
   document.addEventListener('input', (event) => {
     const t = event.target;
@@ -1131,11 +1129,10 @@
     const amount = t.form && t.form.querySelector('[name="amountRupees"]');
     if (amount && n > 0) amount.value = Math.round(n * Number(t.dataset.units)).toLocaleString('en-IN');
   });
-  TN.act('pur-log-add', (el) => {
+  TN.act('pur-rate-add', (el) => {
     const [id, s] = getTask(el);
     if (!s || !W[id] || !canWork(s)) return refuse(el, s && isConfirmed(s) ? ERR.confirmed : ERR.forbidden);
     const f = new FormData(el);
-    const kind = LOG_KIND[f.get('kind')];
     const sid = String(f.get('supplierId') || '');
     const sup = offerSuppliers(s).some(([k]) => k === sid) ? TN.supplier(sid) : null;
     const perText = String(f.get('perNight') || '').trim();
@@ -1145,7 +1142,6 @@
     if (!(amount > 0) && perNight > 0 && b) amount = Math.round(perNight * b.rooms * b.nights);
     const note = String(f.get('note') || '').trim();
     const items = [];
-    if (!kind) items.push('Choose what happened.');
     if (!sup) items.push('Choose a supplier from the list.');
     if (perText && !(perNight > 0)) items.push('Enter the price per room per night as a number, or leave it empty.');
     if (!(amount > 0)) items.push(`Enter the ${isHotelish(s) ? 'amount for the whole stay' : 'total amount'} in rupees.`);
@@ -1153,31 +1149,39 @@
     if (note.length > 200) items.push('Keep the note under 200 characters.');
     if (items.length) return refuse(el, ERR.invalid, items);
     const w = W[id];
-    if (kind === 'final_agreed') {
-      const paid = D.supplierPayments.filter((p) => p.service === id && p.status !== 'returned');
-      if (paid.length) return refuse(el, `Payment request ${paid.map((p) => p.id).join(', ')} was already raised against the agreed price, so the price can’t change now. Ask Accounts to return that request first.`);
-      if (latestCost(id) && !note) return refuse(el, 'A price was already agreed. Add a short note saying why it changed.');
-    }
     const hotel = s.kind === 'hotel' ? shortHotel(s.title) : s.title;
     const source = sup.type === 'Hotel' ? 'hotel' : 'supplier';
     let o = w.offers.find((x) => x.supplier === sid && x.status === 'open');
     if (!o) { o = { id: uid('o'), supplier: sid, hotel, room: '', meal: '', price: null, ourOffer: null, finalRate: null, source, rates: [], hold: null, cancel: '', status: 'open', at: now(), by: meKey() }; w.offers.push(o); }
-    const rate = appendRate(id, o, { kind, amount, perNight: perNight > 0 ? perNight : null, at: now(), by: meKey(), party: hotel, source, remark: note });
-    if (kind === 'hotel_said') o.price = amount;
-    if (kind === 'we_offered') o.ourOffer = amount;
-    let msg = `${rateWord(s, kind)} added to the log.`;
-    if (kind === 'final_agreed') {
-      o.finalRate = amount;
-      const v = w.costs.reduce((n, c) => Math.max(n, c.v), 0) + 1;
-      w.costs.push({ v, stage: 'proposed', amount, offer: o.id, rateId: rate.id, due: null, note: note || 'Final agreed price', at: now(), by: meKey() });
-      s.supplier = sid; s.cost = amount;
-      if (s.budget != null && amount > s.budget) {
-        pushNotice(['manager'], `Price above budget for ${s.title} (${s.deal}): ${money(amount)} against a budget of ${money(s.budget)}. Please approve or return it.`, s.deal, `#/app/purchase/${id}?tab=work`);
-        msg = 'Final agreed price added. It is above the budget, so the Branch Manager must approve it before you book.';
-      } else { const next = blockReason(id, s, 'booking'); msg = `Final agreed price added. ${next || 'Next: send the booking request.'}`; }
-    }
-    log(id, { hotel_said: `${quotedWord(s)} a price (${sup.name})`, we_offered: `We made an offer to ${sup.name}`, final_agreed: `Final price agreed with ${sup.name}` }[kind]);
-    done('log', msg);
+    appendRate(id, o, { kind: 'hotel_said', amount, perNight: perNight > 0 ? perNight : null, at: now(), by: meKey(), party: hotel, source, remark: note });
+    o.price = amount;
+    log(id, `Rate added: ${sup.name}`, { amount, perNight: perNight > 0 ? perNight : null, note });
+    done('log', 'Rate added. Choose it as the final rate when the supplier agrees.');
+  });
+  TN.act('pur-final', (el) => {
+    const [id, s] = getTask(el);
+    if (!s || !W[id] || !canWork(s)) return refuse(el, s && isConfirmed(s) ? ERR.confirmed : ERR.forbidden);
+    const r = rateTiles(id).find((x) => x.id === el.dataset.rate);
+    if (!r) return refuse(el, ERR.invalid);
+    const w = W[id];
+    const lc = latestCost(id);
+    if (lc && lc.rateId === r.id) return refuse(el, 'This is already the final rate. Nothing changed.');
+    const paid = D.supplierPayments.filter((p) => p.service === id && p.status !== 'returned');
+    if (paid.length) return refuse(el, `Payment request ${paid.map((p) => p.id).join(', ')} was already raised against the final rate, so it can’t change now. Ask Accounts to return that request first.`);
+    const offer = r.offer;
+    const choice = appendRate(id, offer, { kind: 'final_agreed', amount: r.amount, perNight: r.perNight || null, chosenRateId: r.id, at: now(), by: meKey(), party: offer.hotel, source: offer.source, remark: '' });
+    offer.finalRate = r.amount;
+    const v = w.costs.reduce((n, c) => Math.max(n, c.v), 0) + 1;
+    w.costs.push({ v, stage: 'proposed', amount: r.amount, offer: offer.id, rateId: r.id, choiceId: choice.id, due: null, note: r.remark || 'Final rate', at: now(), by: meKey() });
+    s.supplier = offer.supplier; s.cost = r.amount;
+    log(id, lc ? `Final rate changed: ${supName(offer.supplier)}` : `Final rate chosen: ${supName(offer.supplier)}`, { amount: r.amount, was: lc ? lc.amount : null });
+    let msg;
+    if (s.budget != null && r.amount > s.budget) {
+      pushNotice(['manager'], `Price above budget for ${s.title} (${s.deal}): ${money(r.amount)} against a budget of ${money(s.budget)}. Please approve or return it.`, s.deal, `#/app/purchase/${id}?tab=work`);
+      msg = 'Final rate chosen. It is above the budget, so the Branch Manager must approve it before you book.';
+    } else { const next = blockReason(id, s, 'booking'); msg = `Final rate chosen. ${next || 'Next: send the booking request from this rate.'}`; }
+    TN.toast(msg);
+    TN.refresh();
   });
   TN.act('pur-upload', (el) => {
     const [id, s] = getTask(el);
@@ -1205,7 +1209,7 @@
     if (c.by === meKey()) return refuse(el, 'You agreed this price yourself, so a different person must approve it.'); // nobody approves their own price
     if (W[id].approvals[v]) return refuse(el, 'This price was already approved. Nothing changed.');
     W[id].approvals[v] = { by: meKey(), at: now() };
-    log(id, 'Price above budget approved by the Branch Manager');
+    log(id, 'Price above budget approved by the Branch Manager', { amount: c.amount });
     pushNotice(['purchase'], `${name(meKey())} approved the price above budget for ${s.title} (${s.deal}). You can book now.`, s.deal, `#/app/purchase/${id}?tab=work`);
     done('approve', 'Price approved above budget. Only this price is approved; a newer price needs a new approval.');
   });
@@ -1239,7 +1243,7 @@
     w.offers.forEach((o) => { if (o.id === lc.offer) { o.status = 'selected'; if (o.finalRate == null) o.finalRate = lc.amount; } });
     Object.assign(s, { taskStatus: 'supplier_confirmed', confirmationNo: ref || hotelRef, hotelConfirmationNo: hotelRef, hotelConfirmedBy: hotelBy, hotelConfirmedPhone: hotelPhone, cost: lc.amount });
     w.confirmedAt = now(); w.confirmedBy = meKey();
-    log(id, 'Supplier confirmation recorded; the agreed price is locked');
+    log(id, `Supplier confirmation recorded (${hotelRef}); the final rate is locked`, { amount: lc.amount });
     pushNotice(['sales', 'manager'], `Supplier confirmed: ${s.title} for ${s.deal} (confirmation ${hotelRef}).`, s.deal);
     const d = el.closest('dialog'); if (d) d.close();
     flash = { key: 'confirm', ok: true, text: 'Supplier confirmation recorded. The agreed price is locked. Nothing was paid.' };
@@ -1258,11 +1262,12 @@
      The CRM sends nothing: Purchase copies the draft or opens it in the e-mail app,
      sends it, then marks it as sent. That records it in the log and History. */
   const SENDER_SIGN = 'Purchase, Holiday Chacha Pvt Ltd, Jodhpur';
-  function mailTemplate(kind, id, s, sid, sender) {
+  function mailTemplate(kind, id, s, sid, sender, rate) {
     const deal = TN.deal(s.deal);
     const cust = TN.customer(deal.customer);
     const f = FACTS[id];
-    const lc = latestCost(id);
+    // A booking request carries exactly the final-rate tile's amount (and its per-room price if given).
+    const fin = kind === 'booking' ? (rate || finalTile(id)) : null;
     const b = isHotelish(s) ? TN.hotelBreakup(id) : null;
     const who = sender || TN.me().name;
     const subject = `${kind === 'booking' ? 'Booking request' : 'Rate request'} · ${s.deal} · ${s.title.replace(/,\s*/g, ' ')} · ${dateRange(s.start, s.end)}`;
@@ -1277,7 +1282,7 @@
     if (f && f[3]) lines.push(`Inclusions: ${f[3]}`);
     if (f && f[4]) lines.push(`Special requests: ${f[4]}`);
     const body = kind === 'booking'
-      ? `Dear Reservations team,\n\nPlease confirm the booking below${lc ? ` at the agreed price of ${money(lc.amount)} for the whole ${isHotelish(s) ? 'stay' : 'service'}` : ''}.\n\n${lines.join('\n')}\nLead guest: ${cust.business ? `${cust.contact} (${cust.name})` : cust.name}\n\nOur reference: ${s.deal}\n\nPlease reply with your confirmation number, and send your proforma invoice with your bank details.\n\nRegards,\n${who}\n${SENDER_SIGN}`
+      ? `Dear Reservations team,\n\nPlease confirm the booking below${fin ? ` at the agreed price of ${money(fin.amount)} for the whole ${isHotelish(s) ? 'stay' : 'service'}${fin.perNight ? ` (${money(fin.perNight)} per room per night)` : ''}` : ''}.\n\n${lines.join('\n')}\nLead guest: ${cust.business ? `${cust.contact} (${cust.name})` : cust.name}\n\nOur reference: ${s.deal}\n\nPlease reply with your confirmation number, and send your proforma invoice with your bank details.\n\nRegards,\n${who}\n${SENDER_SIGN}`
       : `Dear Reservations team,\n\nPlease share your best rate and availability for:\n\n${lines.join('\n')}\n\nOur reference: ${s.deal}\n\nPlease include your cancellation terms and how long you can hold ${isHotelish(s) ? 'the rooms' : 'the booking'}.\n\nRegards,\n${who}\n${SENDER_SIGN}`;
     return { to: (TN.supplier(sid) || {}).email || '', subject, body };
   }
@@ -1290,9 +1295,11 @@
     if (reason) return TN.toast(reason, 'danger');
     const sups = kind === 'booking' ? offerSuppliers(s).filter(([k]) => k === s.supplier) : nearSuppliers(id, s);
     const sid = s.supplier && sups.some(([k]) => k === s.supplier) ? s.supplier : (sups[0] && sups[0][0]);
-    const t = mailTemplate(kind, id, s, sid);
+    const fin = kind === 'booking' ? finalTile(id) : null;
+    if (kind === 'booking' && (!fin || (el.dataset.rate && el.dataset.rate !== fin.id))) return TN.toast('This rate is not the final rate any more. Reload the page.', 'danger');
+    const t = mailTemplate(kind, id, s, sid, null, fin);
     const supplierField = kind === 'booking'
-      ? `<input type="hidden" name="supplierId" value="${esc(sid)}"/>${summary([['Supplier', esc(supName(sid))], ['Agreed price', latestCost(id) ? `<span class="tabular-nums">${money(latestCost(id).amount)}</span>` : '—']])}`
+      ? `<input type="hidden" name="supplierId" value="${esc(sid)}"/><input type="hidden" name="rateId" value="${esc(fin.id)}"/>${summary([['Supplier', esc(supName(sid))], ['Final rate', `<span class="tabular-nums">${money(fin.amount)}</span>${fin.perNight ? ` · ${money(fin.perNight)} per room per night` : ''}`]])}`
       : field('mail-supplier', 'Supplier', `<select id="mail-supplier" name="supplierId">${sups.map(([k, x]) => `<option value="${k}"${k === sid ? ' selected' : ''}>${esc(x.name)}${x.city && !x.name.includes(x.city) ? ` · ${esc(x.city)}` : ''}</option>`).join('')}</select>`);
     const inner = `${notice('info', '<p>The CRM does not send e-mails. Copy the draft or open it in your e-mail app, send it, then press Mark as sent.</p>')}
       ${supplierField}
@@ -1335,12 +1342,14 @@
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) items.push('Enter the supplier’s e-mail address.');
     if (!subject) items.push('Enter a subject.');
     if (!body) items.push('Enter the message.');
+    const fin = kind === 'booking' ? finalTile(id) : null;
+    if (kind === 'booking' && (!fin || String(f.get('rateId') || '') !== fin.id)) items.push('The final rate changed. Close this and send the booking request from the final rate again.');
     if (items.length) return refuse(el, ERR.invalid, items);
-    W[id].emails.push({ dir: 'out', kind, to, subject, body, supplier: sid, at: now(), by: meKey(), status: 'sent' });
+    W[id].emails.push({ dir: 'out', kind, to, subject, body, supplier: sid, rateId: fin ? fin.id : null, amount: fin ? fin.amount : null, at: now(), by: meKey(), status: 'sent' });
     const what = kind === 'booking' ? 'Booking request' : 'Rate request';
-    log(id, `${what} e-mailed to ${supName(sid)} (marked as sent)`);
+    log(id, `${what} e-mailed to ${supName(sid)} (marked as sent)`, { mail: W[id].emails.length - 1, amount: fin ? fin.amount : null });
     TN.closeOverlay();
-    TN.toast(`${what} marked as sent. It is in the log and History.`);
+    TN.toast(`${what} marked as sent. It is in History.${kind === 'booking' ? ' Next: record the supplier’s confirmation.' : ''}`);
     TN.refresh();
   });
   TN.act('pur-view-email', (el) => {
@@ -1361,12 +1370,13 @@
     const who = first.by;
     const t1 = mailTemplate('rate', id, s, s.supplier, name(who));
     w.emails.push({ dir: 'out', kind: 'rate', to: t1.to, subject: t1.subject, body: t1.body, supplier: s.supplier, at: `${String(first.at).slice(0, 10)} 09:30`, by: who, status: 'sent' });
-    w.history.push({ text: `Rate request e-mailed to ${supName(s.supplier)} (marked as sent)`, at: `${String(first.at).slice(0, 10)} 09:30`, by: who });
+    w.history.push({ text: `Rate request e-mailed to ${supName(s.supplier)} (marked as sent)`, at: `${String(first.at).slice(0, 10)} 09:30`, by: who, mail: w.emails.length - 1 });
     if (isConfirmed(s) && w.confirmedAt) {
-      const t2 = mailTemplate('booking', id, s, s.supplier, name(who));
+      const fin = finalTile(id);
+      const t2 = mailTemplate('booking', id, s, s.supplier, name(who), fin);
       const at = `${String(w.confirmedAt).slice(0, 10)} 10:30`;
-      w.emails.push({ dir: 'out', kind: 'booking', to: t2.to, subject: t2.subject, body: t2.body, supplier: s.supplier, at, by: who, status: 'sent' });
-      w.history.push({ text: `Booking request e-mailed to ${supName(s.supplier)} (marked as sent)`, at, by: who });
+      w.emails.push({ dir: 'out', kind: 'booking', to: t2.to, subject: t2.subject, body: t2.body, supplier: s.supplier, rateId: fin && fin.id, amount: fin && fin.amount, at, by: who, status: 'sent' });
+      w.history.push({ text: `Booking request e-mailed to ${supName(s.supplier)} (marked as sent)`, at, by: who, amount: fin && fin.amount, mail: w.emails.length - 1 });
     }
   });
 
@@ -1725,5 +1735,5 @@
   TN.homeRow({ roles: ['manager'], section: 'What needs you', label: 'Suppliers to verify', href: '#/app/purchase/suppliers', count: () => purchaseSuppliers().filter((s) => !s.verified).length });
 
   // For other department files (read-only helpers; no money beyond supplier cost).
-  TN.purchase = { work: (id) => W[id], rates: rateRecords, log: (id) => negotiationLog(id, TN.service(id)), breakup: (id) => TN.hotelBreakup(id), blockReason: (id, action) => blockReason(id, TN.service(id), action), appendRate, openMail, hotelKey, canWork, workCostIssue, needsGoAhead, mailTemplate, persist: persistPurchase, facts: (id) => FACTS[id], progress: (id) => purchaseProgress(id, TN.service(id), W[id]), issues: (id) => issues(id, TN.service(id)), latestCost, isConfirmed };
+  TN.purchase = { work: (id) => W[id], rates: rateRecords, tiles: rateTiles, finalTile, history: historyOf, breakup: (id) => TN.hotelBreakup(id), blockReason: (id, action) => blockReason(id, TN.service(id), action), appendRate, openMail, hotelKey, canWork, workCostIssue, needsGoAhead, mailTemplate, persist: persistPurchase, facts: (id) => FACTS[id], progress: (id) => purchaseProgress(id, TN.service(id), W[id]), issues: (id) => issues(id, TN.service(id)), latestCost, isConfirmed };
 })();

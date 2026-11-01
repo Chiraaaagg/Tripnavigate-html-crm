@@ -2,6 +2,21 @@
 
 This file records the major committed changes and the current uncommitted work in the repository.
 
+## 1 November 2026 — Purchase Work tab, round 2: rate tiles and the booking request on the final rate
+
+Owner’s notes on the Work tab of s-547-h:
+
+1. **Hotel summary card** has no buttons any more. “Ask for rates” is one secondary button at the top of Rate negotiation; “Send booking request” sits on the final-rate tile. Bug fixed: the booking e-mail could carry a different rate from the one shown; it now uses exactly the final tile’s amount (and its per-room-per-night price when given), and Mark as sent is refused if the final rate changed while the drawer was open.
+2. **Rate negotiation form** is now just supplier, amount for the whole stay (or per room per night, which fills it), optional note and “Add rate”. The “What happened?” segmented control (We offered / Final agreed) is gone.
+3. **“Log, newest first” removed** from the Work tab. Everything is in the History tab instead: each rate added (with amount, per-night price and note), final rate chosen or changed (with the old amount), every e-mail marked as sent (with View e-mail), Manager approvals or returns, and the confirmation. Amounts, notes and e-mails in History are shown only to roles that may see supplier prices; Sales sees History without prices.
+4. **One compact tile per rate** (live bordered panel in a grid; one column on phones): supplier, amount, per room per night, note, who and when, under/over budget badge (icon and word), and “Use as final rate”. The chosen tile shows a “Final rate” badge and the primary “Send booking request”. Choosing a final rate creates the agreed cost version (append-only) and keeps the rules: above budget the tile shows the Manager’s approval (Manager: approve form; nobody approves their own price; returned price shown in red), the go-ahead and other blocks show as one short notice under the unavailable button, and a payment request already raised against the final rate stops a new choice. After the booking request is marked as sent, the tile’s next step is “Record supplier confirmation” (same dialog as before) with “Send booking request again”. The Supplier confirmation card now appears only after confirmation, to show the details. The summary line on top shows budget, lowest rate, final rate and under/over budget.
+
+Seed data: Suryagarh shows three tiles (₹2,37,100 first quote, ₹2,31,500 revised after our call, ₹2,28,000 final); every other task shows its first quote and its final rate. No “we offered” entries remain anywhere. Saved browser state moved to key `tripnavigate.purchase.v4`, so older saved states are dropped.
+
+Files: `build/src/40-purchase.js`, `build/tests/purchase-negotiation.test.js` (updated), rebuilt `full-crm-preview.html` with `node build/assemble.js`.
+
+Checks: `node build/tests/purchase-negotiation.test.js` passes (10 groups, now also: no buttons on the summary card, 3 Suryagarh tiles with the last one final, the booking e-mail amount equals the final tile, confirmation only after the booking request, History keeps every event and hides prices from Sales). Browser: Purchase and Manager at 1280 px and 375 px on s-547-h, s-390-h, s-198-h1, s-455-h1, s-455-h2, s-547-a and s-301-p (Details, Work, History); no console errors, no sideways scroll, every class exists in the style sheets. This change is uncommitted.
+
 ## 1 November 2026 — Purchase task page: owner review of BX-38547 (Suryagarh)
 
 Changes asked for by the owner:

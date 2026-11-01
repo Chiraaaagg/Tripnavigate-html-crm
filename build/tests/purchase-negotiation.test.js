@@ -62,15 +62,20 @@ assert.match(html, /data-tone="warning"[^>]*>.*Special request/s);
 assert.match(strip(t.task('s-301-p')), /Sales did not give a room breakup/);
 console.log('PASS: Details shows “What Sales booked for this hotel” with lines, totals and a warning-tone special request; Hand-offs removed; package falls back.');
 
-/* 3. Work tab: breakup + special request in the summary; one negotiation card; no checklist, no old records. */
+/* 3. Work tab: breakup + special request, no e-mail buttons in the summary; rate tiles, no segmented control, no log. */
 html = t.task('s-547-h', 'work');
-assert.match(html, /Rate negotiation/); assert.match(html, /Add to log/); assert.match(html, /fin-segment/);
-assert.match(html, /Hotel quoted/); assert.match(html, /We offered/); assert.match(html, /Final agreed/);
-assert.match(html, /Record supplier confirmation/);
-assert.ok(strip(html).includes(inr(13000)) && /Special request/.test(html));
-for (const gone of [/Before you book/, /Rates &amp; Booking Records/, /Rate Request Status/, /Booking Request Status/, /vs Budget/, /Edit rate/, /View History/, /Manual sent-email/, /Message-ID/, /Cost history/, /Supplier offers, cost and confirmation/]) assert.doesNotMatch(html, gone);
-assert.match(strip(html), /₹8,000 under budget/);
-console.log('PASS: Work tab has the breakup, the special request, one Rate negotiation card (summary, segmented form, log) and Record supplier confirmation; old cards are gone.');
+const summaryCard = html.slice(html.indexOf('id="work-summary"'), html.indexOf('id="work-negotiation"'));
+assert.ok(strip(summaryCard).includes(inr(13000)) && /Special request/.test(summaryCard));
+assert.doesNotMatch(summaryCard, /Ask for rates|Send booking request/);
+assert.match(html, /Rate negotiation/); assert.match(html, /Ask for rates/); assert.match(html, /Add rate/);
+assert.equal((html.match(/Use as final rate/g) || []).length, 2); // 3 tiles, one is the final rate
+assert.match(html, /aria-current="true"[^>]*>.*?Final rate/s); assert.match(html, /Send booking request/);
+for (const gone of [/fin-segment/, /We offered/, /Final agreed/, /Log, newest first/, /Before you book/, /Rates &amp; Booking Records/, /Manual sent-email/, /Message-ID/, /Cost history/]) assert.doesNotMatch(html, gone);
+assert.match(strip(html), /Lowest rate/); assert.match(strip(html), /₹8,000 under budget/);
+assert.deepEqual(Array.from(t.P.tiles('s-547-h'), (r) => r.amount), [237100, 231500, 228000]);
+assert.equal(t.P.finalTile('s-547-h').amount, 228000);
+for (const [id] of Object.entries(t.D.services)) if (t.P.work(id)) assert.ok(!t.P.rates(id).some((r) => r.kind === 'we_offered'), `no “we offered” on ${id}`);
+console.log('PASS: summary card has no e-mail buttons; Rate negotiation shows Ask for rates, an Add rate form and one tile per rate (Suryagarh 3, last one final); no segmented control, no log, no “we offered”.');
 
 /* 4. E-mails: Deal ID in the subject, no selling price, Sales' rates never sent to the hotel. */
 const s547 = t.D.services['s-547-h'];
@@ -84,55 +89,69 @@ assert.match(rate.body, /8 × Deluxe twin room, 1 × Suite, twin sharing/);
 assert.match(book.body, /agreed price of ₹2,28,000\.00/);
 console.log('PASS: rate and booking e-mail subjects carry the Deal ID; no selling price or Sales budget rates in any e-mail.');
 
-/* 5. Mark as sent: one click records the e-mail in the log and in History (time + person). */
+/* 5. Mark as sent: the e-mail goes to History (time, person, View e-mail); the booking request uses the final tile. */
 const before = t.P.work('s-547-h').emails.length;
 let f = form({ id: 's-547-h', kind: 'rate' }, { supplierId: 'sp-suryagarh', to: 'groups@suryagarh.example', subject: rate.subject, body: rate.body });
 t.acts['pur-mail-sent'](f);
 assert.equal(f.error, '');
 assert.equal(t.P.work('s-547-h').emails.length, before + 1);
-const last = t.P.work('s-547-h').history.at(-1);
-assert.match(last.text, /Rate request e-mailed to Suryagarh Jaisalmer \(marked as sent\)/); assert.equal(last.by, 'purchase'); assert.match(last.at, /^\d{4}-\d\d-\d\d \d\d:\d\d$/);
-assert.equal(t.P.log('s-547-h')[0].kind, 'mail');
+let top = t.P.history('s-547-h')[0];
+assert.match(top.text, /Rate request e-mailed to Suryagarh Jaisalmer \(marked as sent\)/); assert.equal(top.by, 'purchase'); assert.match(top.at, /^\d{4}-\d\d-\d\d \d\d:\d\d$/); assert.equal(top.mail, before);
+assert.match(t.task('s-547-h', 'history'), /View e-mail/);
 f = form({ id: 's-547-h', kind: 'rate' }, { supplierId: 'sp-suryagarh', to: 'not-an-email', subject: 'x', body: 'y' });
 t.acts['pur-mail-sent'](f); assert.match(f.error, /e-mail address/);
-console.log('PASS: Mark as sent adds the e-mail to the log and History with time and person; a bad address is refused in place.');
+assert.match(t.P.blockReason('s-547-h', 'confirm'), /booking request/); // confirmation only after the booking request
+f = form({ id: 's-547-h', kind: 'booking' }, { supplierId: 'sp-suryagarh', rateId: 'rate-s-547-h-q1', to: 'groups@suryagarh.example', subject: book.subject, body: book.body });
+t.acts['pur-mail-sent'](f); assert.match(f.error, /final rate changed/); // only the final tile may be booked
+f = form({ id: 's-547-h', kind: 'booking' }, { supplierId: 'sp-suryagarh', rateId: t.P.finalTile('s-547-h').id, to: 'groups@suryagarh.example', subject: book.subject, body: book.body });
+t.acts['pur-mail-sent'](f); assert.equal(f.error, '');
+top = t.P.history('s-547-h')[0];
+assert.match(top.text, /Booking request e-mailed/); assert.equal(top.amount, 228000);
+assert.equal(t.P.blockReason('s-547-h', 'confirm'), '');
+assert.match(t.task('s-547-h', 'work'), /Record supplier confirmation/);
+console.log('PASS: Mark as sent records the e-mail in History (time, person, View e-mail); the booking request must be for the final tile and unlocks Record supplier confirmation.');
 
-/* 6. Add to log: append-only, per-night fills the total, History has no amounts, refusals keep the rules. */
-const ratesBefore = t.P.rates('s-547-h').length;
-f = form({ id: 's-547-h' }, { kind: 'quoted', supplierId: 'sp-suryagarh', amountRupees: '', perNight: '12,800', note: 'After the call' });
-t.acts['pur-log-add'](f);
+/* 6. Add rate: a new tile, append-only, per-night fills the total, History keeps the amount and note. */
+const tilesBefore = t.P.tiles('s-547-h').length;
+f = form({ id: 's-547-h' }, { supplierId: 'sp-suryagarh', amountRupees: '', perNight: '12,800', note: 'After the call' });
+t.acts['pur-rate-add'](f);
 assert.equal(f.error, '');
-const added = t.P.rates('s-547-h').at(-1);
-assert.equal(t.P.rates('s-547-h').length, ratesBefore + 1);
-assert.equal(added.amount, 12800 * 9 * 2); assert.equal(added.perNight, 12800);
+const added = t.P.tiles('s-547-h').at(-1);
+assert.equal(t.P.tiles('s-547-h').length, tilesBefore + 1);
+assert.equal(added.amount, 12800 * 9 * 2); assert.equal(added.perNight, 12800); assert.equal(added.remark, 'After the call');
 assert.ok(Object.isFrozen(t.P.work('s-547-h').offers.flatMap((o) => o.rates || []).find((r) => r.id === added.id))); // stored entries can't be edited
-assert.doesNotMatch(t.P.work('s-547-h').history.at(-1).text, /₹|\d{2},\d{3}/);
-f = form({ id: 's-547-h' }, { kind: 'quoted', supplierId: 'sp-suryagarh', amountRupees: '2,40,000', perNight: '12,800' });
-t.acts['pur-log-add'](f); assert.match(f.error, /does not match/);
-f = form({ id: 's-547-h' }, { kind: 'offered', supplierId: 'sp-suryagarh', amountRupees: '0' });
-t.acts['pur-log-add'](f); assert.match(f.error, /Enter the amount/);
-f = form({ id: 's-547-h' }, { kind: 'agreed', supplierId: 'sp-suryagarh', amountRupees: '2,20,000', note: 'Lower' });
-t.acts['pur-log-add'](f); assert.match(f.error, /SP-26-0022/); // a payment request exists against the agreed price
+top = t.P.history('s-547-h')[0];
+assert.match(top.text, /Rate added: Suryagarh Jaisalmer/); assert.equal(top.amount, 230400); assert.equal(top.note, 'After the call');
+assert.ok(!strip(boot('sales', t.store).task('s-547-h', 'history')).includes(inr(230400))); // Sales sees History without prices
+f = form({ id: 's-547-h' }, { supplierId: 'sp-suryagarh', amountRupees: '2,40,000', perNight: '12,800' });
+t.acts['pur-rate-add'](f); assert.match(f.error, /does not match/);
+f = form({ id: 's-547-h' }, { supplierId: 'sp-suryagarh', amountRupees: '0' });
+t.acts['pur-rate-add'](f); assert.match(f.error, /Enter the amount/);
+f = form({ id: 's-547-h', rate: added.id });
+t.acts['pur-final'](f); assert.match(f.error, /SP-26-0022/); // a payment request exists against the final rate
 assert.equal(t.P.latestCost('s-547-h').amount, 228000);
-console.log('PASS: log entries are appended and frozen, per-night fills the total, History has no amounts, mismatches and changes after a payment request are refused.');
+console.log('PASS: Add rate makes a frozen tile, per-night fills the total, History keeps amount and note (hidden from Sales), mismatches and a new final rate after a payment request are refused.');
 
-/* 7. Final agreed sets the cost everywhere; above budget waits for the Manager; nobody approves their own price. */
+/* 7. Use as final rate = new cost version; above budget waits for the Manager (on the tile); nobody approves their own price. */
 const w455 = t.P.work('s-455-h1');
 const v1 = w455.costs.at(-1);
-f = form({ id: 's-455-h1' }, { kind: 'agreed', supplierId: 'sp-blanket', amountRupees: '33,500' });
-t.acts['pur-log-add'](f); assert.match(f.error, /why it changed/);
-f = form({ id: 's-455-h1' }, { kind: 'agreed', supplierId: 'sp-blanket', amountRupees: '33,500', note: 'Valley view room' });
-t.acts['pur-log-add'](f); assert.equal(f.error, '');
+f = form({ id: 's-455-h1' }, { supplierId: 'sp-blanket', amountRupees: '33,500', note: 'Valley view room' });
+t.acts['pur-rate-add'](f); assert.equal(f.error, '');
+const pricey = t.P.tiles('s-455-h1').at(-1);
+f = form({ id: 's-455-h1', rate: pricey.id }); t.acts['pur-final'](f); assert.equal(f.error, '');
 assert.equal(w455.costs.length, 2); assert.equal(w455.costs[0], v1); assert.equal(w455.costs[0].amount, 30800);
-assert.equal(t.P.latestCost('s-455-h1').amount, 33500); assert.equal(t.D.services['s-455-h1'].cost, 33500);
+assert.equal(t.P.latestCost('s-455-h1').amount, 33500); assert.equal(t.P.latestCost('s-455-h1').rateId, pricey.id); assert.equal(t.D.services['s-455-h1'].cost, 33500);
+assert.match(t.P.history('s-455-h1')[0].text, /Final rate changed/); assert.equal(t.P.history('s-455-h1')[0].was, 30800);
 assert.ok(t.P.issues('s-455-h1').includes('over_budget'));
 assert.match(t.P.blockReason('s-455-h1', 'booking'), /go-ahead/); // the Accounts go-ahead is the first gate
 t.D.services['s-455-h1'].goAhead = 'given';
 assert.match(t.P.blockReason('s-455-h1', 'booking'), /Branch Manager/);
-f = form({ id: 's-455-h1', kind: 'booking' }, { supplierId: 'sp-blanket', to: 'a@b.example', subject: 's', body: 'b' });
+assert.match(t.task('s-455-h1', 'work'), /Waiting for the Branch Manager/);
+f = form({ id: 's-455-h1', kind: 'booking' }, { supplierId: 'sp-blanket', rateId: pricey.id, to: 'a@b.example', subject: 's', body: 'b' });
 t.acts['pur-mail-sent'](f); assert.match(f.error, /Branch Manager/);
 t.P.persist();
 const m = boot('manager', t.store);
+assert.match(m.task('s-455-h1', 'work'), /Approve this price above budget/);
 const v2 = m.P.latestCost('s-455-h1').v;
 m.P.work('s-455-h1').costs.at(-1).by = 'manager';
 f = form({ id: 's-455-h1', v: String(v2) }); m.acts['pur-approve-cost'](f); assert.match(f.error, /different person must approve/);
@@ -140,27 +159,32 @@ m.P.work('s-455-h1').costs.at(-1).by = 'purchase';
 f = form({ id: 's-455-h1', v: String(v2) }); m.acts['pur-approve-cost'](f); assert.equal(f.error, '');
 assert.ok(m.P.work('s-455-h1').approvals[v2]);
 assert.match(m.P.blockReason('s-455-h1', 'booking'), /works on this task/); // the Manager approves but never books
-assert.ok(m.P.log('s-455-h1').some((e) => e.kind === 'approved'));
-console.log('PASS: Final agreed adds a new cost version (old one untouched), above budget waits for the Manager, the Manager cannot approve their own price, approval is logged.');
+assert.ok(m.P.history('s-455-h1').some((e) => /approved by the Branch Manager/.test(e.text) && e.amount === 33500));
+console.log('PASS: Use as final rate adds a new cost version (old one untouched), above budget waits for the Manager on the tile, the Manager cannot approve their own price, every step is in History.');
 
-/* 8. Go-ahead gate and the confirmation lock. */
+/* 8. Go-ahead gate, booking request first, then the confirmation lock. */
 t = boot('purchase', m.store);
 assert.equal(t.P.blockReason('s-455-h1', 'booking'), '');
 t.D.services['s-455-h1'].goAhead = 'waiting';
-f = form({ id: 's-455-h1' }, { hotelReference: 'BH-1', hotelConfirmedBy: 'Front desk', hotelPhone: '+91 4865 231 071' }, { name: 'c.pdf', size: 1000 });
-t.acts['pur-confirm'](f); assert.match(f.error, /go-ahead/);
+const conf = () => form({ id: 's-455-h1' }, { hotelReference: 'BH-1', hotelConfirmedBy: 'Front desk', hotelPhone: '+91 4865 231 071' }, { name: 'blanket-confirmation.pdf', size: 2048 });
+f = conf(); t.acts['pur-confirm'](f); assert.match(f.error, /go-ahead/);
 t.D.services['s-455-h1'].goAhead = 'given';
+f = conf(); t.acts['pur-confirm'](f); assert.match(f.error, /booking request/);
+const b455 = t.P.mailTemplate('booking', 's-455-h1', t.D.services['s-455-h1'], 'sp-blanket');
+assert.match(b455.body, /agreed price of ₹33,500\.00/); // exactly the final tile's amount
+f = form({ id: 's-455-h1', kind: 'booking' }, { supplierId: 'sp-blanket', rateId: pricey.id, to: 'reservations@blankethotel.example', subject: b455.subject, body: b455.body });
+t.acts['pur-mail-sent'](f); assert.equal(f.error, '');
 f = form({ id: 's-455-h1' }, { hotelReference: 'BH-1', hotelConfirmedBy: 'Front desk', hotelPhone: '+91 4865 231 071' });
 t.acts['pur-confirm'](f); assert.match(f.error, /Attach the confirmation e-mail/);
-f = form({ id: 's-455-h1' }, { hotelReference: 'BH-1', hotelConfirmedBy: 'Front desk', hotelPhone: '+91 4865 231 071' }, { name: 'blanket-confirmation.pdf', size: 2048 });
-t.acts['pur-confirm'](f); assert.equal(f.error, '');
+f = conf(); t.acts['pur-confirm'](f); assert.equal(f.error, '');
 assert.equal(t.D.services['s-455-h1'].taskStatus, 'supplier_confirmed');
 assert.deepEqual(Array.from(t.P.work('s-455-h1').costs, (x) => x.stage), ['proposed', 'proposed', 'committed']);
 assert.ok(t.P.work('s-455-h1').approvals[t.P.latestCost('s-455-h1').v]); // the approval carries to the locked version
-f = form({ id: 's-455-h1' }, { kind: 'quoted', supplierId: 'sp-blanket', amountRupees: '30,000' });
-t.acts['pur-log-add'](f); assert.match(f.error, /already confirmed/);
-assert.match(t.P.log('s-455-h1')[0].title, /price locked/);
-console.log('PASS: no booking or confirmation without the Accounts go-ahead; confirmation needs the e-mail; confirming locks the price and the log.');
+f = form({ id: 's-455-h1' }, { supplierId: 'sp-blanket', amountRupees: '30,000' });
+t.acts['pur-rate-add'](f); assert.match(f.error, /already confirmed/);
+assert.match(t.P.history('s-455-h1')[0].text, /Supplier confirmation recorded \(BH-1\); the final rate is locked/);
+assert.doesNotMatch(t.task('s-455-h1', 'work'), /Use as final rate|Add rate/);
+console.log('PASS: no booking without the Accounts go-ahead; confirmation needs the booking request and the e-mail; confirming locks the rate, the tiles and the form.');
 
 /* 9. Money fence: no selling price on any Purchase task tab, for Purchase or the Manager; Sales sees Details and History only. */
 for (const role of ['purchase', 'manager']) {
@@ -180,5 +204,5 @@ console.log('PASS: no selling price on any Purchase task tab for Purchase or the
 /* 10. Saved in this browser: a reload keeps the log. */
 const kept = boot('purchase', t.store);
 assert.equal(kept.D.services['s-455-h1'].taskStatus, 'supplier_confirmed');
-assert.ok(kept.P.log('s-547-h').some((e) => e.kind === 'mail' && /e-mailed/.test(e.title)));
-console.log('PASS: a reload keeps the negotiation log, e-mails and the confirmation.');
+assert.ok(kept.P.history('s-547-h').some((e) => /Booking request e-mailed/.test(e.text) && e.mail != null));
+console.log('PASS: a reload keeps the rates, History, e-mails and the confirmation.');
