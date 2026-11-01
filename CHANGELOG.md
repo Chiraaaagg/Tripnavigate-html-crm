@@ -2,6 +2,38 @@
 
 This file records the major committed changes and the current uncommitted work in the repository.
 
+## 1 November 2026 — Purchase task page: owner review of BX-38547 (Suryagarh)
+
+Changes asked for by the owner:
+
+1. **What Sales booked.** The Details card “Travellers and budget” is now **“What Sales booked for this hotel”**: stay, travellers, meal plan, inclusions, a line-by-line table (room type, rooms × cost per room per night, extra beds × rate, guests without a bed × rate, nights, line total) and the total budget. Without a breakup it shows what exists and “Sales did not give a room breakup” (the Singapore package). Breakups are invented data in a new file `build/src/39-purchase-breakups.js` (`TN.DATA.hotelBreakups`, `TN.hotelBreakup(id)`), and every total equals its budget: Suryagarh 2 nights × (8 Deluxe twin rooms × ₹13,000 + 1 suite × ₹14,000) = ₹2,36,000; Rove Downtown family room + extra bed; Snow Valley and Span with an extra bed for the child; Taj Goa with a child without a bed. Two budgets that were not whole rupees per night were set to their breakup totals (s-198-h1 ₹45,300, s-198-h2 ₹57,900).
+2. **Hand-offs card removed** from Details. The separate Stay and Notes from Sales cards were folded into the new card, so nothing is shown twice.
+3. **“Before you book” checklist removed** from Work. The rules stay: each blocked button (Ask for rates, Send booking request, Record supplier confirmation, Request payment) is shown as unavailable with one short notice saying why, only when it applies (task not taken, no Accounts go-ahead, price above budget waiting for the Manager, Manager returned the price, no agreed price, supplier bank details on hold).
+4. **Work tab summary card** now shows the same full breakup, and the special request is a warning notice with icon and the words “Special request”.
+5. **E-mail drawer simplified**: the drafted e-mail (supplier, To, Subject, Message), Copy draft, Open in e-mail app (mailto with subject and body) and Mark as sent, which records the e-mail in the negotiation log and the History with time and person. The manual sent-email block (date sent, mailbox reference, Message-ID, checkbox), CC, remark, attachment and Direct Hotel / Supplier choice are gone. Subjects carry the Deal ID: “Rate request · BX-38547 · Suryagarh Jaisalmer · 6–8 Nov 2026”, “Booking request · BX-38547 · …”. Rate requests list rooms and beds but never Sales’ rates; no e-mail contains the selling price.
+6. **“Rates & Booking Records” replaced by “Rate negotiation”**: a summary line (budget, latest hotel price, our last offer, agreed price, under/over budget badge with icon and word), one form (supplier, live segmented control Hotel quoted / We offered / Final agreed, amount for the whole stay or per room per night that fills the total, short note, “Add to log”) and a newest-first log (live timeline) that also lists e-mails marked as sent, Manager approvals or returns and the confirmation. “Final agreed” adds a new cost version (append-only) used by the budget check, Manager approval, booking request, confirmation and payment request. Every entry is written to History (without amounts, because Sales can open History). The Manager approves a price above budget inside this card; nobody approves their own price (live refusal). Removed as duplicates: the per-supplier record cards, Edit rate / View History drawers, the “Supplier offers, cost and confirmation” head card, the Cost history card and its “Negotiate · select supplier and save agreed rate” form. **“Supplier confirmation”** is the single next step after a final price: one dialog with the confirmation number, supplier reference, name, phone and the confirmation e-mail file; it locks the price.
+   - Retired files (moved to `_to_delete/`): `41-purchase-booking.js/.css`, `42-purchase-records.js/.css` and their tests `purchase-booking.test.js`, `purchase-records.test.js`. Saved browser state moved to key `tripnavigate.purchase.v3`, so older saved states are dropped.
+
+Extra fixes found walking the Purchase journey (Purchase and Manager, 1280 px and 375 px):
+
+- Queue: the Status column wrapped one letter per line even at 1280 px. The type pill now sits above the service name (7 columns instead of 8), the status badges keep a minimum width and Deal IDs do not break.
+- Seed data: Suryagarh’s agreed price and “we offered” rows were hidden while its cost history still used them; the seed is now one consistent story (quoted ₹2,37,100 → offered ₹2,18,900 → agreed ₹2,28,000, ₹8,000 under budget). Cost versions now come only from a final agreed price (no more “proposed cost” equal to the first quote, which was above budget). Seeded tasks show the rate request (and booking request when confirmed) that Purchase marked as sent.
+- Sales opening a Purchase task now sees Details and History only (money fence: the Work and Files tabs showed supplier prices and files).
+- Services switcher on the Work tab uses the live link tabs (it had non-live colours) and short labels that fit at 375 px.
+- Supplier lists in the form and e-mail show suppliers in the task’s city plus any already used, not every hotel in India; the city is not repeated when it is already in the name.
+- Unavailable buttons use the live `aria-disabled` pattern, stay focusable, and a click repeats the reason; payment drawer refusals from the Payment requests list show as a toast instead of text inside the button.
+- Progress stepper “blocked” icon was missing (unknown icon name); fixed.
+- “Next:” line now says “send the booking request, then record the supplier’s confirmation” until a booking request is marked as sent.
+- Payment requests list: the status badge no longer wraps beside long rows.
+- Dubai special request said the children are 9 and 12; their dates of birth make them 8 and 12. Fixed.
+- Removed dead code: the unused “Approved Purchase Budget” and “Modify budget” dialogs and the old rate drawer.
+
+Files: `build/src/39-purchase-breakups.js` (new), `build/src/40-purchase.js`, `build/src/40-purchase.css` (unused rate/summary/checklist styles removed), `build/tests/purchase-negotiation.test.js` (rewritten), rebuilt `full-crm-preview.html` with `node build/assemble.js`.
+
+Checks: `node build/tests/purchase-negotiation.test.js` passes (10 groups: breakups equal budgets, Details and Work content, e-mail subjects and money fence, Mark as sent, append-only log, Manager approval and own-approval refusal, go-ahead gate, confirmation lock, no selling price on any tab for Purchase or Manager, reload keeps the log). Browser: Purchase and Manager at 1280 px and 375 px on the queue, s-547-h, s-390-h, s-198-h1, s-301-p, s-547-a, s-547-t, s-520-h, suppliers and payment requests; no console errors, no sideways scroll, focus ring visible, every class on the page exists in the style sheets.
+
+Not done / for the owner: Book now’s returned-booking prefill for BX-38520 (Trident) still shows ₹9,800 a night while the budget is ₹39,200 (₹19,600 a night); that is in `30-booknow.js`, outside Purchase. The lead’s `budgetBreakups` list in `00-data-base.js` is no longer used. This change is uncommitted.
+
 ## 30 October 2026 — Connected workflow stepper
 
 - Replaced bullet layout with connected circles and centered labels below each circle. Completed steps use white checks; current, pending and blocked states have distinct styling and text. Blocked reasons reuse existing cost, go-ahead and bank-hold helpers; no Purchase action/business-rule changes.
