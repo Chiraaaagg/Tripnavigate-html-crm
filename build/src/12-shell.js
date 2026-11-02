@@ -60,7 +60,7 @@
 
   /* ---------- Counts used by the menu and Home ---------- */
   /** Notices addressed to the current role that it has not marked as read. */
-  TN.unreadNotices = () => (TN.DATA.notices || []).filter((n) => (n.to || []).includes(TN.role) && !(n.readBy || []).includes(TN.role));
+  TN.unreadNotices = () => (TN.DATA.notices || []).filter((n) => (n.recipients ? n.recipients.includes(TN.me().key) : (n.to || []).includes(TN.role)) && !(n.readBy || []).includes(n.recipients ? TN.me().key : TN.role));
   /** Manager approvals waiting (supplier payments and company funding above ₹50,000, cancellations, supplier bank changes). */
   TN.approvalsWaiting = () => {
     // Prefer the count the Approvals page registers for Home (80-manager.js), so the menu and Home agree.

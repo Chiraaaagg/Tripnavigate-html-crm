@@ -675,12 +675,13 @@
   const typePill = (kind) => `<span class="inline-flex max-w-full items-center gap-1.5 rounded-full border border-brand-line bg-brand-tint py-0.5 pr-2.5 pl-2 font-sans text-sm leading-5 font-semibold whitespace-nowrap text-brand-strong" data-slot="service-type-pill" data-type="${kind}">${ic(TYPE[kind][0], 'size-3.5 shrink-0')}<span class="sr-only">Service type: </span><span class="truncate">${kind === 'package' ? 'Package' : TYPE[kind][1]}</span></span>`;
   function serviceState(s) {
     if (s.taskStatus === 'cancelled') return ['neutral', 'clock', 'Cancelled'];
+    if (s.kind === 'flight' && TN.flightUI) return [isDone(s) ? 'success' : 'info', isDone(s) ? 'circle-check' : 'plane', TN.flightUI.status(s)];
     if (s.dept === 'visa') return s.taskStatus === 'in_progress' ? ['info', 'circle-play', 'In progress'] : isDone(s) ? ['success', 'circle-check', 'Completed'] : ['warning', 'clock', 'Waiting to be taken'];
     if (isDone(s)) return ['success', 'circle-check', 'Confirmed by supplier'];
     if (s.taskStatus === 'in_progress') return ['info', 'circle-play', s.dept === 'flight' ? 'In progress · ticket not recorded in the CRM' : 'In progress · not booked yet'];
     return ['warning', 'clock', 'Waiting to be taken'];
   }
-  const nextStep = (s) => (s.taskStatus === 'cancelled' ? 'Cancelled after booking' : isDone(s) ? 'Confirmed by supplier' : s.taskStatus === 'in_progress' ? (s.dept === 'visa' ? 'With the Visa desk' : 'Being arranged (not booked yet)') : 'Waiting for the department to take it');
+  const nextStep = (s) => s.kind === 'flight' && TN.flightUI ? TN.flightUI.status(s) : (s.taskStatus === 'cancelled' ? 'Cancelled after booking' : isDone(s) ? 'Confirmed by supplier' : s.taskStatus === 'in_progress' ? (s.dept === 'visa' ? 'With the Visa desk' : 'Being arranged (not booked yet)') : 'Waiting for the department to take it');
   const taskLink = (s) => ({ purchase: ['purchase', 'Open Purchase task'], flight: ['flight', 'Open Flight task'], visa: ['visa', 'Open Visa & Passport task'] }[s.dept]);
   const GO_AHEAD = { waiting: ['warning', 'hourglass', 'Waiting for Accounts go-ahead'], given: ['success', 'circle-check', 'Go-ahead given'], refused: ['danger', 'circle-x', 'Go-ahead refused'] };
   function serviceRow(s) {
@@ -771,7 +772,8 @@
     const waiting = svcs.filter((s) => s.goAhead === 'waiting').length;
     const goNote = waiting && !DEPT_OF_ROLE[TN.role] ? notice('info', `<p>${TN.fmt.plural(waiting, 'hotel')} on this deal ${waiting === 1 ? 'waits' : 'wait'} for the Accounts go-ahead. Purchase books a hotel only after Accounts gives it.</p>`, { icon: 'hourglass' }) : '';
     const goNoteDept = waiting && TN.is('purchase') ? notice('info', '<p>Wait for the Accounts go-ahead before you commit any hotel on this deal.</p>', { icon: 'hourglass' }) : '';
-    return `<div class="flex min-w-0 flex-col gap-5">${goNote}${goNoteDept}${servicesCard}${changesCard(d)}</div>`;
+    const flightReviews = TN.flightUI ? shown.filter((s) => s.kind === 'flight').map((s) => TN.flightUI.salesReview(s.id)).join('') : '';
+    return `<div class="flex min-w-0 flex-col gap-5">${goNote}${goNoteDept}${servicesCard}${flightReviews}${changesCard(d)}</div>`;
   }
 
   /* Change after booking: drawer, accept, withdraw */
@@ -880,7 +882,9 @@
     fullServices(d).forEach((s) => {
       if (DEPT_OF_ROLE[TN.role] && s.dept !== DEPT_OF_ROLE[TN.role]) return;
       if (s.confirmationNo) rows.push([`${s.confirmationNo.replace(/\//g, '-')}-confirmation.pdf`, 'Purchase file · Supplier confirmation', addDays(s.start, -12) + ' 14:15']);
-      if (s.pnr) rows.push([`e-ticket-${s.pnr}.pdf`, 'Flight file · Ticket', '2026-10-26 17:40']);
+      if (s.kind === 'flight' && TN.flightUI && TN.flightUI.confirmedSegments(s).length) {
+        (D.departmentFiles || []).filter((f) => f.task === s.id && f.kind === 'e_ticket').forEach((f) => rows.push([f.name, 'Flight file · E-ticket', f.at, f.id]));
+      }
     });
     return rows;
   }
@@ -893,7 +897,7 @@
   }
   function documentsTab(d) {
     const rows = liveDocRows(d);
-    const live = card(`<section aria-labelledby="deal-documents-heading">${cardHead('deal-documents-heading', 'Documents')}${rows.length ? `<div class="px-4.5 py-4"><ul class="m-0 flex list-none flex-col divide-y divide-line p-0" aria-label="Documents you can open">${rows.map(([file, kind, at]) => `<li class="m-0 flex flex-wrap items-start gap-3 py-2.5 first:pt-0 last:pb-0">${ic('file-text', 'mt-0.5 size-4 shrink-0 text-brand-strong')}<span class="min-w-0 flex-1"><a href="#" data-act="sales-open-file" data-file="${esc(file)}" class="rounded-chip font-semibold wrap-anywhere text-brand-strong underline decoration-1 underline-offset-4 hover:text-brand-deep ${FOCUS}">${esc(file)}</a><span class="block text-sm text-quiet">${esc(kind)}</span></span><span class="text-sm text-quiet">Added ${TN.fmt.dateTime(at)}</span></li>`).join('')}</ul></div>` : emptyState('folder-open', 'No documents you can open yet', 'Files you can open on this deal show here after someone adds them.')}</section>`);
+    const live = card(`<section aria-labelledby="deal-documents-heading">${cardHead('deal-documents-heading', 'Documents')}${rows.length ? `<div class="px-4.5 py-4"><ul class="m-0 flex list-none flex-col divide-y divide-line p-0" aria-label="Documents you can open">${rows.map(([file, kind, at, fileId]) => `<li class="m-0 flex flex-wrap items-start gap-3 py-2.5 first:pt-0 last:pb-0">${ic('file-text', 'mt-0.5 size-4 shrink-0 text-brand-strong')}<span class="min-w-0 flex-1"><a href="#" data-act="sales-open-file" data-file="${esc(file)}"${fileId ? ` data-file-id="${esc(fileId)}"` : ''} class="rounded-chip font-semibold wrap-anywhere text-brand-strong underline decoration-1 underline-offset-4 hover:text-brand-deep ${FOCUS}">${esc(file)}</a><span class="block text-sm text-quiet">${esc(kind)}</span></span><span class="text-sm text-quiet">Added ${TN.fmt.dateTime(at)}</span></li>`).join('')}</ul></div>` : emptyState('folder-open', 'No documents you can open yet', 'Files you can open on this deal show here after someone adds them.')}</section>`);
     const docs = docsOf(d);
     const sales = TN.is('sales', 'manager') && canEditBooking(d);
     const canAsk = sales && booked(d);
@@ -913,7 +917,14 @@
     const pending = sectionCard('deal-invoices-heading', 'Invoices and vouchers', body, { bodyCls: 'flex flex-col gap-4' });
     return `<div class="flex min-w-0 flex-col gap-5">${live}${pending}</div>`;
   }
-  TN.act('sales-open-file', (el) => TN.toast(`Opening ${el.dataset.file}. The view is recorded.`));
+  TN.act('sales-open-file', (el) => {
+    if (!el.dataset.fileId) return TN.toast(`Opening ${el.dataset.file}. The view is recorded.`);
+    const f = (D.departmentFiles || []).find((x) => x.id === el.dataset.fileId);
+    const s = f && TN.service(f.task), d = s && TN.deal(s.deal);
+    if (!f || f.kind !== 'e_ticket' || !d || !relation(d, false) || (DEPT_OF_ROLE[TN.role] && s.dept !== DEPT_OF_ROLE[TN.role]) || !TN.flightUI || !TN.flightUI.confirmedSegments(s).length) return TN.toast('This ticket is not available to you.', 'danger');
+    if (!f.url || !f.url.startsWith('blob:')) return TN.toast('This ticket has no file content in this preview session.', 'info');
+    window.open(f.url, '_blank', 'noopener,noreferrer');
+  });
   TN.act('sales-open-doc', (el) => { if (typeof TN.openDocument === 'function') TN.openDocument(el.dataset.id); else TN.toast(`Opening ${el.dataset.id} as a PDF.`); });
   TN.act('sales-doc-ask', (el) => {
     const x = D.documents.find((y) => y.id === el.dataset.id);
@@ -1069,6 +1080,10 @@
       ...D.changes.filter((c) => c.deal === d.id).map((c) => ({ icon: 'file-pen', title: `Change asked: ${esc(c.kind)} · ${esc((CHANGE_WORD[c.status] || CHANGE_WORD.waiting_customer)[2])}`, when: TN.fmt.date(c.at) })),
     ];
     if (ch.length) groups.push(['history-changes', 'Changes and cancellations', ch]);
+    const flightEvents = fullServices(d).filter((s) => s.kind === 'flight' && (!DEPT_OF_ROLE[TN.role] || DEPT_OF_ROLE[TN.role] === 'flight' || TN.role === 'sales' && TN.deal(s.deal)?.owner === TN.me().key)).flatMap((s) =>
+      ((D.taskHistory || {})[s.id] || []).map((h) => ({ icon: 'plane', title: `${esc(s.title)}: ${esc(h.title)}`, when: TN.fmt.dateTime(h.at), note: h.by ? esc((TN.person(h.by) || {}).name || h.by) : '', at: h.at }))
+    ).sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    if (flightEvents.length) groups.push(['history-flight', 'Flight task history', flightEvents]);
     if (TN.can('seeCustomerPayments')) {
       const p = D.paymentReports.filter((r) => r.deal === d.id).map((r) => ({ icon: 'banknote', title: `Payment reported: ${CLAIM[claimStatus(r)][2]}`, when: TN.fmt.dateTime(r.date + ' 12:00') }));
       if (p.length) groups.push(['history-payments', 'Reported payments', p]);

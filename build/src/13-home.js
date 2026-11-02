@@ -164,9 +164,10 @@
     notice: { word: 'Notice', many: 'Notices', tone: 'info', icon: 'bell' },
     escalation: { word: 'Escalation', many: 'Escalations', tone: 'danger', icon: 'circle-alert' },
   };
-  const isRead = (n) => (n.readBy || []).includes(TN.role);
-  const markRead = (n) => { n.readBy = n.readBy || []; if (!n.readBy.includes(TN.role)) n.readBy.push(TN.role); };
-  const mineNotices = () => (TN.DATA.notices || []).filter((n) => (n.to || []).includes(TN.role)).slice().sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  const noticeReader = (n) => n.recipients ? TN.me().key : TN.role;
+  const isRead = (n) => (n.readBy || []).includes(noticeReader(n));
+  const markRead = (n) => { n.readBy = n.readBy || []; const reader = noticeReader(n); if (!n.readBy.includes(reader)) n.readBy.push(reader); };
+  const mineNotices = () => (TN.DATA.notices || []).filter((n) => n.recipients ? n.recipients.includes(TN.me().key) : (n.to || []).includes(TN.role)).slice().sort((a, b) => String(b.at).localeCompare(String(a.at)));
 
   TN.page('/app/notices', {
     nav: '/app/notices', title: 'Notices',
@@ -181,7 +182,7 @@
         const k = KIND[n.kind] || KIND.notice;
         const read = isRead(n);
         const deal = n.deal ? TN.deal(n.deal) : null;
-        const link = n.deal ? U.rowLink('/app/deals/' + n.deal, esc(n.deal)) : n.href ? U.link(n.href, 'Open') : '<span class="text-quiet">—</span>';
+        const link = n.href ? U.link(n.href, n.deal ? esc(n.deal) : 'Open') : n.deal ? U.rowLink('/app/deals/' + n.deal, esc(n.deal)) : '<span class="text-quiet">—</span>';
         return {
           attrs: { 'data-notice': n.id },
           cells: [

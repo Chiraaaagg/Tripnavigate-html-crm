@@ -832,7 +832,17 @@
       left -= amt;
       const pax = deal.adults + deal.children + deal.infants;
       let detail = s.detail;
-      if (s.kind === 'flight') detail = `${s.title.replace(' and back', ', return')} · ${F.plural(pax, 'passenger')} · PNR ${s.pnr || 'to follow'}`;
+      if (s.kind === 'flight') {
+        const segments = TN.flightUI ? TN.flightUI.confirmedSegments(s) : [];
+        detail = segments.length ? segments.map((seg) => [
+          `${seg.from || '—'} to ${seg.to || '—'}`,
+          F.date(seg.departureDate || seg.date),
+          [seg.airline, seg.flightNumber].filter(Boolean).join(' '),
+          seg.departure ? `Departure ${seg.departure}` : '',
+          seg.arrival ? `Arrival ${seg.arrivalDate ? F.date(seg.arrivalDate) + ' ' : ''}${seg.arrival}` : '',
+          seg.pnr ? `PNR ${seg.pnr}` : ''
+        ].filter(Boolean).join(' · ')).join('; ') + ` · ${F.plural(Array.isArray(s.passengers) ? s.passengers.length : pax, 'passenger')}` : 'Confirmed flight details not yet recorded';
+      }
       if (s.kind === 'visa') detail = `${s.title} · ${F.plural(pax, 'traveller')} × ${F.inr(Math.round(amt / pax))}`;
       if (s.kind === 'hotel') detail = `${s.detail} · ${F.day(s.start)} to ${F.day(s.end)}`;
       return { kind: DOC_LINE_KIND[s.kind] || s.kind, title: s.kind === 'flight' || s.kind === 'visa' ? '' : s.title, detail, amount: amt };

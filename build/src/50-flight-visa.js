@@ -165,8 +165,8 @@
     `<div class="relative" data-slot="select"><select class="${C.input} cursor-pointer pr-9" id="${id}" name="${name}"${attrs}>${options.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(value ?? '') ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>${ic('chevron-down', 'pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-quiet')}</div>`;
   const field = (id, label, control, { optional, hint, error, cls } = {}) =>
     `<div class="flex flex-col gap-1.5${cls ? ' ' + cls : ''}" data-slot="field"><label class="${C.label}" for="${id}">${label}${optional ? '<span class="font-normal text-quiet"> (optional)</span>' : ''}</label>${control}${hint ? `<p class="${C.hint}" id="${id}-hint">${hint}</p>` : ''}${error ? fieldError(id, error) : ''}</div>`;
-  const textInput = (id, name, value, { type = 'text', max, invalid, describe } = {}) =>
-    `<input type="${type}" class="${C.input}" data-slot="input" id="${id}" autocomplete="off"${max ? ` maxlength="${max}"` : ''} name="${name}" value="${esc(value || '')}"${invalid ? ` aria-invalid="true" aria-describedby="${id}-error"` : describe ? ` aria-describedby="${describe}"` : ''}>`;
+  const textInput = (id, name, value, { type = 'text', max, invalid, describe, readonly } = {}) =>
+    `<input type="${type}" class="${C.input}" data-slot="input" id="${id}" autocomplete="off"${max ? ` maxlength="${max}"` : ''} name="${name}" value="${esc(value || '')}"${readonly ? ' readonly' : ''}${invalid ? ` aria-invalid="true" aria-describedby="${id}-error"` : describe ? ` aria-describedby="${describe}"` : ''}>`;
   const tabsNav = (label, items, cls) =>
     `<nav aria-label="${label}" class="${cls}" data-slot="tabs"><ul class="${C.tabsUl}">${items.map((t) => `<li class="m-0 shrink-0"><a${t.current ? ' aria-current="page"' : ''} class="${C.tab}" href="${t.href}">${t.label}${t.count != null ? `<span class="sr-only">:</span><span class="${C.tabCount}">${t.count}</span>` : ''}</a></li>`).join('')}</ul></nav>`;
   const timeline = (label, items, showState) =>
@@ -285,6 +285,13 @@
   ID_PROOFS['s-390-v'] = ID_PROOFS['s-390-f'];
   ID_PROOFS['s-301-v'] = ID_PROOFS['s-301-f'];
 
+  /* Preview seed task metadata only fills gaps on existing booking records. */
+  Object.values(S).filter((s) => s.dept === 'flight').forEach((s) => {
+    s.flightRequest = s.flightRequest || { segments: (s.segments || []).map((g) => ({ ...g })), preferredTime: s.preferredTime || '', cabin: s.cabin || '', notes: s.notes || '', passengers: (s.passengers || []).map((p) => ({ ...p })), versionNo: s.versionNo || 1 };
+    s.flightAvailability = s.flightAvailability || (s.taskStatus === 'done' ? 'requested' : 'unchecked');
+    s.flightProposals = s.flightProposals || [];
+  });
+
   /* Task history (newest first when shown). by: TN.PEOPLE key or null. */
   const H = (TN.DATA.taskHistory = TN.DATA.taskHistory || {});
   const seedH = (id, list) => { if (!H[id]) H[id] = list; };
@@ -388,8 +395,7 @@
     if (k === 'not_started') return badge('neutral', 'Waiting to be taken', { wrap: true, icon: 'hourglass', sr: 'Task status: ' });
     if (k === 'completed') return badge('success', 'Done · ticket issued', { wrap: true, icon: 'circle-check', sr: 'Task status: ' });
     if (k === 'supplier_confirmed') return badge('success', 'Confirmed by supplier', { wrap: true, icon: 'circle-check', sr: 'Task status: ' });
-    const recorded = s.pnr && filesOf(idOf(s)).some((f) => f.kind === 'e_ticket');
-    return badge('info', recorded ? 'In progress · ticket recorded, not marked done' : 'In progress · ticket not recorded in the CRM', { wrap: true, icon: 'pencil-line', sr: 'Task status: ' });
+    return badge('info', flightWord(s), { wrap: true, icon: 'pencil-line', sr: 'Task status: ' });
   }
   function visaStatus(s) {
     const k = statusKey(s);
@@ -397,22 +403,217 @@
     if (k === 'completed') return badge('success', 'Completed', { wrap: true, icon: 'circle-check', sr: 'Task status: ' });
     return badge('info', 'In progress', { wrap: true, icon: 'pencil-line', sr: 'Task status: ' });
   }
-  const idOf = (s) => Object.keys(S).find((k) => S[k] === s);
+  const idOf = (s) => s.id || Object.keys(S).find((k) => S[k] === s);
+  const canEditFlight = (s) => !!s && s.dept === 'flight' && TN.is('flight') && isMine(s) && s.taskStatus === 'in_progress';
+  const canPropose = (s) => canEditFlight(s) && !s.flightTicket?.issued && latestProposal(s)?.status !== 'pending';
+  const requestOf = (s) => s.flightRequest || { segments: s.segments || [], preferredTime: s.preferredTime || '', cabin: s.cabin || '', notes: s.notes || '', passengers: s.passengers || [], versionNo: s.versionNo || 1 };
+  const passengerCounts = (s) => {
+    const deal = TN.deal(s.deal) || {};
+    const people = requestOf(s).passengers || s.passengers || [];
+    const count = (type) => people.filter((p) => String(p.type || '').toLowerCase() === type).length;
+    return { adult: Number(deal.adults ?? count('adult') ?? 0), child: Number(deal.children ?? count('child') ?? 0), infant: Number(deal.infants ?? count('infant') ?? 0) };
+  };
+  const fareTypes = (s) => Object.entries(passengerCounts(s)).filter(([, count]) => count > 0).map(([type]) => type);
+  const fareTotal = (s, rows) => {
+    const counts = passengerCounts(s);
+    return (rows || []).reduce((total, raw) => {
+      const fareBreakup = normalizeSegment(raw).fareBreakup || {};
+      return total + fareTypes(s).reduce((sum, type) => sum + (Number(fareBreakup[type]) || 0) * counts[type], 0);
+    }, 0);
+  };
+  const latestProposal = (s) => (s.flightProposals || []).at(-1);
+  /* Latest proposal for one sector (null = whole-trip proposal). Each sector is decided on its own. */
+  const latestFor = (s, sectorIndex) => (s.flightProposals || []).filter((p) => (p.sectorIndex ?? null) === (sectorIndex ?? null)).at(-1);
+  const validPnr = (value) => /^[A-Z0-9]{5,8}$/.test(norm(value));
+  /* Why Alternate cannot be used on this sector right now ('' = it can). */
+  function alternateBlock(s, index) {
+    if (!canEditFlight(s)) return 'Only the assigned Flight Executive can send an alternative on an active task.';
+    const status = sectorStatus(s, index);
+    if (status === 'Pending Sales approval') return `Sector ${index + 1} is already waiting for Sales approval.`;
+    if (status === 'Confirmed') return `Sector ${index + 1} is already confirmed. An alternative cannot be sent for it.`;
+    return '';
+  }
+  const norm = (v) => String(v || '').trim().toUpperCase().replace(/\s+/g, ' ');
+  const segmentKey = (g) => [g.from, g.to, g.departureDate || g.date, g.arrivalDate || g.departureDate || g.date, g.departure || g.time, g.arrival, g.airline, g.flightNumber, g.class || g.cabin].map(norm).join('|');
+  const itineraryEqual = (a, b) => a.length === b.length && a.every((g, i) => segmentKey(g) === segmentKey(b[i]));
+  const bookingBasis = (s) => {
+    const rows = cloneSegments(requestOf(s).segments);
+    (s.flightProposals || []).filter((p) => p.status === 'approved' && p.sectorIndex != null).forEach((p) => {
+      if (rows[p.sectorIndex]) rows[p.sectorIndex] = { ...p.proposedSegment, fareBreakup: p.proposedSegment?.fareBreakup || {} };
+    });
+    const whole = latestProposal(s);
+    return whole?.status === 'approved' && whole.sectorIndex == null ? cloneSegments(whole.segments) : rows;
+  };
+  const cloneSegments = (rows) => rows.map((g) => ({ ...g }));
+  const workSegments = (s) => {
+    const basis = cloneSegments(bookingBasis(s));
+    (s.flightTicket?.segments || []).forEach((ticket, index) => {
+      if (basis[index] && validPnr(ticket.pnr)) basis[index] = { ...basis[index], ...ticket };
+    });
+    return basis;
+  };
+  const blankSegment = () => ({ from: '', to: '', departureDate: '', arrivalDate: '', departure: '', arrival: '', airline: '', flightNumber: '', pnr: '', ticketNumbers: '' });
+  function normalizeSegment(g) {
+    const flight = String(g.flight || '').trim().match(/^(.*?)\s+([A-Z0-9]{2})\s*(\d+\w?)$/i);
+    return { from: norm(g.from), to: norm(g.to), departureDate: g.departureDate || g.date || '', arrivalDate: g.arrivalDate || '', departure: g.departure || g.time || '', arrival: g.arrival || '', airline: g.airline || flight?.[1] || '', flightNumber: g.flightNumber || (flight ? `${flight[2]} ${flight[3]}` : ''), class: g.class || g.cabin || '', pnr: norm(g.pnr), ticketNumbers: String(g.ticketNumbers || '').trim(), fareBreakup: g.fareBreakup || { adult: '', child: '', infant: '' } };
+  }
+  function segmentErrors(rows, ticketing) {
+    if (!rows?.length) return ['Add at least one flight sector.'];
+    const validDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+    return rows.flatMap((raw, i) => {
+      const g = normalizeSegment(raw); const n = i + 1; const out = [];
+      if (!g.from || !g.to || g.from === g.to || !validDate(g.departureDate)) out.push(`Sector ${n} needs different origin and destination and a valid travel date.`);
+      if (!validDate(g.arrivalDate) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(g.departure) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(g.arrival) || !g.airline || !g.flightNumber) out.push(`Sector ${n} needs airline, flight number, departure time, arrival time and arrival date.`);
+      if (ticketing && !/^[A-Z0-9]{5,8}$/.test(g.pnr)) out.push(`Sector ${n} needs a 5–8 character PNR.`);
+      return out;
+    });
+  }
+  function matchesRequest(rows, request) {
+    const keys = ['from', 'to', 'departureDate', 'arrivalDate', 'departure', 'arrival', 'airline', 'flightNumber'];
+    return request.length > 0 && rows.length === request.length && request.every((raw, i) => {
+      const expected = normalizeSegment(raw); const actual = normalizeSegment(rows[i]);
+      return keys.every((key) => !expected[key] || norm(expected[key]) === norm(actual[key]));
+    });
+  }
+  function authorizedItinerary(s, rows, version) {
+    const proposals = s.flightProposals || [];
+    const pending = proposals.some((p) => p.status === 'pending');
+    if (pending) return false;
+    const approved = proposals.filter((p) => p.status === 'approved');
+    const rejected = proposals.filter((p) => p.status === 'rejected');
+    if (approved.length) {
+      return approved.every((p) => p.sectorIndex == null
+        ? version === p.version && itineraryEqual(rows, p.segments)
+        : !!rows[p.sectorIndex] && itineraryEqual([rows[p.sectorIndex]], [p.proposedSegment || p.segments[p.sectorIndex]]));
+    }
+    if (rejected.length && rejected.some((p) => p.sectorIndex == null)) return false;
+    return version == null && matchesRequest(rows, requestOf(s).segments);
+  }
+  function sectorStatus(s, index) {
+    const proposal = latestFor(s, index);
+    if (proposal?.status === 'pending') return 'Pending Sales approval';
+    if (proposal?.status === 'rejected') return 'Rejected alternative';
+    const segment = s.flightTicket?.segments?.[index];
+    if (segment && validPnr(segment.pnr)) return 'Confirmed';
+    if (proposal?.status === 'approved') return 'Approved alternative';
+    return 'Not confirmed';
+  }
+  function confirmedSegments(s) {
+    const rows = bookingBasis(s);
+    return rows.map((segment, index) => sectorStatus(s, index) === 'Confirmed' ? normalizeSegment(s.flightTicket.segments[index]) : null).filter(Boolean);
+  }
+  function allSectorsConfirmed(s) {
+    const total = bookingBasis(s).length;
+    return total > 0 && Array.from({ length: total }, (_, index) => sectorStatus(s, index) === 'Confirmed').every(Boolean);
+  }
+  function flightWord(s) {
+    const p = latestProposal(s);
+    if (s.taskStatus === 'cancelled') return 'Cancelled';
+    if (s.taskStatus === 'new') return 'Waiting to be taken';
+    if (allSectorsConfirmed(s)) return s.taskStatus === 'done' ? 'Done · ticket issued' : 'In progress · all sectors confirmed';
+    if (confirmedSegments(s).length) return 'In progress · some sectors confirmed';
+    if (s.taskStatus === 'done') return 'Completed · ticket details unavailable';
+    if (p?.status === 'pending') return 'Pending Sales approval';
+    if (p?.status === 'approved' && !s.flightTicket?.issued) return 'Alternative approved · ready for ticketing';
+    if (p?.status === 'rejected') return 'Alternative rejected';
+    if (s.flightAvailability === 'requested') return 'Requested flight available';
+    return 'In progress · ticket not recorded in the CRM';
+  }
+  const itineraryTable = (rows, label, fallbackClass = '') => table({ label, caption: `${rows.length} flight sectors`, heads: ['#', 'From', 'To', 'Travel date', 'Departure', 'Arrival', 'Airline / flight', 'Class'], rows: rows.map((raw, i) => { const g = normalizeSegment(raw); return [{ html: String(i + 1) }, { html: esc(g.from || '—') }, { html: esc(g.to || '—') }, { html: esc(TN.fmt.date(g.departureDate)) }, { html: esc(g.departure || '—') }, { html: esc([g.arrivalDate ? TN.fmt.date(g.arrivalDate) : '', g.arrival].filter(Boolean).join(' · ') || '—') }, { html: esc([g.airline, g.flightNumber].filter(Boolean).join(' ') || raw.flight || '—') }, { html: esc(g.class || fallbackClass || '—') }]; }) });
+  const ticketLink = (f) => f.url ? `<a href="${esc(f.url)}" target="_blank" rel="noopener" class="${C.linkPlain}">${esc(f.name)}</a>` : `<span>${esc(f.name)}</span>`;
+  function segmentEditor(taskId, rows, mode) {
+    const labels = { from: 'From', to: 'To', departureDate: 'Departure date', arrivalDate: 'Arrival date', departure: 'Departure time', arrival: 'Arrival time', airline: 'Airline', flightNumber: 'Flight number', class: 'Class', pnr: 'PNR', ticketNumbers: 'Ticket number', adultFare: 'Adult fare', childFare: 'Child fare', infantFare: 'Infant fare' };
+    const input = (name, key, value, extra = '') => `<label class="block min-w-0"><span class="sr-only">Sector ${Number(name.split('.')[1]) + 1} ${labels[key]}</span><input class="${C.input} h-9 min-w-0 w-full px-2 text-sm" aria-label="Sector ${Number(name.split('.')[1]) + 1} ${labels[key]}" name="${name}" value="${esc(value || '')}" type="${key.endsWith('Date') ? 'date' : key === 'departure' || key === 'arrival' ? 'time' : 'text'}" autocomplete="off"${extra}></label>`;
+    const dateTime = (i, prefix, date, time) => `<div class="flex min-w-[13rem] flex-col gap-1"><div class="grid grid-cols-[minmax(0,1fr)_5.5rem] gap-1">${input(`segments.${i}.${prefix}Date`, `${prefix}Date`, date)}${input(`segments.${i}.${prefix}`, prefix, time)}</div></div>`;
+    const activeFareTypes = mode === 'ticket' || mode === 'proposal' ? fareTypes(S[taskId]) : [];
+    const fareLabels = { adult: 'Adult fare', child: 'Child fare', infant: 'Infant fare' };
+    const heads = ['#', 'Airline', 'Flight no.', 'From', 'To', 'Class', 'Departure date & time', 'Arrival date & time', ...(mode === 'ticket' ? ['PNR', 'Ticket no.', ...activeFareTypes.map((type) => fareLabels[type])] : []), ...(mode === 'proposal' ? activeFareTypes.map((type) => fareLabels[type]) : []), ...(mode === 'proposal' ? [''] : [])];
+    const body = rows.map((raw, i) => {
+      const g = normalizeSegment(raw); const route = [g.from || '—', g.to || '—'].join(' → ');
+      const cells = [
+        `<span class="font-semibold tabular-nums text-quiet">${String(i + 1).padStart(2, '0')}</span>`,
+        input(`segments.${i}.airline`, 'airline', g.airline || raw.flight?.replace(/\s+[A-Z0-9]{2}\s*\d+\w?$/i, '')),
+        input(`segments.${i}.flightNumber`, 'flightNumber', g.flightNumber),
+        input(`segments.${i}.from`, 'from', g.from),
+        input(`segments.${i}.to`, 'to', g.to),
+        input(`segments.${i}.class`, 'class', g.class || requestOf(S[taskId]).cabin),
+        dateTime(i, 'departure', g.departureDate || raw.date, g.departure),
+        dateTime(i, 'arrival', g.arrivalDate, g.arrival),
+        ...(mode === 'ticket' ? [input(`segments.${i}.pnr`, 'pnr', g.pnr), input(`segments.${i}.ticketNumbers`, 'ticketNumbers', g.ticketNumbers), ...activeFareTypes.map((type) => input(`segments.${i}.${type}Fare`, `${type}Fare`, g.fareBreakup?.[type], ' inputmode="decimal"'))] : []),
+        ...(mode === 'proposal' ? activeFareTypes.map((type) => input(`segments.${i}.${type}Fare`, `${type}Fare`, g.fareBreakup?.[type], ' inputmode="decimal"')) : []),
+        ...(mode === 'proposal' ? [`<button type="button" class="${B.ghostSm} whitespace-nowrap" data-act="fv-proposal-remove" data-id="${taskId}" data-index="${i}">Remove</button>`] : []),
+      ];
+      return `<tr class="border-t border-line align-middle"><td class="px-2 py-2 text-center">${cells[0]}</td>${cells.slice(1).map((cell) => `<td class="min-w-0 px-1.5 py-2">${cell}</td>`).join('')}</tr>`;
+    }).join('');
+    return `<section class="flex min-w-0 flex-col gap-3" aria-label="Flight sectors"><div class="flex flex-wrap items-baseline justify-between gap-2"><h3 class="m-0 text-base font-semibold text-ink">Flight sectors — ${rows.length}</h3><span class="text-xs text-quiet">${mode === 'ticket' ? 'Enter one issued sector per row.' : 'Edit the proposed sectors below.'}</span></div><div class="max-w-full overflow-x-auto rounded-card border border-line bg-card"><table class="w-full min-w-[${mode === 'ticket' ? '1180' : '900'}px] border-collapse text-sm"><caption class="sr-only">${mode === 'ticket' ? 'Issued flight sectors' : 'Proposed flight sectors'}</caption><thead><tr class="bg-wash text-left text-xs font-semibold text-quiet">${heads.map((head) => `<th scope="col" class="whitespace-nowrap px-2 py-2">${head}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>${mode === 'proposal' ? `<div><button type="button" class="${B.secondaryMd}" data-act="fv-proposal-add" data-id="${taskId}">Add sector</button></div>` : ''}</section>`;
+  }
+  function parseEditor(form, mode) {
+    const values = fd(form); const count = Math.max(...Object.keys(values).filter((k) => k.startsWith('segments.')).map((k) => Number(k.split('.')[1])), -1) + 1;
+    const segments = Array.from({ length: count }, (_, i) => normalizeSegment({ ...Object.fromEntries(['from', 'to', 'departureDate', 'arrivalDate', 'departure', 'arrival', 'airline', 'flightNumber', 'class', 'pnr', 'ticketNumbers'].map((k) => [k, values[`segments.${i}.${k}`] || ''])), fareBreakup: { adult: values[`segments.${i}.adultFare`] || '', child: values[`segments.${i}.childFare`] || '', infant: values[`segments.${i}.infantFare`] || '' } }));
+    return { segments, errors: segmentErrors(segments, mode === 'ticket') };
+  }
+  function availabilityCard(id, work) {
+    const s = S[id]; const proposal = latestProposal(s); const activeDraft = UI.vals[`proposal-${id}`]; const draft = activeDraft || { segments: cloneSegments(proposal?.segments || requestOf(s).segments), reason: '', notes: '', sectorIndex: proposal?.sectorIndex ?? 0 };
+    if (!draft.segments.length) draft.segments = [blankSegment()];
+    work = work && canPropose(s);
+    const baseSegments = requestOf(s).segments;
+    const statusFor = (index) => {
+      const current = (s.flightProposals || []).filter((p) => p.sectorIndex === index).at(-1);
+      if (!current) return 'Ready for ticketing';
+      return current.status === 'pending' ? 'Pending Sales approval' : current.status === 'approved' ? 'Approved alternative' : 'Rejected alternative';
+    };
+    const sectorRows = baseSegments.map((raw, index) => { const g = normalizeSegment(raw); const route = `${g.from || '—'} → ${g.to || '—'}`; return `<tr class="border-t border-line"><td class="px-2 py-2 text-center tabular-nums">${String(index + 1).padStart(2, '0')}</td><td class="px-2 py-2">${esc(route)}</td><td class="px-2 py-2">${esc(TN.fmt.date(g.departureDate) || '—')}</td><td class="px-2 py-2">${esc([g.airline, g.flightNumber].filter(Boolean).join(' ') || '—')}</td><td class="px-2 py-2">${esc(statusFor(index))}</td><td class="px-2 py-2 text-right">${work ? `<button type="button" class="${B.ghostSm} whitespace-nowrap" data-act="fv-alternate" data-id="${id}" data-index="${index}">Alternate rate request · ${esc(route)}</button>` : '—'}</td></tr>`; }).join('');
+    const sectorTable = `<div class="max-w-full overflow-x-auto rounded-card border border-line bg-card"><table class="w-full min-w-[760px] border-collapse text-sm"><caption class="sr-only">Flight availability by sector</caption><thead><tr class="bg-wash text-left text-xs font-semibold text-quiet"><th class="px-2 py-2">Sector</th><th class="px-2 py-2">Route</th><th class="px-2 py-2">Travel date</th><th class="px-2 py-2">Sales flight</th><th class="px-2 py-2">Status</th><th class="px-2 py-2 text-right">Action</th></tr></thead><tbody>${sectorRows}</tbody></table></div>`;
+    const comparison = proposal ? table({ label: 'Original request and proposed alternative', caption: `Proposal ${proposal.version}`, heads: ['Field', 'Sales requested', 'Flight proposed'], rows: [['Route', requestOf(s).segments.map((g) => `${g.from} → ${g.to}`).join('; '), proposal.segments.map((g) => `${g.from} → ${g.to}`).join('; ')], ['Travel dates', requestOf(s).segments.map((g) => g.date || g.departureDate).join(', '), proposal.segments.map((g) => g.departureDate).join('; ')], ['Timing', requestOf(s).preferredTime || 'Not specified', proposal.segments.map((g) => `${g.departure || '—'}–${g.arrival || '—'}`).join('; ')], ['Status', 'Original request', proposal.status === 'pending' ? 'Pending Sales approval' : proposal.status === 'approved' ? 'Approved by Sales' : 'Rejected by Sales']].map((r) => r.map((c) => ({ html: esc(c) }))) }) : '';
+    const form = work && activeDraft && proposal?.status !== 'pending' ? `<form novalidate data-act="fv-proposal-save" class="flex flex-col gap-3">${UI.err[`proposal-${id}`] ? errorSummary('Check the proposal', esc(UI.err[`proposal-${id}`])) : ''}<input type="hidden" name="task" value="${id}"><input type="hidden" name="sectorIndex" value="${draft.sectorIndex ?? 0}">${segmentEditor(id, draft.segments, 'proposal')}<div class="grid gap-3 sm:grid-cols-2">${field(`reason-${id}`, 'Reason for alternative', textInput(`reason-${id}`, 'reason', draft.reason))}</div>${field(`notes-${id}`, 'Notes for Sales', textInput(`notes-${id}`, 'notes', draft.notes), { optional: true })}<div class="flex flex-wrap gap-2"><button class="${B.secondary}" type="button" data-act="fv-proposal-draft" data-id="${id}">Save proposal draft</button><button class="${B.primary}" type="submit">Send alternative to Sales for approval</button></div></form>` : '';
+    return `<details class="rounded-card border border-line bg-card" id="availability-${id}"><summary class="cursor-pointer px-4 py-3 text-base font-semibold text-ink">Flight availability and alternative</summary><div class="flex min-w-0 flex-col gap-3 p-4">${sectorTable}${comparison}${proposal ? `<p class="${C.small}">Version ${proposal.version}: ${esc(proposal.reason)}${proposal.rejectionReason ? ` Rejection: ${esc(proposal.rejectionReason)}` : ''}</p>` : ''}${form}${proposalHistory(s)}</div></details>`;
+  }
+  function proposalHistory(s) {
+    const proposals = s.flightProposals || [];
+    if (!proposals.length) return '';
+    return `<details><summary class="${C.linkPlain}">Proposal history (${proposals.length})</summary>${proposals.slice().reverse().map((p) => `<section class="${C.bodyCol4}"><h3 class="m-0 text-base font-semibold">Version ${p.version} · ${esc(p.status)}</h3>${itineraryTable(p.segments, `Proposal ${p.version}`)}<p class="${C.small}">${esc(p.reason)}${p.notes ? ` · ${esc(p.notes)}` : ''}</p><p class="${C.small}">Submitted ${TN.fmt.dateTime(p.submittedAt)} by ${esc(personName(p.submittedBy))}${p.decidedAt ? ` · ${esc(p.status)} ${TN.fmt.dateTime(p.decidedAt)} by ${esc(personName(p.decidedBy))}` : ''}${p.rejectionReason ? ` · Rejection reason: ${esc(p.rejectionReason)}` : ''}</p></section>`).join('')}</details>`;
+  }
+  function salesReview(id) {
+    const s = S[id]; if (!(s.flightProposals || []).length || !TN.is('sales', 'manager')) return '';
+    /* One block per sector: the latest proposal of each sector (plan answer B: sectors are independent). */
+    const current = [...new Set(s.flightProposals.map((p) => p.sectorIndex ?? null))].map((k) => latestFor(s, k)).sort((a, b) => (a.sectorIndex ?? -1) - (b.sectorIndex ?? -1));
+    const waiting = current.filter((p) => p.status === 'pending').length;
+    const blocks = current.map((proposal) => salesProposalBlock(s, id, proposal)).join('');
+    return card({ id: `sales-flight-${id}`, title: `Flight alternatives${waiting ? ` · ${waiting} waiting for approval` : ''}`, body: `${blocks}<p class="${C.small}">Approved budget ${s.budget ? TN.fmt.inr(s.budget) : 'not set'}.</p>${proposalHistory(s)}`, bodyCls: C.bodyCol4 });
+  }
+  function salesProposalBlock(s, id, proposal) {
+    const owner = TN.deal(s.deal)?.owner === me();
+    const counts = passengerCounts(s);
+    const applicable = fareTypes(s);
+    const fareLabels = { adult: 'Adult', child: 'Child', infant: 'Infant' };
+    const sector = proposal.sectorIndex != null;
+    const original = sector ? [proposal.originalSegment || requestOf(s).segments[proposal.sectorIndex]].filter(Boolean) : requestOf(s).segments;
+    const heading = sector ? `Sector ${String(proposal.sectorIndex + 1).padStart(2, '0')} · proposal ${proposal.version}` : `Whole trip · proposal ${proposal.version}`;
+    const fareRows = applicable.map((type) => {
+      const fares = proposal.segments.map((g) => Number(normalizeSegment(g).fareBreakup?.[type]) || 0);
+      const total = fares.reduce((sum, fare) => sum + fare, 0) * counts[type];
+      return `<tr><td class="px-2 py-1.5">${fareLabels[type]}</td><td class="px-2 py-1.5 text-right tabular-nums">${counts[type]}</td><td class="px-2 py-1.5 text-right tabular-nums">${fares.map((fare) => inr(fare)).join(' · ')}</td><td class="px-2 py-1.5 text-right tabular-nums">${inr(total)}</td></tr>`;
+    }).join('');
+    const proposedTotal = fareTotal(s, proposal.segments);
+    const fareSummary = `<section class="rounded-card border border-line bg-wash p-3"><h3 class="m-0 text-sm font-semibold text-ink">Proposed booking amount</h3>${fareRows ? `<div class="mt-2 overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-quiet"><th class="px-2 py-1.5">Passenger</th><th class="px-2 py-1.5 text-right">Count</th><th class="px-2 py-1.5 text-right">Fare per sector</th><th class="px-2 py-1.5 text-right">Calculated total</th></tr></thead><tbody>${fareRows}</tbody></table></div><p class="m-0 mt-3 text-right font-semibold tabular-nums">Total proposed booking amount: ${inr(proposedTotal)}</p>` : '<p class="m-0 mt-2 text-sm text-quiet">No passenger fare breakup was recorded for this proposal.</p>'}</section>`;
+    const decision = proposal.status === 'pending' && owner ? `<div class="flex flex-wrap gap-2"><button class="${B.primary}" type="button" data-act="fv-decision" data-id="${id}" data-version="${proposal.version}" data-decision="approve">Approve alternative</button><button class="${B.danger}" type="button" data-act="fv-decision" data-id="${id}" data-version="${proposal.version}" data-decision="reject">Reject alternative</button></div>` : proposal.status === 'pending' ? '<p class="m-0 text-sm text-quiet">Only the owning Sales Executive can decide this proposal.</p>' : '';
+    return `<section class="flex min-w-0 flex-col gap-3 border-b border-line pb-4" aria-label="${esc(heading)}"><h3 class="m-0 text-base font-semibold text-ink">${esc(heading)}</h3>${notice(proposal.status === 'approved' ? 'success' : proposal.status === 'rejected' ? 'danger' : 'warning', esc(proposal.status === 'pending' ? 'Pending Sales approval. Approval does not issue a ticket.' : proposal.status === 'approved' ? 'Approved by Sales. Flight still records the issued ticket separately.' : 'Rejected. Ticketing for this sector remains blocked.'))}${itineraryTable(original, 'Original request')}${itineraryTable(proposal.segments, 'Proposed alternative')}${fareSummary}<p class="${C.small}">Reason: ${esc(proposal.reason)}${proposal.notes ? ` · Notes: ${esc(proposal.notes)}` : ''}</p>${decision}</section>`;
+  }
+  TN.flightUI = { salesReview, status: flightWord, confirmedSegments };
 
   /* Mark-done checklist (DEC-59, pending). */
   function flightChecklist(id) {
     const s = S[id];
-    const costs = costsOf(id);
-    const company = costs.filter((c) => c.paidBy === 'company');
-    const returned = company.filter((c) => c.status === 'returned').length;
-    const notSent = company.filter((c) => c.status === 'draft' || c.status == null).length;
-    const unpaid = costs.filter((c) => c.paidBy === 'not_yet' && !c.paymentRequest).length;
+    /* Done needs what the Confirm popup collects: PNR, ticket number and fares per sector (plan answer A). */
+    const tickets = s.flightTicket?.segments || [];
+    const indexes = Array.from({ length: bookingBasis(s).length }, (_, i) => i);
+    const statuses = indexes.map((i) => sectorStatus(s, i));
+    const types = fareTypes(s);
     return [
-      { key: 'pnr', target: `pnr-${id}`, label: 'Airline booking reference (PNR)', done: !!s.pnr, why: 'not recorded yet' },
-      { key: 'ticket', target: `eticket-${id}`, label: 'E-ticket file', done: filesOf(id).some((f) => f.kind === 'e_ticket'), why: 'not uploaded yet' },
-      { key: 'fare', target: `cost-${id}-heading`, label: 'Fare recorded', done: costs.some((c) => c.kind === 'fare'), why: 'no fare yet' },
-      { key: 'sent', target: `cost-${id}-heading`, label: 'Company-paid costs sent to Accounts', done: returned === 0 && notSent === 0, why: returned ? `${TN.fmt.plural(returned, 'cost')} returned by Accounts: fix and send again` : `${TN.fmt.plural(notSent, 'cost')} not sent yet` },
-      { key: 'request', target: `cost-${id}-heading`, label: 'Unpaid fares have a payment request', done: unpaid === 0, why: `${unpaid} without a request` },
+      { key: 'details', target: `finish-${id}-heading`, label: 'Confirm every sector with its PNR and ticket number', done: indexes.length > 0 && statuses.every((st) => st === 'Confirmed') && indexes.every((i) => String(tickets[i]?.ticketNumbers || '').trim()), why: 'use Confirm on each sector' },
+      { key: 'fare', target: `finish-${id}-heading`, label: 'Fares for every sector', done: indexes.length > 0 && indexes.every((i) => types.every((type) => String(normalizeSegment(tickets[i] || {}).fareBreakup?.[type] ?? '').trim() !== '')) && fareTotal(s, tickets) > 0, why: 'enter the fare for each passenger type in the Confirm popup' },
+      { key: 'ticket', target: `eticket-${id}`, label: 'E-ticket documents', done: filesOf(id).some((f) => f.kind === 'e_ticket'), why: 'attach the issued tickets' },
+      { key: 'approval', target: `finish-${id}-heading`, label: 'No alternative waiting for or rejected by Sales', done: !statuses.some((st) => st === 'Pending Sales approval' || st === 'Rejected alternative'), why: 'wait for the Sales decision, or send a revised alternative' },
     ];
   }
   const readyToFinish = (id) => flightChecklist(id).every((i) => i.done);
@@ -433,9 +634,9 @@
 
   function filesPanel(id, { idProofs = true } = {}) {
     const s = S[id];
-    const dep = filesOf(id).map((f) => ({ name: f.name, meta: `${FILE_KIND[f.kind]} · ${f.size} · ${TN.fmt.dateTime(f.at)}` }));
+    const dep = filesOf(id).map((f) => ({ name: f.name, url: f.url, meta: `${FILE_KIND[f.kind]} · ${f.size} · ${TN.fmt.dateTime(f.at)}` }));
     const proofs = idProofs && isMine(s) ? Object.entries(ID_PROOFS[id] || {}).map(([who, [n, sz]]) => ({ name: n, meta: `ID proof of ${who} · ${sz}` })) : [];
-    const group = (gid, title, lines) => (lines.length ? `<section aria-labelledby="${gid}" class="flex flex-col gap-2"><h3 id="${gid}" class="m-0 text-base font-semibold text-ink">${title}</h3><ul class="m-0 flex list-none flex-col gap-2 p-0" aria-label="${title}">${lines.map((f) => `<li class="m-0 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">${ic('file-text', 'size-4 shrink-0 text-faint')}<a href="#" data-act="fv-open-file" rel="noopener" class="${C.linkF}">${esc(f.name)}</a><span class="text-quiet">${esc(f.meta)}</span></li>`).join('')}</ul></section>` : '');
+    const group = (gid, title, lines) => (lines.length ? `<section aria-labelledby="${gid}" class="flex flex-col gap-2"><h3 id="${gid}" class="m-0 text-base font-semibold text-ink">${title}</h3><ul class="m-0 flex list-none flex-col gap-2 p-0" aria-label="${title}">${lines.map((f) => `<li class="m-0 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">${ic('file-text', 'size-4 shrink-0 text-faint')}${f.url ? ticketLink(f) : `<a href="#" data-act="fv-open-file" rel="noopener" class="${C.linkF}">${esc(f.name)}</a>`}<span class="text-quiet">${esc(f.meta)}</span></li>`).join('')}</ul></section>` : '');
     const body = `${!dep.length && !proofs.length ? '<p class="m-0 text-quiet">No files on this task yet.</p>' : ''}${group('task-files-department', 'Department files', dep)}${group('task-files-id', 'Traveller ID proofs', proofs)}${proofs.length ? internalLine('Private identity documents for this work. Every view is recorded.') : ''}`;
     return card({ id: 'task-files-heading', title: 'Files', desc: 'Only files for this task. Customer payment proofs and acceptance messages are never listed here.', extra: ic('folder-open', 'size-4 text-faint'), body, bodyCls: C.bodyCol4 });
   }
@@ -641,6 +842,7 @@
   }
 
   function costCard(id, dept, work) {
+    if (dept === 'flight') return '';
     const costs = costsOf(id);
     const proofs = filesOf(id).filter((f) => f.kind === 'direct_payment_proof' || f.kind === 'fee_receipt');
     const adding = UI.open[`new-${id}`];
@@ -666,9 +868,10 @@
     const tabs = (taker ? ['not_taken', 'mine', 'all'] : ['not_taken', 'all']).map((k) => ({ label: { not_taken: 'Not taken', mine: 'Mine', all: 'All' }[k], href: '#/app/flight' + (k === (taker ? 'not_taken' : 'all') ? '' : '?show=' + k), current: k === show, count: { not_taken: notTaken.length, mine: mine.length, all: all.length }[k] }));
     const rows = list.map(({ id, s }) => {
       const d = TN.deal(s.deal);
+      const segments = requestOf(s).segments;
       return [
         { html: `<a class="rounded-chip font-semibold text-brand-strong underline-offset-4 hover:text-brand-deep ${FOCUS}" href="#/app/flight/${id}">${esc(routeOf(s))}<span class="sr-only"> — open task</span></a>` },
-        { cls: 'text-sm', html: `<ul class="m-0 list-none p-0">${(s.segments || []).map((g) => `<li class="m-0 whitespace-nowrap">${esc(segText(g))}</li>`).join('')}</ul>` },
+        { cls: 'text-sm', html: `<ul class="m-0 list-none p-0">${segments.map((g, i) => `<li class="m-0 whitespace-nowrap">${i + 1}. ${esc(segText(g))}</li>`).join('')}</ul>` },
         { cls: 'tabular-nums', html: String((s.passengers || []).length || (d.adults + d.children + d.infants)) },
         { cls: 'whitespace-nowrap tabular-nums', html: s.budget ? inr(s.budget) : 'Budget not set' },
         { html: flightStatus(s) },
@@ -689,71 +892,134 @@
     return `<div class="${C.page}"><header class="${C.headerList}" data-slot="page-header"><div class="min-w-0"><h1 class="${C.h1}">Task not available</h1></div></header>${notice('locked', 'This task is not available to you. It may not exist, or you may not have access.', { role: 'status' })}<p class="m-0 mt-4"><a class="${B.secondaryMd}" data-slot="button" href="${back}">${ic('chevron-left')}${backText}</a></p></div>`;
   }
 
+  /* Progress bar steps for a Flight task (FLIGHT_PROGRESS_BAR_PLAN.md). Uses existing data only; saves nothing.
+     "Sales approval" only appears when an alternative was sent. Current step = first step not finished. */
+  function flightProgress(id) {
+    const s = S[id]; const done = s.taskStatus === 'done';
+    const proposals = s.flightProposals || [];
+    const sectors = [...new Set(proposals.map((p) => p.sectorIndex ?? null))];
+    const altOpen = sectors.some((k) => ['pending', 'rejected'].includes(latestFor(s, k)?.status));
+    const total = bookingBasis(s).length; const confirmed = confirmedSegments(s).length;
+    const steps = [
+      { label: 'Take task', done: !!s.assignee && s.taskStatus !== 'new' },
+      ...(proposals.length ? [{ label: 'Sales approval', done: done || !altOpen, sub: altOpen ? (sectors.some((k) => latestFor(s, k)?.status === 'rejected') ? 'Rejected · revise' : 'Waiting') : '' }] : []),
+      { label: 'Confirm sectors', done: done || allSectorsConfirmed(s), sub: !done && total ? `${confirmed} of ${total}` : '' },
+      { label: 'Attach e-tickets', done: done || filesOf(id).some((f) => f.kind === 'e_ticket') },
+      { label: 'Flight done', done },
+    ];
+    const current = s.taskStatus === 'cancelled' ? -1 : steps.findIndex((st) => !st.done);
+    return steps.map((st, i) => ({ ...st, state: s.taskStatus === 'cancelled' ? 'todo' : st.done ? 'done' : i === current ? 'current' : 'todo' }));
+  }
+  function progressBar(id) {
+    const s = S[id]; const steps = flightProgress(id); const n = steps.length;
+    const tick = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+    const words = { done: 'done', current: 'current step', todo: 'not started' };
+    const items = steps.map((st, i) => `<li data-state="${st.state}"${st.state === 'current' ? ' aria-current="step"' : ''}><span class="fv-dot" aria-hidden="true">${st.state === 'done' ? tick : i + 1}</span><span class="fv-lbl"><span class="sr-only">Step ${i + 1} of ${n}: </span>${esc(st.label)}${st.sub ? `<span class="fv-sub">${esc(st.sub)}</span>` : ''}<span class="sr-only">, ${words[st.state]}</span></span></li>`).join('');
+    return `<nav class="fv-prog" aria-label="Flight task progress"${s.taskStatus === 'cancelled' ? ' data-cancelled' : ''}><ol style="--fv-steps:${n}">${items}</ol>${s.taskStatus === 'cancelled' ? '<p class="fv-note">Cancelled</p>' : ''}</nav>`;
+  }
   function flightDetails(id) {
     const s = S[id];
     const d = TN.deal(s.deal);
     const mine = isMine(s);
     const files = filesOf(id).filter((f) => f.kind === 'e_ticket');
-    const facts = `<dl class="${C.dlFacts}"><dt class="${C.dt}">Segments</dt><dd class="${C.ddFacts}">${esc((s.segments || []).map(segText).join('; '))}</dd><dt class="${C.dt}">Passengers</dt><dd class="${C.ddFacts}">${(s.passengers || []).length}</dd><dt class="${C.dt}">Preferred time</dt><dd class="${C.ddFacts}">${esc(s.preferredTime || 'Any')}</dd><dt class="${C.dt}">Cabin</dt><dd class="${C.ddFacts}">${esc(s.cabin || 'Economy')}</dd><dt class="${C.dt}">Notes</dt><dd class="${C.ddFacts}">${esc(s.notes || 'None')}</dd></dl>`;
+    const request = requestOf(s);
+    const facts = `${itineraryTable(request.segments, 'Requested flight sectors', request.cabin)}<dl class="${C.dlFacts}"><dt class="${C.dt}">Passengers</dt><dd class="${C.ddFacts}">${(s.passengers || []).length}</dd><dt class="${C.dt}">Comment</dt><dd class="${C.ddFacts}">${esc(request.preferredTime || 'Not specified')}</dd><dt class="${C.dt}">Notes</dt><dd class="${C.ddFacts}">${esc(request.notes || 'None')}</dd></dl>`;
     const people = mine ? `<ul class="m-0 mt-3 flex list-none flex-col gap-1 p-0" aria-label="Travellers on this flight">${s.passengers.map((p) => `<li class="text-copy">${esc(p.name)} <span class="text-sm text-quiet">(${p.type}${p.age ? `, ${p.age}` : ''})</span></li>`).join('')}</ul>` : '<p class="m-0 mt-3 text-sm text-quiet">Traveller names are not shown to the Flight team in this version.</p>';
-    const budget = `<dl class="${C.dl}"><dt class="${C.dt}">Travellers on the accepted version</dt><dd class="${C.ddNum}">${d.adults + d.children + d.infants}</dd><dt class="${C.dt}">Approved budget</dt><dd class="${C.ddMoney}">${s.budget ? inr(s.budget) : 'Budget not set'}</dd></dl>${files.length && mine ? `<ul class="m-0 mt-3 flex list-none flex-col gap-1.5 p-0" aria-label="Ticket files">${files.map((f) => `<li class="flex flex-wrap items-center gap-x-2 text-sm wrap-anywhere"><a href="#" data-act="fv-open-file" class="rounded-chip font-medium text-brand-strong underline underline-offset-4 ${FOCUS}">${esc(f.name)}</a><span class="text-quiet">${f.size}</span></li>`).join('')}</ul>` : ''}${people}`;
+    const counts = passengerCounts(s);
+    const fareLines = request.segments.flatMap((g) => { const f = g.fareBreakup || {}; return [['Adult', f.adult, counts.adult], ['Child', f.child, counts.child], ['Infant', f.infant, counts.infant]].filter(([, amount, count]) => amount !== '' && amount != null && count > 0).map(([type, amount, count]) => `${type}: ${inr(Number(amount))} × ${count}`); });
+    const categoryBudget = fareLines.length ? `<dt class="${C.dt}">Sales fare breakup</dt><dd class="${C.dd}">${fareLines.map(esc).join('<br>')}</dd>` : '';
+    const budget = `<dl class="${C.dl}"><dt class="${C.dt}">Travellers on the accepted version</dt><dd class="${C.dd}">Adults: ${counts.adult}<br>Children: ${counts.child}<br>Infants: ${counts.infant}</dd><dt class="${C.dt}">Approved budget</dt><dd class="${C.ddMoney}">${s.budget ? inr(s.budget) : 'Budget not set'}</dd>${categoryBudget}</dl>${files.length && mine ? `<ul class="m-0 mt-3 flex list-none flex-col gap-1.5 p-0" aria-label="Ticket files">${files.map((f) => `<li class="flex flex-wrap items-center gap-x-2 text-sm wrap-anywhere">${ticketLink(f)}<span class="text-quiet">${f.size}</span></li>`).join('')}</ul>` : ''}${people}`;
     const origin = `<dl class="${C.dl}"><dt class="${C.dt}">Deal</dt><dd class="${C.dd}">${esc(s.deal)}</dd><dt class="${C.dt}">Branch</dt><dd class="${C.dd}">Jodhpur</dd><dt class="${C.dt}">Accepted version</dt><dd class="${C.dd}">${s.versionNo || 1}</dd><dt class="${C.dt}">Saved</dt><dd class="${C.dd}">${TN.fmt.dateTime(s.savedAt)} by ${esc(TN.person(d.owner).name)}</dd><dt class="${C.dt}">Task created</dt><dd class="${C.dd}">${TN.fmt.dateTime(s.createdAt)}</dd></dl>`;
-    return `<div class="grid items-start gap-5 md:grid-cols-2">
+    return `<div class="flex min-w-0 flex-col gap-5">
       ${card({ id: 'flight-facts-heading', title: 'Flight details', extra: ic('plane', 'size-4 text-faint'), body: facts })}
-      ${card({ id: 'flight-budget-heading', title: 'Travellers and budget', body: budget })}
-      ${card({ id: 'flight-origin-heading', title: 'Where this came from', body: origin, cls: 'md:col-span-2' })}
-      ${mine ? `<div class="md:col-span-2">${idProofsCard(id, s.passengers)}</div>` : ''}
+      <div class="grid min-w-0 items-start gap-5 md:grid-cols-2">
+        ${card({ id: 'flight-budget-heading', title: 'Travellers and budget', body: budget })}
+        ${card({ id: 'flight-origin-heading', title: 'Where this came from', body: origin })}
+      </div>
+      ${mine ? idProofsCard(id, s.passengers) : ''}
     </div>`;
+  }
+
+  function finishSectorTable(id, s, rows, work) {
+    /* Only show buttons that can be used for the sector's current status. */
+    const actionsFor = (status, index) => {
+      if (!work || status === 'Pending Sales approval') return '';
+      const confirm = (label) => `<button type="button" class="${B.primarySm} relative" data-act="fv-confirm-sector" data-id="${id}" data-index="${index}">${label}<span class="sr-only"> sector ${index + 1}</span></button>`;
+      const alternate = (label) => `<button type="button" class="${B.ghostSm} relative" data-act="fv-alternate" data-id="${id}" data-index="${index}">${label}<span class="sr-only"> sector ${index + 1}</span></button>`;
+      if (status === 'Confirmed') return confirm('Edit');
+      if (status === 'Rejected alternative') return alternate('Revise alternate');
+      return confirm('Confirm') + alternate('Alternate');
+    };
+    const body = rows.map((raw, index) => { const g = normalizeSegment(raw); const status = sectorStatus(s, index); const work_ = actionsFor(status, index); return `<tr class="border-t border-line"><td class="px-2 py-2 text-center tabular-nums">${String(index + 1).padStart(2, '0')}</td><td class="px-2 py-2">${esc(g.airline || '—')}</td><td class="px-2 py-2">${esc(g.flightNumber || '—')}</td><td class="px-2 py-2">${esc(g.from || '—')}</td><td class="px-2 py-2">${esc(g.to || '—')}</td><td class="px-2 py-2">${esc(g.class || requestOf(s).cabin || '—')}</td><td class="px-2 py-2">${esc(TN.fmt.date(g.departureDate) || '—')}</td><td class="px-2 py-2">${esc(g.departure || '—')}</td><td class="px-2 py-2">${esc(g.arrival || '—')}</td><td class="px-2 py-2"><span class="text-xs text-quiet">${esc(status)}</span>${work_ ? `<div class="mt-1 flex flex-wrap gap-1">${work_}</div>` : ''}</td></tr>`; }).join('');
+    return `<div class="max-w-full overflow-x-auto rounded-card border border-line bg-card"><table class="w-full min-w-[1080px] border-collapse text-sm"><caption class="sr-only">Flight sectors</caption><thead><tr class="bg-wash text-left text-xs font-semibold text-quiet"><th class="px-2 py-2">#</th><th class="px-2 py-2">Airline</th><th class="px-2 py-2">Flight no.</th><th class="px-2 py-2">From</th><th class="px-2 py-2">To</th><th class="px-2 py-2">Class</th><th class="px-2 py-2">Date</th><th class="px-2 py-2">Departure</th><th class="px-2 py-2">Arrival</th><th class="px-2 py-2">Actions</th></tr></thead><tbody>${body}</tbody></table></div>`;
+  }
+
+  function actualFareBreakup(s, rows) {
+    const counts = passengerCounts(s); const labels = { adult: 'Adult', child: 'Child', infant: 'Infant' };
+    const types = fareTypes(s); const data = types.map((type) => {
+      const perPassenger = (rows || []).reduce((sum, raw) => sum + (Number(normalizeSegment(raw).fareBreakup?.[type]) || 0), 0);
+      return { type, count: counts[type], perPassenger, total: perPassenger * counts[type] };
+    });
+    if (!data.length) return '';
+    const grand = data.reduce((sum, row) => sum + row.total, 0);
+    return `<section class="rounded-card border border-line bg-card p-3"><h3 class="m-0 text-sm font-semibold text-ink">Actual ticket fare breakup</h3><div class="mt-2 overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-quiet"><th class="px-2 py-1.5">Passenger type</th><th class="px-2 py-1.5 text-right">Count</th><th class="px-2 py-1.5 text-right">Fare per passenger</th><th class="px-2 py-1.5 text-right">Category total</th></tr></thead><tbody>${data.map((row) => `<tr class="border-t border-line"><td class="px-2 py-1.5">${labels[row.type]}</td><td class="px-2 py-1.5 text-right tabular-nums">${row.count}</td><td class="px-2 py-1.5 text-right tabular-nums">${inr(row.perPassenger)}</td><td class="px-2 py-1.5 text-right tabular-nums">${inr(row.total)}</td></tr>`).join('')}</tbody><tfoot><tr class="border-t border-line font-semibold"><th class="px-2 py-1.5 text-left">Grand total</th><td class="px-2 py-1.5 text-right tabular-nums">${data.reduce((sum, row) => sum + row.count, 0)}</td><td></td><td class="px-2 py-1.5 text-right tabular-nums">${inr(grand)}</td></tr></tfoot></table></div></section>`;
   }
 
   /* PENDING (DEC-59): finish card with ticket details, checklist and "Mark flight done". */
   function finishCard(id, work) {
     const s = S[id];
     if (s.taskStatus === 'done') {
-      return card({ id: `finish-${id}-heading`, title: 'Finish this flight', body: notice('success', `<p>Marked done on ${TN.fmt.dateTime(s.doneAt)} by ${esc(personName(s.doneBy || 'flight'))}. Sales and Accounts were told the ticket is issued.</p><p>The ticket details and costs on this task are locked. If the ticket must change, ask the branch Manager to reopen the task.</p>`, { title: 'Flight done', icon: 'check-check' }) });
+      const ticket = s.flightTicket;
+      const saved = ticket ? `<dl class="${C.dl}"><dt class="${C.dt}">Total actual fare</dt><dd class="${C.ddMoney}">${inr(ticket.actualFare)}</dd><dt class="${C.dt}">Ticket numbers by sector</dt><dd class="${C.dd}">${ticket.segments.map((g, i) => `Sector ${i + 1}: ${esc(g.ticketNumbers || 'Not recorded')}`).join('<br>')}</dd>${ticket.remarks ? `<dt class="${C.dt}">Remarks</dt><dd class="${C.dd}">${esc(ticket.remarks)}</dd>` : ''}</dl>` : '';
+      return card({ id: `finish-${id}-heading`, title: 'Finish this flight', body: `${notice('success', `<p>Marked done on ${TN.fmt.dateTime(s.doneAt)} by ${esc(personName(s.doneBy || 'flight'))}. Sales and Accounts were notified.</p><p>The ticket details are locked. Existing financial records are unchanged.</p>`, { title: 'Flight done' })}${saved}<ul class="m-0 list-none p-0">${filesOf(id).filter((f) => f.kind === 'e_ticket').map((f) => `<li>${ticketLink(f)}</li>`).join('')}</ul>`, bodyCls: C.bodyCol4 });
     }
     if (!work) {
       return card({ id: `finish-${id}-heading`, title: 'Finish this flight', body: `<p class="m-0 text-quiet">The Flight person who takes this task marks it done after the ticket is issued.</p>` });
     }
-    const items = flightChecklist(id);
-    const done = items.filter((i) => i.done).length;
-    const W = ['w-0', 'w-[5%]', 'w-[10%]', 'w-[15%]', 'w-[20%]', 'w-[25%]', 'w-[30%]', 'w-[35%]', 'w-[40%]', 'w-[45%]', 'w-[50%]', 'w-[55%]', 'w-[60%]', 'w-[65%]', 'w-[70%]', 'w-[75%]', 'w-[80%]', 'w-[85%]', 'w-[90%]', 'w-[95%]', 'w-full'];
-    const pct = Math.round((done / items.length) * 100);
     const tickets = filesOf(id).filter((f) => f.kind === 'e_ticket');
-    const pnrErr = UI.ferr[`pnr-${id}`];
+    const proposal = latestProposal(s);
+    const draft = UI.vals[`ticket-${id}`] || { segments: workSegments(s), actualFare: s.flightTicket?.actualFare || '', remarks: s.flightTicket?.remarks || '', issued: !!s.flightTicket?.issued, proposalVersion: proposal?.status === 'approved' && proposal.sectorIndex == null ? proposal.version : null };
+    const calculatedFare = fareTotal(s, draft.segments);
+    const displayedFare = calculatedFare > 0 ? calculatedFare : draft.actualFare;
+    if (!draft.segments.length) draft.segments = [blankSegment()];
+    const statuses = draft.segments.map((_, index) => sectorStatus(s, index));
+    const pendingCount = statuses.filter((st) => st === 'Pending Sales approval').length;
+    const rejectedCount = statuses.filter((st) => st === 'Rejected alternative').length;
+    const warn = [
+      pendingCount ? `${TN.fmt.plural(pendingCount, 'sector')} waiting for Sales approval. Do not book that alternative yet. You can still confirm the other sectors.` : '',
+      rejectedCount ? `Sales rejected the alternative for ${TN.fmt.plural(rejectedCount, 'sector')}. Send a revised alternative for it before confirming.` : '',
+    ].filter(Boolean).join(' ');
     const doneErr = UI.err[`done-${id}`];
     const body = `
       ${doneErr ? errorSummary('Finish the steps below before you mark the flight done.', esc(doneErr), `done-${id}-summary`) : ''}
-      <form novalidate aria-label="Ticket details" class="flex flex-col gap-3 rounded-control border border-line bg-canvas px-3.5 py-3" data-act="fv-save-pnr">
-        <input type="hidden" name="task" value="${id}">
-        <div class="grid gap-3 sm:grid-cols-2">
-          ${field(`pnr-${id}`, 'Airline booking reference (PNR)', textInput(`pnr-${id}`, 'pnr', UI.vals[`pnr-${id}`] ?? s.pnr ?? '', { max: 12, invalid: !!pnrErr, describe: `pnr-${id}-hint` }), { hint: '6 letters and numbers, as on the e-ticket.', error: pnrErr })}
-        </div>
-        <div><button type="submit" class="${B.secondary}" data-slot="button">Save ticket details</button></div>
-      </form>
-      ${tickets.length ? `<ul class="m-0 flex list-none flex-col gap-1.5 p-0" aria-label="E-tickets stored">${tickets.map((f) => `<li class="m-0 flex flex-wrap items-center gap-2 text-sm">${ic('file-check', 'size-4 text-status-success')}<a href="#" data-act="fv-open-file" rel="noopener" class="${C.linkPlain}">${esc(f.name)}</a><span class="text-quiet">E-ticket · ${f.size}</span></li>`).join('')}</ul>` : ''}
-      <details class="${C.details}" id="eticket-${id}"${UI.open[`up-${id}-ticket`] ? ' open' : ''}><summary class="${C.summaryF}">Upload the e-ticket</summary><div class="${C.detailsBody}">${fileUpload(`up-${id}-ticket`, 'Upload the e-ticket', `<input type="hidden" name="task" value="${id}">`, [['e_ticket', 'E-ticket']])}</div></details>
-      <section id="check-${id}" aria-labelledby="check-${id}-heading" class="flex flex-col" data-slot="progress-checklist">
-        <div class="flex items-baseline justify-between gap-2.5"><h3 id="check-${id}-heading" tabindex="-1" class="m-0 text-md font-semibold text-ink outline-none">Before you mark it done</h3><span class="text-sm text-quiet">${done} of ${items.length} done</span></div>
-        <div role="progressbar" aria-labelledby="check-${id}-heading" aria-valuemin="0" aria-valuemax="${items.length}" aria-valuenow="${done}" aria-valuetext="${done} of ${items.length} done" class="mt-2.5 mb-3.5 h-2 overflow-hidden rounded-full bg-wash"><div class="h-full rounded-full bg-brand transition-[width] duration-(--ui-duration-base) motion-reduce:transition-none ${W[Math.round(pct / 5)]}"></div></div>
-        <ul class="m-0 grid list-none grid-cols-1 gap-x-4.5 gap-y-1.5 p-0 sm:grid-cols-2">${items.map((it) => `<li class="m-0"><button type="button" data-act="fv-jump" data-target="${it.target}" class="group flex w-full cursor-pointer items-start gap-2 border-0 bg-transparent py-1.25 text-left text-sm text-copy ${FOCUS}">${it.done ? ic('circle-check', 'mt-0.5 size-4 shrink-0 text-status-success') : ic('circle', 'mt-0.5 size-4 shrink-0 text-quiet')}<span class="min-w-0"><span class="font-semibold group-hover:underline">${it.label}</span><span class="sr-only">${it.done ? ': done' : ': not done'}</span>${!it.done && it.why ? `<span class="text-quiet"> · ${esc(it.why)}</span>` : ''}</span></button></li>`).join('')}</ul>
-      </section>
-      <div class="flex flex-col gap-2"><div><button type="button" class="${B.primary}" data-slot="button" data-act="fv-done" data-id="${id}">Mark flight done</button></div><p class="m-0 text-sm text-quiet">Sales and Accounts get a notice that the ticket is issued. The task then locks.</p></div>`;
+      ${warn ? notice('warning', esc(warn)) : notice('info', 'Issue tickets outside the CRM, then record the actual details. Saving does not complete the task.')}
+      ${UI.err[`ticket-${id}`] ? errorSummary('Check ticket details', esc(UI.err[`ticket-${id}`])) : ''}
+      <div aria-label="Ticket details" class="flex flex-col gap-3">
+        <input type="hidden" name="task" value="${id}"><input type="hidden" name="proposalVersion" value="${draft.proposalVersion ?? ''}">
+        <p class="${C.small}">Confirm each sector to record its PNR, ticket number, and passenger fares. Alternative sectors require Sales approval.</p>
+      ${finishSectorTable(id, s, draft.segments, work)}
+      <p class="${C.small}">Approved budget: ${s.budget ? inr(s.budget) : 'Not set'}. Actual fare does not change the budget, customer selling price or payment approvals.</p>
+      ${tickets.length ? `<ul class="m-0 flex list-none flex-col gap-1.5 p-0" aria-label="E-tickets stored">${tickets.map((f) => `<li class="m-0 flex flex-wrap items-center gap-2 text-sm">${ic('file-check', 'size-4 text-status-success')}${ticketLink(f)}<span class="text-quiet">E-ticket · ${esc(f.size)}</span></li>`).join('')}</ul>` : ''}
+      <section id="eticket-${id}" class="flex flex-col gap-3"><h3 class="m-0 text-md font-semibold text-ink">E-ticket documents</h3><form novalidate data-act="fv-ticket-upload" class="flex flex-col gap-3">${UI.err[`upload-${id}`] ? errorSummary('Could not attach files', esc(UI.err[`upload-${id}`])) : ''}<input type="hidden" name="task" value="${id}">${field(`tickets-${id}`, 'Attach e-tickets', `<input id="tickets-${id}" name="files" type="file" multiple accept="application/pdf,image/jpeg,image/png,image/webp" class="${C.file}">`, { hint: 'Select one or more PDF, JPG, PNG or WebP files. Maximum 4 MB per file.' })}<div><button class="${B.secondary}" type="submit">Attach selected files</button></div></form></section>
+      <div class="flex flex-col gap-2"><div><button type="button" class="${B.primary}" data-slot="button" data-act="fv-done" data-id="${id}">Mark flight done</button></div><p class="m-0 text-sm text-quiet">Sales and Accounts get a notice that the ticket is issued. The task then locks.</p></div></div>`;
     return card({ id: `finish-${id}-heading`, title: 'Finish this flight', desc: 'Record the ticket, then mark the flight done.', body, bodyCls: C.bodyCol4 });
   }
 
   /* PENDING: what feeds the customer Invoice (no selling price). */
   function flightInvoiceLines(id) {
     const s = S[id];
-    const names = isMine(s) || TN.is('manager') ? s.passengers.map((p) => p.name).join(', ') : `${s.passengers.length} passengers`;
-    const rows = (s.segments || []).map((g) => [
-      { html: `<span class="font-semibold text-ink">${esc(g.from)} → ${esc(g.to)}</span>` },
-      { cls: 'text-sm', html: esc(g.flight || 'Not booked yet') },
-      { cls: 'whitespace-nowrap', html: `${TN.fmt.date(g.date)}${g.time ? ` · ${g.time}` : ''}` },
-      { cls: 'text-sm', html: esc(names) },
-      { cls: 'whitespace-nowrap', html: s.pnr ? esc(s.pnr) : '<span class="text-quiet">Not recorded yet</span>' },
-    ]);
-    return `<div class="${C.card}" data-slot="card"><section aria-labelledby="inv-${id}-heading"><div class="${C.cardHead}"><div class="min-w-0"><h2 class="${C.cardTitle}" id="inv-${id}-heading">Flight lines for the invoice</h2><p class="${C.small}">These lines go on the customer’s Invoice. Sales sets the price; no price is shown here.</p></div>${ic('file-text', 'size-4 text-faint')}</div>${table({ label: 'Flight lines for the invoice', caption: `${rows.length} flight ${rows.length === 1 ? 'line' : 'lines'}`, heads: ['Route', 'Flight', 'Date', 'Passengers', 'PNR'], rows })}</section></div>`;
+    const basis = bookingBasis(s);
+    const rows = basis.map((raw, index) => { const g = normalizeSegment(raw); const status = sectorStatus(s, index); const confirmed = status === 'Confirmed'; return [
+      { cls: 'whitespace-nowrap', html: esc(g.departureDate || g.date || '—') },
+      { html: esc([g.airline, g.flightNumber].filter(Boolean).join(' ') || g.flight || 'Not confirmed') },
+      { html: esc(g.from || '—') }, { html: esc(g.to || '—') },
+      { cls: 'whitespace-nowrap', html: esc(g.departure || g.time || '—') },
+      { cls: 'whitespace-nowrap', html: `${esc(g.arrival || '—')}${g.arrivalDate && g.arrivalDate !== (g.departureDate || g.date) ? `<br><span class="text-sm text-quiet">${esc(g.arrivalDate)}</span>` : ''}` },
+      { html: esc(confirmed ? s.flightTicket.segments[index].pnr : '—') },
+      { html: esc(status) },
+    ]; });
+    const summary = `<dl class="${C.dl}"><dt class="${C.dt}">Passengers</dt><dd class="${C.dd}">Adults: ${passengerCounts(s).adult}<br>Children: ${passengerCounts(s).child}<br>Infants: ${passengerCounts(s).infant}</dd><dt class="${C.dt}">Flight Executive</dt><dd class="${C.dd}">${esc(takenBy(s))}</dd><dt class="${C.dt}">Booking status</dt><dd class="${C.dd}">${esc(allSectorsConfirmed(s) ? 'Ticket issued' : flightWord(s))}</dd>${TN.is('flight', 'manager') && s.flightTicket ? `<dt class="${C.dt}">Total actual ticket fare</dt><dd class="${C.ddMoney}">${inr(s.flightTicket.actualFare)}</dd>` : ''}</dl>`;
+    return `<div class="${C.card}" data-slot="card"><section aria-labelledby="inv-${id}-heading"><div class="${C.cardHead}"><div class="min-w-0"><h2 class="${C.cardTitle}" id="inv-${id}-heading">Flight lines for the invoice</h2><p class="${C.small}">${confirmedSegments(s).length ? 'Confirmed ticket details. Sales sets the customer selling price separately.' : 'Requested itinerary only. Unapproved or unticketed details are not shown as confirmed.'}</p></div></div><div class="${C.bodyCol4}">${summary}</div>${table({ label: 'Flight lines for the invoice', caption: `${rows.length} flight lines`, heads: ['Travel date', 'Airline / flight no.', 'From', 'To', 'Departure', 'Arrival', 'PNR', 'Status'], rows })}</section></div>`;
   }
 
   function flightTask(params, q) {
@@ -761,7 +1027,7 @@
     const s = S[id];
     if (!s || s.dept !== 'flight') return notAvailable('#/app/flight', 'Back to Flight tasks');
     const base = `/app/flight/${id}`;
-    const tab = ['work', 'files', 'history'].includes(q.tab) ? q.tab : 'details';
+    const tab = ['work', 'files', 'history'].includes(String(q.tab || '').toLowerCase()) ? String(q.tab).toLowerCase() : 'details';
     const taker = canWorkDept('flight');
     const mine = isMine(s);
     const done = s.taskStatus === 'done';
@@ -769,19 +1035,20 @@
     const canClaim = taker && !s.assignee && s.taskStatus === 'new';
     const actions = canClaim
       ? `<form novalidate class="flex flex-col items-start gap-2 sm:items-end" data-act="fv-take"><input type="hidden" name="task" value="${id}"><p id="flight-claim-help" class="${C.small}">Shows colleagues you are handling it. It does not issue a ticket.</p><button type="submit" class="${B.takeLg}" data-slot="button" aria-describedby="flight-claim-help">Take this task</button><div role="status" aria-live="polite" class="w-full"></div></form>`
-      : work && tab !== 'work' ? `<a class="${B.linkLg}" href="#${base}?tab=work">${s.pnr ? 'Finish this flight' : 'Record the fare'}</a>` : '';
-    const next = done ? 'Nothing waiting.' : !s.assignee ? (canClaim ? 'take this task' : 'Flight takes this task') : mine ? (readyToFinish(id) ? 'mark the flight done on the Work tab' : 'issue the ticket, then record the fare on the Work tab') : `${TN.person(s.assignee).name} works on this task`;
+      : work && tab !== 'work' ? `<a class="${B.linkLg}" href="#${base}?tab=work">${s.flightTicket?.issued ? 'Finish this flight' : 'Record ticket details'}</a>` : '';
+    const next = done ? 'Nothing waiting.' : !s.assignee ? (canClaim ? 'take this task' : 'Flight takes this task') : mine ? (readyToFinish(id) ? 'mark the flight done on the Work tab' : 'record and validate issued ticket details on the Work tab') : `${TN.person(s.assignee).name} works on this task`;
     const internal = done
       ? `Internal task. Ticket issued and marked done on ${TN.fmt.dateTime(s.doneAt)}. No payment, bill or invoice was created by the CRM. Nothing has been sent to the airline or the customer by the CRM.`
       : `Internal task. Tickets are issued outside the CRM. ${mine ? 'Taking the task did not book the flight. ' : ''}Nothing has been sent to the airline or the customer by the CRM.`;
     let content;
-    if (tab === 'work') content = `<div class="flex flex-col gap-5">${costCard(id, 'flight', work)}${s.assignee ? finishCard(id, work) : ''}${s.assignee ? flightInvoiceLines(id) : ''}</div>`;
+    if (tab === 'work') content = `<div class="flex flex-col gap-5">${finishCard(id, work)}${s.assignee ? flightInvoiceLines(id) : ''}</div>`;
     else if (tab === 'files') content = filesPanel(id);
     else if (tab === 'history') content = historyPanel(id);
     else content = flightDetails(id);
     return `<div class="${C.page}">
       ${backLink('#/app/flight', 'Back to Flight tasks')}
       <header class="${C.headerTask}" data-slot="page-header"><div class="min-w-0"><p class="${C.eyebrow}">Flight task · ${esc(s.deal)}</p><h1 class="${C.h1}"><span class="block wrap-anywhere">${esc(routeOf(s))}</span></h1><div class="${C.statusRow}">${flightStatus(s)}<span class="text-copy">Taken by: ${esc(takenBy(s))}</span></div></div>${actions ? `<div class="${C.actions}">${actions}</div>` : ''}</header>
+      ${progressBar(id)}
       ${UI.flash[id] ? flashLine(id) : ''}
       ${nextLine(next, internalLine(internal))}
       ${taskTabs(base, tab)}
@@ -928,7 +1195,8 @@
      ------------------------------------------------------------------ */
   const fd = (el) => Object.fromEntries(new FormData(el));
   const focusLater = (sel) => setTimeout(() => { const e = document.querySelector(sel); if (e) { e.scrollIntoView({ block: 'center' }); e.focus(); } }, 0);
-  const pushNotice = (to, text, deal) => TN.DATA.notices.unshift({ id: uid('n-fv-'), to, kind: 'notice', text, deal, at: NOW() });
+  const pushNotice = (to, text, deal, extra = {}) => TN.DATA.notices.unshift({ id: uid('n-fv-'), to, kind: 'notice', text, deal, at: NOW(), ...extra });
+  const personNotice = (personKey, text, deal, href) => pushNotice([], text, deal, { recipients: [personKey], href });
 
   TN.act('fv-open-file', () => TN.toast('The file opens in a new tab. Every view is recorded.'));
   TN.act('fv-jump', (el) => focusLater(`#${el.dataset.target}`));
@@ -1029,32 +1297,189 @@
     TN.refresh();
   });
 
-  /* PENDING (DEC-59): ticket details and mark done. */
-  TN.act('fv-save-pnr', (f) => {
-    const v = fd(f); const s = S[v.task]; const pnr = String(v.pnr || '').trim().toUpperCase();
-    UI.vals[`pnr-${v.task}`] = v.pnr;
-    if (!/^[A-Z0-9]{5,8}$/.test(pnr)) { UI.ferr[`pnr-${v.task}`] = 'Enter the 5 to 8 letters and numbers from the e-ticket.'; TN.refresh(); focusLater(`#pnr-${v.task}`); return; }
-    delete UI.ferr[`pnr-${v.task}`]; delete UI.vals[`pnr-${v.task}`];
-    s.pnr = pnr; addH(v.task, 'Airline booking reference recorded');
-    TN.toast('Ticket details saved.'); TN.refresh();
+  TN.act('fv-confirm-sector', (el) => {
+    const id = el.dataset.id; const index = Number(el.dataset.index); const s = S[id]; const source = workSegments(s)[index] || blankSegment(); const g = normalizeSegment(source); const counts = passengerCounts(s);
+    const fareFields = ['adult', 'child', 'infant'].map((type) => field(`confirm-${type}-${id}`, `${type[0].toUpperCase()}${type.slice(1)} Fare (INR)`, textInput(`confirm-${type}-${id}`, `${type}Fare`, g.fareBreakup?.[type] || '', { type: 'number' }), { hint: `${counts[type]} passenger${counts[type] === 1 ? '' : 's'} in this booking.` })).join('');
+    TN.dialog({ title: `Confirm Flight — Sector ${String(index + 1).padStart(2, '0')}`, body: `<dl class="${C.dl}"><dt class="${C.dt}">Route</dt><dd class="${C.dd}">${esc(g.from)} → ${esc(g.to)}</dd><dt class="${C.dt}">Flight</dt><dd class="${C.dd}">${esc([g.airline, g.flightNumber].filter(Boolean).join(' ') || '—')}</dd><dt class="${C.dt}">Date and time</dt><dd class="${C.dd}">${esc(TN.fmt.date(g.departureDate) || '—')} · ${esc(g.departure || '—')}–${esc(g.arrival || '—')}</dd></dl><form id="fv-confirm-form-${id}" class="mt-4 flex flex-col gap-3"><input type="hidden" name="task" value="${id}"><input type="hidden" name="index" value="${index}">${fareFields}${field(`confirm-pnr-${id}`, 'PNR', textInput(`confirm-pnr-${id}`, 'pnr', g.pnr))}${field(`confirm-ticket-${id}`, 'Ticket number', textInput(`confirm-ticket-${id}`, 'ticketNumbers', g.ticketNumbers))}</form>`, footer: `<button type="button" class="${B.ghostMd}" data-close>Cancel</button><button type="button" class="${B.primaryMd}" data-act="fv-confirm-sector-submit" data-id="${id}" data-index="${index}">Submit Confirmation</button>` });
   });
+  TN.act('fv-confirm-sector-submit', (el) => {
+    const id = el.dataset.id; const index = Number(el.dataset.index); const s = S[id]; const sectorProposal = latestFor(s, index);
+    if (!canEditFlight(s)) return TN.toast('Only the assigned Flight Executive can confirm sectors on an active task.', 'danger');
+    if (sectorProposal?.status === 'pending') return TN.toast('This sector is waiting for Sales approval.', 'danger');
+    if (sectorProposal?.status === 'rejected') return TN.toast('This alternative was rejected by Sales. Submit a revised request first.', 'danger');
+    const form = document.querySelector(`#fv-confirm-form-${id}`); const values = form ? fd(form) : {};
+    const basis = workSegments(s); const source = basis[index] || blankSegment(); const g = normalizeSegment(source); const pnr = norm(values.pnr); const fareBreakup = { adult: String(values.adultFare || '').trim(), child: String(values.childFare || '').trim(), infant: String(values.infantFare || '').trim() };
+    if (!/^[A-Z0-9]{5,8}$/.test(pnr)) return TN.toast('Enter a valid 5–8 character PNR.', 'danger');
+    if (!String(values.ticketNumbers || '').trim()) return TN.toast('Enter the ticket number.', 'danger');
+    if (fareTypes(s).some((type) => fareBreakup[type] === '')) return TN.toast('Enter fares for every passenger category in this booking.', 'danger');
+    const segments = cloneSegments(basis); while (segments.length < basis.length) segments.push(basis[segments.length]); segments[index] = { ...g, pnr, ticketNumbers: String(values.ticketNumbers).trim(), fareBreakup };
+    s.flightTicket = { ...(s.flightTicket || {}), segments, actualFare: fareTotal(s, segments), issued: segments.every((segment) => /^[A-Z0-9]{5,8}$/.test(normalizeSegment(segment).pnr)), proposalVersion: null, savedAt: NOW(), savedBy: me() };
+    delete UI.err[`done-${id}`]; addH(id, `Sector ${index + 1} confirmation saved`); TN.closeOverlay(); TN.toast(`Sector ${index + 1} confirmed.`); TN.refresh();
+  });
+  TN.act('fv-save-ticket', (f) => {
+    const id = fd(f).task; const s = S[id]; const form = fd(f);
+    const parsed = parseEditor(f, 'ticket', true);
+    const fare = Number(String(form.actualFare || '').replace(/[,\s₹]/g, ''));
+    const sectorFareTotal = fareTotal(s, parsed.segments);
+    const effectiveFare = sectorFareTotal > 0 ? sectorFareTotal : fare;
+    if (!canEditFlight(s)) return TN.toast('Only the assigned Flight Executive can edit an active task.', 'danger');
+    rememberEditors();
+    const issues = form.issued ? [...parsed.errors] : [];
+    if (s.flightTicket?.issued && !form.issued) issues.push('Recorded issuance cannot be removed by saving a draft. Keep the issuance confirmation checked.');
+    if (form.issued && !(sectorFareTotal > 0) && (!Number.isFinite(fare) || fare <= 0)) issues.push('Enter adult, child or infant fare breakup for at least one passenger type.');
+    if (form.issued && sectorFareTotal > 0 && Number.isFinite(fare) && fare > 0 && Math.abs(fare - sectorFareTotal) > 0.01) issues.push(`Total actual fare must equal the sector fare breakup (${inr(sectorFareTotal)}).`);
+    if (form.issued && !filesOf(id).some((file) => file.kind === 'e_ticket')) issues.push('Attach at least one e-ticket document before recording ticket issuance.');
+    if (form.issued && !authorizedItinerary(s, parsed.segments, form.proposalVersion ? Number(form.proposalVersion) : null)) issues.push('This itinerary includes a pending, rejected or unapproved alternative. Send the changed sector for Sales approval.');
+    if (issues.length) { UI.vals[`ticket-${id}`] = { ...parsed, actualFare: sectorFareTotal > 0 ? sectorFareTotal : (form.actualFare || ''), remarks: form.remarks, issued: !!form.issued, proposalVersion: form.proposalVersion ? Number(form.proposalVersion) : null }; UI.err[`ticket-${id}`] = issues.join(' '); TN.refresh(); return; }
+    s.flightTicket = { segments: parsed.segments, actualFare: Number.isFinite(effectiveFare) && effectiveFare > 0 ? effectiveFare : null, remarks: String(form.remarks || '').trim(), issued: !!form.issued, proposalVersion: form.proposalVersion ? Number(form.proposalVersion) : null, savedAt: NOW(), savedBy: me() };
+    delete UI.vals[`ticket-${id}`]; delete UI.err[`ticket-${id}`];
+    addH(id, s.flightTicket.issued ? 'Issued ticket details saved' : 'Ticket draft saved');
+    TN.toast(s.flightTicket.issued ? 'Issued ticket details saved. The task is not yet complete.' : 'Ticket draft saved.');
+    TN.refresh();
+  });
+  TN.act('fv-ticket-upload', (f) => {
+    const id = fd(f).task; const files = Array.from(f.querySelector('input[type=file]').files || []);
+    if (!canEditFlight(S[id])) return TN.toast('Only the assigned Flight Executive can attach tickets to an active task.', 'danger');
+    rememberEditors();
+    if (!files.length) { UI.err[`upload-${id}`] = 'Choose one or more e-ticket files.'; TN.refresh(); return; }
+    const bad = files.find((file) => file.size > 4 * 1024 * 1024 || !['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(file.type));
+    if (bad) { UI.err[`upload-${id}`] = `${bad.name} must be a PDF, JPG, PNG or WebP file of 4 MB or less.`; TN.refresh(); return; }
+    files.forEach((file) => FILES.push({ id: uid('df-'), task: id, kind: 'e_ticket', name: file.name, size: file.size >= 1048576 ? `${(file.size / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(file.size / 1024))} KB`, at: NOW(), url: URL.createObjectURL(file) }));
+    delete UI.err[`upload-${id}`]; delete UI.err[`done-${id}`]; addH(id, 'E-ticket attached'); TN.toast(`${files.length} e-ticket ${files.length === 1 ? 'file' : 'files'} attached.`); TN.refresh();
+  });
+  function rememberEditors() {
+    document.querySelectorAll('form[data-act="fv-save-ticket"], form[data-act="fv-proposal-save"]').forEach((form) => {
+      const v = fd(form); const mode = form.dataset.act === 'fv-save-ticket' ? 'ticket' : 'proposal';
+      UI.vals[`${mode}-${v.task}`] = { ...v, segments: parseEditor(form, mode).segments, issued: !!v.issued, proposalVersion: v.proposalVersion ? Number(v.proposalVersion) : null };
+    });
+  }
+  /* Alternate popup fields: the alternative flight itself, pre-filled from the current sector. */
+  const ALT_FIELDS = [['airline', 'Airline', 'text'], ['flightNumber', 'Flight number', 'text'], ['from', 'From', 'text'], ['to', 'To', 'text'], ['class', 'Class', 'text'], ['departureDate', 'Departure date', 'date'], ['departure', 'Departure time', 'time'], ['arrivalDate', 'Arrival date', 'date'], ['arrival', 'Arrival time', 'time']];
+  TN.act('fv-alternate', (el) => {
+    const id = el.dataset.id; const s = S[id]; const index = Number(el.dataset.index);
+    if (!s || !Number.isInteger(index) || !requestOf(s).segments[index]) return;
+    const blocked = alternateBlock(s, index);
+    if (blocked) return TN.toast(blocked, 'danger');
+    const base = normalizeSegment(workSegments(s)[index] || requestOf(s).segments[index]);
+    const prev = latestFor(s, index);
+    const start = prev?.status === 'rejected' ? normalizeSegment(prev.proposedSegment || base) : { ...base, class: base.class || requestOf(s).cabin || '' };
+    const counts = passengerCounts(s);
+    const flightFields = ALT_FIELDS.map(([key, label, type]) => field(`alternate-${key}-${id}`, label, textInput(`alternate-${key}-${id}`, key, start[key], { type }))).join('');
+    const fareFields = ['adult', 'child', 'infant'].map((type) => field(`alternate-${type}-fare-${id}`, `${type[0].toUpperCase()}${type.slice(1)} fare (INR)`, textInput(`alternate-${type}-fare-${id}`, `${type}Fare`, prev?.status === 'rejected' ? start.fareBreakup?.[type] : '', { type: 'number' }), { hint: `Per passenger. ${counts[type]} in this booking.`, optional: !counts[type] })).join('');
+    TN.dialog({
+      title: `Alternate rate request · ${base.from || '—'} → ${base.to || '—'}`,
+      body: `<p class="m-0 text-sm text-quiet">Sector ${String(index + 1).padStart(2, '0')} · now ${esc([base.airline, base.flightNumber].filter(Boolean).join(' ') || '—')} · ${esc(TN.fmt.date(base.departureDate) || 'Date not set')}${prev?.status === 'rejected' && prev.rejectionReason ? ` · Sales rejected: ${esc(prev.rejectionReason)}` : ''}</p><form id="fv-alternate-form-${id}" class="mt-4 flex flex-col gap-3"><input type="hidden" name="task" value="${id}"><input type="hidden" name="sectorIndex" value="${index}"><h3 class="m-0 text-base font-semibold text-ink">Alternative flight</h3><div class="grid grid-cols-1 gap-3 sm:grid-cols-2">${flightFields}</div><h3 class="m-0 text-base font-semibold text-ink">Fares</h3><div class="grid grid-cols-1 gap-3 sm:grid-cols-3">${fareFields}</div>${field(`alternate-reason-${id}`, 'Reason for alternative', textInput(`alternate-reason-${id}`, 'reason', ''))}${field(`alternate-notes-${id}`, 'Notes for Sales', textInput(`alternate-notes-${id}`, 'notes', ''), { optional: true })}</form>`,
+      footer: `<button type="button" class="${B.ghostMd}" data-close>Cancel</button><button type="button" class="${B.primaryMd}" data-act="fv-alternate-submit" data-id="${id}" data-index="${index}">Send rate request to Sales</button>`
+    });
+  });
+  TN.act('fv-alternate-submit', (el) => {
+    const id = el.dataset.id; const index = Number(el.dataset.index); const s = S[id];
+    const blocked = s && requestOf(s).segments[index] ? alternateBlock(s, index) : 'This sector no longer exists.';
+    if (blocked) return TN.toast(blocked, 'danger');
+    const base = normalizeSegment(workSegments(s)[index] || requestOf(s).segments[index]);
+    const form = document.querySelector(`#fv-alternate-form-${id}`); const values = form ? fd(form) : {};
+    const fareBreakup = Object.fromEntries(['adult', 'child', 'infant'].map((type) => [type, String(values[`${type}Fare`] || '').trim()]));
+    const proposedSegment = { ...normalizeSegment(Object.fromEntries(ALT_FIELDS.map(([key]) => [key, String(values[key] || '').trim()]))), fareBreakup };
+    const issues = segmentErrors([proposedSegment], false).map((msg) => msg.replace(/^Sector 1 /, `Sector ${index + 1} `));
+    if (segmentKey(proposedSegment) === segmentKey(base)) issues.push('Change at least one flight detail. The alternative is the same as the current flight.');
+    if (fareTypes(s).some((type) => fareBreakup[type] === '' || !(Number(fareBreakup[type]) >= 0))) issues.push('Enter the fare for every passenger type in this booking.');
+    if (!String(values.reason || '').trim()) issues.push('Enter a reason for the alternative.');
+    if (issues.length) return TN.toast(issues.join(' '), 'danger');
+    const version = (s.flightProposals || []).reduce((n, proposal) => Math.max(n, proposal.version), 0) + 1;
+    (s.flightProposals = s.flightProposals || []).push({ version, sectorIndex: index, originalSegment: base, proposedSegment, segments: [proposedSegment], reason: String(values.reason).trim(), notes: String(values.notes || '').trim(), status: 'pending', submittedBy: me(), submittedAt: NOW() });
+    addH(id, `Alternate rate request ${version} sent to Sales for sector ${index + 1}`);
+    personNotice(TN.deal(s.deal).owner, `Flight alternate rate request ${version} for ${s.deal} needs your approval.`, s.deal, `#/app/deals/${s.deal}?tab=services`);
+    TN.closeOverlay();
+    TN.toast(`Rate request sent to Sales for ${base.from || 'origin'} → ${base.to || 'destination'}.`);
+    TN.refresh();
+  });
+  TN.act('fv-availability', () => {});
+  TN.act('fv-proposal-add', (el) => {
+    if (!canPropose(S[el.dataset.id])) return;
+    rememberEditors(); const key = `proposal-${el.dataset.id}`; const draft = UI.vals[key];
+    if (!draft) return;
+    draft.segments.push(blankSegment()); TN.refresh();
+  });
+  TN.act('fv-proposal-remove', (el) => {
+    if (!canPropose(S[el.dataset.id])) return;
+    rememberEditors(); const draft = UI.vals[`proposal-${el.dataset.id}`];
+    if (!draft) return;
+    draft.segments.splice(Number(el.dataset.index), 1);
+    if (!draft.segments.length) draft.segments.push(blankSegment());
+    TN.refresh();
+  });
+  TN.act('fv-use-basis', (el) => {
+    const id = el.dataset.id; const s = S[id];
+    if (!canEditFlight(s) || s.flightTicket?.issued) return;
+    rememberEditors(); const key = `ticket-${id}`; const p = latestProposal(s);
+    UI.vals[key] = { ...(UI.vals[key] || {}), segments: workSegments(s), issued: false, proposalVersion: p?.status === 'approved' && p.sectorIndex == null ? p.version : null };
+    delete UI.err[key]; TN.refresh();
+  });
+  TN.act('fv-proposal-draft', (el) => {
+    if (!canPropose(S[el.dataset.id])) return;
+    rememberEditors(); TN.toast('Proposal draft kept in this preview session. It has not been sent to Sales.');
+  });
+  TN.act('fv-proposal-save', (f) => {
+    const form = fd(f); const id = form.task; const s = S[id];
+    if (!canPropose(s)) return TN.toast('This task cannot accept another proposal right now.', 'danger');
+    rememberEditors(); const parsed = parseEditor(f, 'proposal');
+    const sectorIndex = Number.isInteger(Number(form.sectorIndex)) ? Number(form.sectorIndex) : 0;
+    const issues = [...parsed.errors];
+    if (!String(form.reason || '').trim()) issues.push('Enter the reason this alternative is required.');
+    if (!latestProposal(s) && itineraryEqual(parsed.segments, requestOf(s).segments)) issues.push('Change at least one itinerary detail before proposing an alternative.');
+    if (issues.length) { UI.vals[`proposal-${id}`] = { ...parsed, reason: form.reason, notes: form.notes }; UI.err[`proposal-${id}`] = issues.join(' '); TN.refresh(); return; }
+    const version = (s.flightProposals || []).reduce((n, p) => Math.max(n, p.version), 0) + 1;
+    (s.flightProposals = s.flightProposals || []).push({ version, sectorIndex, originalSegment: normalizeSegment(requestOf(s).segments[sectorIndex]), proposedSegment: parsed.segments[0], segments: parsed.segments, reason: form.reason.trim(), notes: String(form.notes || '').trim(), status: 'pending', submittedBy: me(), submittedAt: NOW() });
+    delete UI.vals[`proposal-${id}`]; delete UI.err[`proposal-${id}`];
+    addH(id, `Alternative proposal ${version} sent to Sales`);
+    personNotice(TN.deal(s.deal).owner, `Flight alternative proposal ${version} for ${s.deal} needs your approval.`, s.deal, `#/app/deals/${s.deal}?tab=services`);
+    TN.toast(`Proposal ${version} sent to Sales. Ticketing remains blocked.`); TN.refresh();
+  });
+  TN.act('fv-decision', (el) => {
+    const id = el.dataset.id; const s = S[id]; const proposal = (s.flightProposals || []).find((p) => p.version === Number(el.dataset.version));
+    if (me() !== TN.deal(s.deal)?.owner) return TN.toast('Only the owning Sales Executive can decide this proposal.', 'danger');
+    if (!proposal || proposal.status !== 'pending' || latestFor(s, proposal.sectorIndex)?.version !== proposal.version) return TN.toast('This proposal is no longer the current pending version.', 'danger');
+    if (el.dataset.decision === 'approve') { decideProposal(id, proposal, 'approve', ''); return; }
+    TN.dialog({ title: 'Reject this alternative?', body: `<div id="fv-reject-error-${id}">${UI.err[`decision-${id}`] ? errorSummary('Rejection reason required', esc(UI.err[`decision-${id}`])) : ''}</div>${field(`reason-reject-${id}`, 'Reason for rejection', textInput(`reason-reject-${id}`, 'rejectionReason', ''), { hint: 'Required. Flight will need a revised proposal before ticketing.' })}`, footer: `<button type="button" class="${B.ghostMd}" data-close>Cancel</button><button type="button" data-act="fv-reject-confirm" data-id="${id}" data-version="${proposal.version}" class="${B.danger}">Reject alternative</button>` });
+  });
+  TN.act('fv-reject-confirm', (el) => {
+    const id = el.dataset.id; const s = S[id]; const proposal = (s.flightProposals || []).find((p) => p.version === Number(el.dataset.version));
+    const reason = String(document.querySelector(`#reason-reject-${id}`)?.value || '').trim();
+    if (!reason) { UI.err[`decision-${id}`] = 'Enter the rejection reason.'; const box = document.querySelector(`#fv-reject-error-${id}`); if (box) box.innerHTML = errorSummary('Rejection reason required', UI.err[`decision-${id}`]); return; }
+    if (me() !== TN.deal(s.deal)?.owner || !proposal || latestFor(s, proposal.sectorIndex)?.version !== proposal.version || proposal.status !== 'pending') return TN.toast('This proposal is no longer available to decide.', 'danger');
+    decideProposal(id, proposal, 'reject', reason);
+  });
+  function decideProposal(id, proposal, decision, reason) {
+    const s = S[id];
+    if (!TN.is('sales') || me() !== TN.deal(s.deal)?.owner || s.taskStatus !== 'in_progress' || latestFor(s, proposal.sectorIndex) !== proposal || proposal.status !== 'pending' || !['approve', 'reject'].includes(decision) || (decision === 'reject' && !reason)) return TN.toast('This proposal is no longer available to decide.', 'danger');
+    Object.assign(proposal, { status: decision === 'approve' ? 'approved' : 'rejected', decidedBy: me(), decidedAt: NOW(), rejectionReason: reason });
+    delete UI.err[`decision-${id}`]; addH(id, decision === 'approve' ? `Alternative proposal ${proposal.version} approved by Sales` : `Alternative proposal ${proposal.version} rejected by Sales`);
+    if (s.assignee) personNotice(s.assignee, `Sales ${proposal.status} flight alternative proposal ${proposal.version} for ${s.deal}.`, s.deal, `#/app/flight/${id}?tab=work`);
+    TN.closeOverlay(); TN.toast(decision === 'approve' ? 'Alternative approved. Flight can ticket this exact itinerary.' : 'Alternative rejected. Ticketing remains blocked.'); TN.refresh();
+  }
   TN.act('fv-done', (el) => {
     const id = el.dataset.id; const s = S[id];
+    if (!canEditFlight(s)) return TN.toast('Only the assigned Flight Executive can complete an active task.', 'danger');
     const missing = flightChecklist(id).filter((i) => !i.done);
-    if (missing.length) { UI.err[`done-${id}`] = `Still to do: ${missing.map((i) => `${i.label.charAt(0).toLowerCase() + i.label.slice(1)} (${i.why})`).join('; ')}.`; TN.refresh(); focusLater(`#done-${id}-summary`); return; }
+    if (missing.length) { UI.err[`done-${id}`] = `Still to do: ${missing.map((i) => `${i.label.charAt(0).toLowerCase() + i.label.slice(1)} (${i.why})`).join('; ')}.`; TN.refresh(); focusLater(`#finish-${id}-heading`); return; }
+    if (s.taskStatus === 'done') { TN.toast('This flight is already complete.', 'danger'); return; }
     delete UI.err[`done-${id}`];
     TN.dialog({
       title: 'Mark this flight done?',
-      body: `<div class="flex flex-col gap-3"><dl class="${C.dl}"><dt class="${C.dt}">Route</dt><dd class="${C.dd}">${esc(routeOf(s))}</dd><dt class="${C.dt}">PNR</dt><dd class="${C.dd}">${esc(s.pnr)}</dd><dt class="${C.dt}">Passengers</dt><dd class="${C.ddNum}">${s.passengers.length}</dd><dt class="${C.dt}">Deal</dt><dd class="${C.dd}">${esc(s.deal)}</dd></dl><p class="m-0 text-copy">${esc(ownerName(s.deal))} (Sales) and Accounts get a notice: ticket issued. After this, the ticket details and costs on this task are locked.</p></div>`,
+      body: `<div class="flex flex-col gap-3"><dl class="${C.dl}"><dt class="${C.dt}">Route</dt><dd class="${C.dd}">${esc(s.flightTicket.segments.map((g) => `${g.from} → ${g.to}`).join('; '))}</dd><dt class="${C.dt}">PNRs</dt><dd class="${C.dd}">${esc([...new Set(s.flightTicket.segments.map((g) => g.pnr))].join(', '))}</dd><dt class="${C.dt}">Passengers</dt><dd class="${C.ddNum}">${s.passengers.length}</dd><dt class="${C.dt}">Deal</dt><dd class="${C.dd}">${esc(s.deal)}</dd></dl><p class="m-0 text-copy">${esc(ownerName(s.deal))} (Sales) and Accounts get a notice: ticket issued. After this, the ticket details and costs on this task are locked.</p></div>`,
       footer: `<button type="button" class="${B.ghostMd}" data-slot="button" data-close>Cancel</button><button type="button" class="${B.primaryMd}" data-slot="button" data-act="fv-done-confirm" data-id="${id}">Mark flight done</button>`,
     });
   });
   TN.act('fv-done-confirm', (el) => {
     const id = el.dataset.id; const s = S[id];
+    if (!canEditFlight(s)) return TN.toast('This task is already completed or is not assigned to you.', 'danger');
+    if (!readyToFinish(id)) { TN.closeOverlay(); UI.err[`done-${id}`] = 'Required ticket details changed. Review the checklist and save again.'; TN.refresh(); return; }
     s.taskStatus = 'done'; s.doneAt = NOW(); s.doneBy = me();
-    const airline = (s.segments[0].flight || '').split(' ')[0] || 'Airline';
-    addH(id, 'Flight marked done · ticket issued', { detail: `Notice sent to ${ownerName(s.deal)} (Sales) and Accounts.` });
-    pushNotice(['sales', 'accounts', 'checker'], `Flight ticket issued for ${familyName(s.deal)}: ${airline} PNR ${s.pnr}.`, s.deal);
+    const airline = s.flightTicket.segments[0].airline || 'Airline';
+    const pnrs = [...new Set(s.flightTicket.segments.map((g) => g.pnr))].join(', ');
+    addH(id, 'Flight completed after ticket validation');
+    personNotice(TN.deal(s.deal).owner, `Flight ticket recorded for ${familyName(s.deal)}: ${airline}, PNR ${pnrs}.`, s.deal, `#/app/deals/${s.deal}?tab=services`);
+    pushNotice(['accounts', 'checker'], `Flight ticket recorded for ${familyName(s.deal)}: ${airline}, PNR ${pnrs}.`, s.deal, { href: '#/app/accounts/documents' });
     TN.closeOverlay();
     UI.flash[id] = 'Flight marked done. Sales and Accounts were told the ticket is issued.';
     TN.refresh();
