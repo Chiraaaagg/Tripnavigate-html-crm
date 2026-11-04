@@ -15,3 +15,507 @@
 .fv-prog[data-cancelled] li{opacity:.55}
 .fv-prog .fv-note{margin:10px 0 0;text-align:center;font-size:13px;color:var(--color-quiet)}
 @media (max-width:420px){.fv-prog{padding:14px 4px 12px}.fv-prog .fv-lbl{font-size:12px}}
+
+
+/* Sector workflow (flight_changes.md, FLIGHT_SECTOR_WORKFLOW.md), redesigned per flight_design.md (FLIGHT_DESIGN_PLAN.md).
+   Flight module only. live.css is pre-built and has no classes for these tables, so they are defined here with the app's colour variables. */
+
+/* Cards */
+.fv-card-head:has([aria-expanded="true"]){background:var(--color-canvas)}
+.fv-card:has(.fv-collapse[aria-expanded="false"]) .fv-card-head{border-bottom-color:transparent}
+.fv-head-desc{margin-top:2px;padding-left:30px}
+.fv-head-tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.fv-hcount{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;background:var(--color-wash);color:var(--color-quiet);font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fv-hcount[data-tone="warning"]{background:var(--color-status-warning-tint);color:var(--color-status-warning)}
+.fv-help{display:flex;gap:8px;margin:0;padding:8px 12px;border-radius:var(--radius-control,8px);background:var(--color-wash);font-size:13px;line-height:1.45;color:var(--color-copy)}
+.fv-help svg{margin-top:2px;color:var(--color-quiet)}
+.fv-help b{color:var(--color-ink);font-weight:600}
+
+/* Summary strip and meters */
+.fv-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(0,1.6fr);gap:8px}
+.fv-summary-finish{grid-template-columns:repeat(3,minmax(0,1fr))}
+.fv-stat{display:flex;flex-direction:column;gap:2px;min-width:0;padding:10px 12px;border:1px solid var(--color-line);border-radius:var(--radius-control,8px);background:var(--color-card)}
+.fv-stat-n{font-size:20px;line-height:1.1;font-weight:700;color:var(--color-ink);font-variant-numeric:tabular-nums}
+.fv-stat-l{font-size:12px;font-weight:500;color:var(--color-quiet)}
+.fv-stat[data-tone="success"] .fv-stat-n{color:var(--color-status-success)}
+.fv-stat[data-tone="warning"]{border-color:var(--color-status-warning-line);background:var(--color-status-warning-tint)}
+.fv-stat[data-tone="warning"] .fv-stat-n{color:var(--color-status-warning)}
+.fv-stat-money{font-size:16px;font-weight:700;color:var(--color-ink);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.fv-meter{grid-column:1/-1;height:6px;border-radius:999px;background:var(--color-wash);overflow:hidden}
+.fv-meter>span,.fv-mini-meter>span{display:block;height:100%;border-radius:inherit;background:var(--color-status-success);transition:width .3s ease}
+.fv-mini-meter{display:inline-block;width:36px;height:4px;border-radius:999px;background:var(--color-line);overflow:hidden}
+
+/* Tables */
+.fv-wrap{position:relative;width:100%;min-width:0;max-width:100%;overflow-x:auto;border:1px solid var(--color-line);border-radius:var(--radius-card,12px);background:var(--color-card)}
+.fv-wrap:focus-visible{outline:2px solid var(--color-brand-strong);outline-offset:2px}
+.fv-table{width:100%;min-width:760px;border-collapse:separate;border-spacing:0;font-size:14px;color:var(--color-copy)}
+.fv-table-alt{min-width:780px}
+.fv-table>thead th{background:var(--color-wash);text-align:left;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--color-quiet);padding:8px 10px;white-space:nowrap;border-bottom:1px solid var(--color-line)}
+.fv-table>tbody>tr>td{padding:10px;border-top:1px solid var(--color-line);vertical-align:middle}
+.fv-table>tbody>tr:first-child>td{border-top:0}
+.fv-table>tbody>tr:not(.fv-subwrap):not([data-draft]):not([data-kind="alternative"]):hover>td{background:var(--color-canvas)}
+.fv-table>tbody>tr[data-kind="alternative"]>td{background:color-mix(in srgb,var(--color-brand-tint) 40%,var(--color-card))}
+.fv-table-alt>tbody>tr[data-kind="alternative"]>td:first-child{box-shadow:inset 3px 0 0 var(--color-brand-line);padding-left:22px}
+.fv-table-conf>tbody>tr[data-kind="alternative"]>td:first-child{box-shadow:inset 3px 0 0 var(--color-brand-line)}
+.fv-table>tbody>tr[data-draft]>td{background:var(--color-brand-tint);vertical-align:top}
+.fv-table>tbody>tr[data-draft]>td:first-child{box-shadow:inset 3px 0 0 var(--color-brand-strong)}
+.fv-table>tbody>tr[data-replaced]>td{color:var(--color-quiet)}
+.fv-table>tbody>tr[data-replaced] .fv-iata,.fv-table>tbody>tr[data-replaced] .fv-air{color:var(--color-quiet);text-decoration:line-through;text-decoration-color:var(--color-line-strong)}
+.fv-table>tbody>tr.fv-subwrap>td{border-top:0;padding-top:0;padding-bottom:14px}
+.fv-table-conf>tbody>tr.fv-secrow:not(:first-child)>td{border-top:1px solid var(--color-line-strong)}
+
+/* Cell content */
+.fv-no{display:block;font-weight:700;font-variant-numeric:tabular-nums;color:var(--color-ink);white-space:nowrap}
+.fv-tag{display:inline-flex;align-items:center;margin-top:3px;padding:0 6px;height:18px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap;border:1px solid var(--color-line-strong);color:var(--color-quiet);background:var(--color-card)}
+.fv-tag[data-kind="alternative"]{border-color:var(--color-brand-line);color:var(--color-brand-deep);background:var(--color-brand-tint)}
+.fv-tag[data-kind="added"]{border-color:var(--color-status-info-line);color:var(--color-status-info);background:var(--color-status-info-tint)}
+.fv-tag-of{font-weight:500;opacity:.85;white-space:pre}
+.fv-kind,.fv-meta{display:block;font-size:12px;color:var(--color-quiet);white-space:nowrap}
+.fv-meta.fv-inline{display:inline;margin-left:4px}
+.fv-wrap-text{white-space:normal;max-width:22ch;margin-top:4px}
+.fv-air{display:block;font-weight:600;color:var(--color-ink);white-space:nowrap;max-width:14ch;overflow:hidden;text-overflow:ellipsis}
+.fv-fno{display:block;font-size:12px;color:var(--color-quiet);font-variant-numeric:tabular-nums;white-space:nowrap}
+.fv-route{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.fv-iata{font-size:15px;font-weight:700;letter-spacing:.03em;color:var(--color-ink)}
+.fv-arrow{color:var(--color-faint);margin:0 4px;font-weight:400}
+.fv-route .fv-arrow{margin:0}
+.fv-date{display:block;font-weight:500;color:var(--color-ink);white-space:nowrap}
+.fv-time{display:block;font-size:12px;color:var(--color-quiet);font-variant-numeric:tabular-nums;white-space:nowrap}
+.fv-class{white-space:nowrap}
+.fv-names{display:block;max-width:22ch;line-height:1.35}
+.fv-remark{display:block;max-width:24ch;line-height:1.35;overflow-wrap:anywhere}
+.fv-count{font-variant-numeric:tabular-nums;font-weight:600;color:var(--color-ink)}
+.fv-rowact{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:4px}
+.fv-rowact-col{flex-direction:column;align-items:stretch}
+.fv-btn-sm{height:34px!important;min-height:34px!important;padding:0 12px!important;font-size:14px!important;gap:6px}
+
+/* Inline editing */
+.fv-in{display:block;width:100%;min-width:7.5rem;height:36px;min-height:36px;margin:0;border:1px solid var(--color-control);border-radius:var(--radius-control,8px);background:var(--color-card);padding:4px 8px;font:inherit;font-size:14px;color:var(--color-ink);transition:border-color .12s ease,box-shadow .12s ease}
+.fv-in::placeholder{color:var(--color-faint)}
+.fv-in-sm{min-width:5.5rem}.fv-in-xs{min-width:4rem}.fv-in-wide{min-width:11rem}
+.fv-in-code{width:4.5rem;min-width:4.5rem;text-transform:uppercase;font-weight:600;letter-spacing:.03em}
+select.fv-in{min-width:10rem;padding-right:4px}
+.fv-in:hover{border-color:var(--color-quiet)}
+.fv-in:focus{outline:none;border-color:var(--color-brand-strong);box-shadow:0 0 0 3px var(--color-brand-tint)}
+.fv-stack{display:flex;flex-direction:column;gap:4px}
+.fv-pair{display:flex;align-items:center;gap:2px}
+.fv-sched{display:flex;flex-direction:column;gap:4px}
+.fv-sched-row{display:grid;grid-template-columns:26px minmax(8.5rem,1fr) minmax(5.5rem,auto);align-items:center;gap:4px}
+.fv-sched-row .fv-in{min-width:0}
+.fv-mini{font-size:11px;font-weight:600;text-transform:uppercase;color:var(--color-quiet)}
+/* Draft editor panel (new alternative / added sector) */
+.fv-editor{display:flex;flex-direction:column;gap:12px;padding:12px;border:1px solid var(--color-brand-line);border-radius:var(--radius-control,8px);background:var(--color-card)}
+.fv-ed-row{display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px 16px}
+.fv-ed-row2{align-items:flex-end;padding-top:12px;border-top:1px dashed var(--color-line)}
+.fv-ed-grp{display:flex;flex-direction:column;gap:4px;min-width:0}
+.fv-ed-grp .fv-in{min-width:0}
+.fv-ed-grp:nth-child(1) .fv-in{width:9.5rem}
+.fv-ed-grp:nth-child(4) .fv-in{width:8rem}
+.fv-ed-lbl{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--color-quiet)}
+.fv-ed-pax{flex-direction:row;flex-wrap:wrap;align-items:center;gap:4px 10px}
+.fv-ed-pax>.fv-ed-lbl{width:100%}
+.fv-ed-remark{flex:1;min-width:14rem}
+.fv-ed-actions{display:flex;align-items:center;gap:6px;margin-left:auto}
+.fv-ed-badge{margin-top:6px}
+.fv-paxcell{display:flex;align-items:flex-start;gap:8px}
+.fv-paxcell>.fv-count{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:var(--color-wash);font-size:12px}
+.fv-actions{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.fv-check{width:18px;height:18px;margin:0;vertical-align:middle;accent-color:var(--color-brand-strong);cursor:pointer}
+.fv-check:focus-visible{outline:2px solid var(--color-brand-strong);outline-offset:2px}
+
+/* Collapse controls */
+.fv-collapse{display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;min-height:40px;margin:-6px 0;padding:0 6px 0 0;border:0;background:none;font:inherit;color:inherit;cursor:pointer;border-radius:var(--radius-control,8px);text-align:left}
+.fv-collapse:hover>span:first-of-type{text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--color-line-strong)}
+.fv-collapse>.fv-chev{width:22px;height:22px;padding:3px;border-radius:6px;background:var(--color-wash)}
+.fv-collapse:focus-visible,.fv-subtoggle:focus-visible,.fv-pick-sum:focus-visible,.fv-addlink:focus-visible{outline:2px solid var(--color-brand-strong);outline-offset:2px}
+.fv-chev{transition:transform .15s ease;transform:rotate(-90deg)}
+[aria-expanded="true"]>.fv-chev{transform:none}
+.fv-subtoggle{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 10px 0 6px;border:1px solid var(--color-line-strong);border-radius:999px;background:var(--color-card);font:inherit;font-size:12px;font-weight:500;color:var(--color-copy);cursor:pointer;white-space:nowrap;transition:background .12s ease}
+.fv-subtoggle:hover{background:var(--color-wash)}
+
+/* Passenger sub-rows: indented under their sector with a rail */
+.fv-subwrap>td:nth-child(2){position:relative;padding-left:22px!important}
+.fv-subwrap>td:nth-child(2)::before{content:"";position:absolute;left:8px;top:0;bottom:14px;width:2px;border-radius:2px;background:var(--color-line-strong)}
+.fv-subtable{width:100%;border-collapse:separate;border-spacing:0;font-size:14px;background:var(--color-canvas);border:1px solid var(--color-line);border-radius:8px;overflow:hidden}
+.fv-subtable th{text-align:left;font-size:11px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--color-quiet);padding:6px 8px;white-space:nowrap;background:var(--color-canvas)}
+.fv-subtable td{padding:6px 8px;border-top:1px solid var(--color-line);vertical-align:middle;background:var(--color-card)}
+.fv-subtable tr[data-status="confirmed"] td{background:color-mix(in srgb,var(--color-status-success-tint) 55%,var(--color-card))}
+.fv-subtable tr[data-status="pending"] td:first-child{box-shadow:inset 3px 0 0 var(--color-status-warning-line)}
+.fv-subtable tr[data-status="confirmed"] td:first-child{box-shadow:inset 3px 0 0 var(--color-status-success)}
+.fv-subtable td:first-child,.fv-subtable th:first-child{width:34px;text-align:center}
+.fv-subfoot{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin-top:8px}
+.fv-addlink{display:inline-flex;align-items:center;gap:4px;min-height:30px;padding:0 10px 0 6px;border:1px dashed var(--color-brand-line);border-radius:999px;background:var(--color-card);font:inherit;font-size:13px;font-weight:600;color:var(--color-brand-strong);cursor:pointer}
+.fv-addlink:hover:not(:disabled){background:var(--color-brand-tint)}
+.fv-addlink:disabled{border-color:var(--color-line);color:var(--color-faint);cursor:not-allowed}
+.fv-subnote{display:flex;align-items:flex-start;gap:6px;margin:0;font-size:12px;color:var(--color-quiet)}
+.fv-subnote svg{margin-top:2px}
+.fv-subnote[data-tone="warning"]{color:var(--color-status-warning)}
+
+/* Action bar under the confirmation table */
+.fv-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;padding:10px 12px;border:1px solid var(--color-line);border-radius:var(--radius-control,8px);background:var(--color-canvas)}
+
+/* Passenger choice: same look as the Book now "Passengers flying" chips. */
+.fv-pick{position:relative;min-width:13rem;max-width:20rem}
+.fv-pick-sum{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:34px;padding:2px 6px 2px 4px;border:1px solid var(--color-control);border-radius:var(--radius-control,8px);background:var(--color-card);font-size:13px;color:var(--color-ink);cursor:pointer;list-style:none}
+.fv-pick-sum:hover{border-color:var(--color-quiet)}
+.fv-pick-sum::-webkit-details-marker{display:none}
+.fv-pick[open] .fv-chev-dd{transform:rotate(180deg)}
+.fv-chev-dd{flex-shrink:0;color:var(--color-quiet);transition:transform .15s ease}
+.fv-picksum{display:flex;align-items:center;gap:6px;min-width:0;flex:1}
+.fv-sumchips{display:flex;flex-wrap:wrap;gap:3px;min-width:0;flex:1}
+.fv-sumchip{display:inline-block;max-width:13ch;padding:0 6px;height:20px;line-height:20px;border-radius:999px;background:var(--color-brand-tint);color:var(--color-brand-deep);font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fv-sumchip-more{background:var(--color-wash);color:var(--color-quiet)}
+.fv-sumcount{flex-shrink:0;font-size:12px;font-weight:600;color:var(--color-quiet);font-variant-numeric:tabular-nums}
+.fv-pick-list{display:flex;flex-direction:column;gap:6px;margin-top:6px;padding:8px;max-height:260px;overflow:auto;border:1px solid var(--color-line);border-radius:var(--radius-control,8px);background:var(--color-card);box-shadow:0 6px 16px rgba(0,0,0,.08)}
+.fv-chip{display:flex;align-items:center;gap:6px;min-height:34px;padding:0 12px;border:1px solid var(--color-line-strong);border-radius:99px;background:var(--color-card);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
+.fv-chip:has(input:checked){background:var(--color-brand-tint);border-color:var(--color-brand-line);color:var(--color-brand-deep)}
+.fv-chip:has(input:disabled){opacity:.6;cursor:not-allowed}
+.fv-chip:focus-within{outline:2px solid var(--color-brand-strong);outline-offset:1px}
+.fv-chip input{accent-color:var(--color-brand-strong);margin:0}
+.fv-chip-all{font-weight:600}
+.fv-chip-note{font-size:12px;color:var(--color-quiet)}
+
+/* Finish this flight: set apart from the editing cards */
+.fv-finish{border-top:3px solid var(--color-brand-strong)!important}
+.fv-eticket{display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid var(--color-line);border-radius:var(--radius-control,8px)}
+.fv-checklist-box{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border:1px solid var(--color-status-warning-line);border-radius:var(--radius-control,8px);background:var(--color-status-warning-tint)}
+.fv-checklist-box[data-ready="true"]{border-color:var(--color-status-success-line);background:var(--color-status-success-tint)}
+.fv-checklist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.fv-checklist li{display:flex;gap:8px;margin:0;font-size:14px}
+.fv-checklist li svg{margin-top:2px;color:var(--color-status-warning)}
+.fv-checklist li[data-done="true"] svg{color:var(--color-status-success)}
+.fv-checklist li[data-done="true"] .fv-cl-label{color:var(--color-quiet)}
+.fv-cl-label{display:block;font-weight:600;color:var(--color-ink)}
+.fv-cl-why{display:block;font-size:13px;color:var(--color-copy);overflow-wrap:anywhere}
+.fv-done-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding-top:12px;border-top:1px solid var(--color-line)}
+.fv-done-btn{gap:8px;min-width:12rem}
+.fv-done-btn:not(:disabled){box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 3px var(--color-brand-tint)}
+.fv-done-btn:disabled{opacity:.5;cursor:not-allowed;filter:grayscale(.4);box-shadow:none}
+.fv-done-row p{flex:1;min-width:16rem}
+button:disabled[data-act^="fv-"]{cursor:not-allowed}
+
+/* Round 2 (flight_changes_2.md, FLIGHT_SECTOR_V2_PLAN.md): toolbar, shared passenger list, journey rows,
+   passenger drop-downs, fares and history. */
+.fv-toolbar{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:8px 12px}
+.fv-toolbar-act{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-left:auto}
+.fv-board{flex:1 1 22rem;min-width:0;max-width:44rem}
+.fv-board-sum{gap:8px;padding:2px 8px}
+.fv-board-sum>svg:first-child{color:var(--color-quiet)}
+.fv-board-title{font-weight:600;white-space:nowrap}
+.fv-board[open] .fv-chev-dd{transform:rotate(180deg)}
+.fv-board-list{display:flex;flex-direction:column;margin-top:6px;border:1px solid var(--color-line);border-radius:var(--radius-control,8px);background:var(--color-card);overflow:hidden}
+.fv-brow{display:grid;grid-template-columns:20px minmax(9rem,auto) 1fr;align-items:center;gap:4px 10px;padding:8px 10px;border-top:1px solid var(--color-line);cursor:pointer;font-size:14px}
+.fv-brow:first-child{border-top:0}
+.fv-brow:hover{background:var(--color-canvas)}
+.fv-brow:has(input:checked){background:var(--color-brand-tint)}
+.fv-brow-all{background:var(--color-wash)}
+.fv-bname{display:flex;align-items:center;gap:6px;font-weight:600;color:var(--color-ink);min-width:0}
+.fv-bsts{display:flex;flex-wrap:wrap;gap:4px 6px;justify-content:flex-end}
+.fv-bst{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:999px;font-size:12px;white-space:nowrap;background:var(--color-status-success-tint);color:var(--color-status-success)}
+.fv-bst[data-st="off"]{background:var(--color-status-warning-tint);color:var(--color-status-warning)}
+.fv-bst-route{font-weight:600}
+.fv-ptype{display:inline-flex;align-items:center;height:18px;margin-left:6px;padding:0 6px;border-radius:4px;background:var(--color-wash);color:var(--color-quiet);font-size:11px;font-weight:600;vertical-align:middle}
+.fv-tag[data-tone="warning"]{border-color:var(--color-status-warning-line);color:var(--color-status-warning);background:var(--color-status-warning-tint)}
+.fv-table>tbody>tr.fv-seg>th{padding:8px 10px;text-align:left;background:var(--color-canvas);border-top:1px solid var(--color-line-strong);font-weight:500}
+.fv-table>tbody>tr.fv-seg:first-child>th{border-top:0}
+.fv-seg-name{display:inline-flex;align-items:center;gap:6px;margin-right:12px;font-size:13px;font-weight:700;color:var(--color-ink)}
+.fv-seg-name svg{color:var(--color-quiet)}
+.fv-seg-meta{font-size:12px;color:var(--color-status-success)}
+.fv-seg-meta[data-tone="warning"]{color:var(--color-status-warning);font-weight:600}
+.fv-table>tbody>tr.fv-seg+tr>td{border-top:1px solid var(--color-line)}
+.fv-subpanel{display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px 20px;padding:10px 12px;border:1px solid var(--color-brand-line);border-radius:var(--radius-control,8px);background:var(--color-card)}
+.fv-subpanel select.fv-in{min-width:16rem}
+.fv-grow{flex:1 1 20rem}
+.fv-subdraft>td{background:var(--color-brand-tint)!important}
+.fv-assign{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.fv-assign-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px}
+.fv-legend{display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--color-quiet)}
+.fv-legend>span{display:inline-flex;align-items:center;gap:4px}
+.fv-legend>span::before{content:"";width:10px;height:10px;border-radius:3px;border:1px solid var(--color-line-strong);background:var(--color-card)}
+.fv-legend>[data-st="on"]::before{background:var(--color-brand-tint);border-color:var(--color-brand-line)}
+.fv-legend>[data-st="free"]::before{border-style:dashed;border-color:var(--color-status-warning-line)}
+.fv-legend>[data-st="other"]::before{background:var(--color-wash)}
+.fv-achips{display:flex;flex-wrap:wrap;gap:6px}
+.fv-achip{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:2px 12px 2px 8px;border:1px solid var(--color-line-strong);border-radius:999px;background:var(--color-card);font-size:13px;font-weight:500;color:var(--color-copy);cursor:pointer}
+.fv-achip-txt{display:inline-flex;flex-wrap:wrap;align-items:center;column-gap:2px}
+.fv-achip .fv-chip-note{margin-left:6px}
+.fv-achip[data-st="free"]{border-style:dashed;border-color:var(--color-status-warning-line)}
+.fv-achip[data-st="other"]{background:var(--color-wash);color:var(--color-quiet)}
+.fv-achip:has(input:checked){background:var(--color-brand-tint);border-color:var(--color-brand-line);border-style:solid;color:var(--color-brand-deep)}
+.fv-achip:has(input:disabled){cursor:not-allowed}
+.fv-achip:has(input:disabled:not(:checked)){opacity:.75}
+.fv-achip:focus-within{outline:2px solid var(--color-brand-strong);outline-offset:1px}
+.fv-achip .fv-check{width:16px;height:16px}
+.fv-hint{white-space:normal;margin:2px 0 0}
+.fv-quiet{color:var(--color-quiet)}
+.fv-fare{display:flex;flex-direction:column;gap:6px;margin-top:12px;padding:10px 12px;border:1px solid var(--color-line);border-radius:var(--radius-control,8px);background:var(--color-card);max-width:40rem}
+.fv-faretable{width:100%;border-collapse:collapse;font-size:14px}
+.fv-faretable th,.fv-faretable td{padding:6px 8px;text-align:left;border-top:1px solid var(--color-line);vertical-align:middle}
+.fv-faretable thead th{border-top:0;font-size:11px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--color-quiet)}
+.fv-faretable tbody th{font-weight:600;color:var(--color-ink)}
+.fv-faretable tfoot th,.fv-faretable tfoot td{font-weight:700;color:var(--color-ink);border-top:1px solid var(--color-line-strong)}
+.fv-faretable tfoot th{text-align:right}
+.fv-faretable .fv-in{max-width:10rem}
+.fv-num{text-align:right!important;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fv-hist{border:1px solid var(--color-line);border-radius:var(--radius-control,8px);background:var(--color-card)}
+.fv-hist-sum{display:flex;align-items:center;gap:8px;min-height:40px;padding:4px 12px;cursor:pointer;list-style:none;font-weight:600;color:var(--color-ink)}
+.fv-hist-sum::-webkit-details-marker{display:none}
+.fv-hist-sum>svg:first-child{color:var(--color-quiet)}
+.fv-hist-sum .fv-chev-dd{margin-left:auto}
+.fv-hist[open] .fv-chev-dd{transform:rotate(180deg)}
+.fv-hist-sum:focus-visible{outline:2px solid var(--color-brand-strong);outline-offset:2px}
+.fv-hist>.fv-wrap,.fv-hist>.fv-hint{margin:0 12px 12px;width:auto}
+.fv-table-hist{min-width:900px}
+.fv-subtable .fv-in{min-width:5.5rem}
+.fv-subtable select.fv-in{min-width:8.5rem}
+.fv-table-hist>tbody>tr>td{vertical-align:top}
+@media (max-width:640px){.fv-brow{grid-template-columns:20px 1fr}.fv-bsts{grid-column:2;justify-content:flex-start}.fv-toolbar-act{margin-left:0}.fv-subpanel select.fv-in{min-width:0}}
+
+/* Alternatives: one global passenger row (user correction, 3 Nov 2026) */
+.fv-toolbar-alt{align-items:flex-end;flex-wrap:nowrap}
+.fv-gpax{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:6px;padding:8px 10px;border:1px solid var(--color-line);border-radius:var(--radius-control,8px);background:var(--color-card)}
+.fv-gpax[data-editing]{border-color:var(--color-brand-strong);background:var(--color-brand-tint);box-shadow:0 0 0 3px color-mix(in srgb,var(--color-brand-tint) 70%,transparent)}
+.fv-gpax-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 12px}
+.fv-gpax-head .fv-hint{margin:0}
+.fv-gpax-head b{color:var(--color-ink);font-weight:600}
+.fv-gpax-row{display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;padding-bottom:2px}
+.fv-gchip{display:inline-flex;flex:0 0 auto;align-items:center;gap:8px;min-height:40px;padding:4px 12px 4px 10px;border:1px solid var(--color-line-strong);border-radius:10px;background:var(--color-card);cursor:pointer}
+.fv-gchip:has(input:checked){background:var(--color-brand-tint);border-color:var(--color-brand-line)}
+.fv-gpax[data-editing] .fv-gchip:has(input:checked){background:var(--color-card);border-color:var(--color-brand-strong);box-shadow:inset 0 0 0 1px var(--color-brand-strong)}
+.fv-gchip:has(input:disabled){cursor:not-allowed}
+.fv-gchip:has(input:disabled:not(:checked)){background:var(--color-wash)}
+.fv-gchip:focus-within{outline:2px solid var(--color-brand-strong);outline-offset:1px}
+.fv-gchip-txt{display:flex;flex-direction:column;line-height:1.25}
+.fv-gname{display:inline-flex;align-items:center;font-size:13px;font-weight:600;color:var(--color-ink);white-space:nowrap}
+.fv-gchip .fv-chip-note{font-size:11px;white-space:nowrap}
+.fv-gchip-all .fv-gname{font-weight:700}
+.fv-table tr:is([data-draft],[data-ro]) .fv-stack .fv-in{min-width:0;width:8.5rem}
+.fv-table tr:is([data-draft],[data-ro]) .fv-in-wide{min-width:0;width:9rem}
+@media (max-width:640px){.fv-toolbar-alt{flex-wrap:wrap}}
+
+/* Flight sector confirmation, simplified (user correction 3 Nov 2026): flight header rows + one row per passenger */
+.fv-csum{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px solid var(--color-line);border-radius:var(--radius-control,8px);background:var(--color-canvas)}
+.fv-csum-line{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 16px;font-size:14px;color:var(--color-copy)}
+.fv-csum-line b{color:var(--color-ink);font-variant-numeric:tabular-nums}
+.fv-table-conf2{min-width:820px}
+.fv-table-conf2>thead th:first-child,.fv-table-conf2>tbody td:first-child{width:36px;text-align:center;padding-left:8px;padding-right:4px}
+.fv-table>tbody>tr.fv-hrow>td{background:var(--color-wash);border-top:1px solid var(--color-line-strong);padding-top:10px;padding-bottom:10px}
+.fv-table>tbody>tr.fv-hrow:first-child>td{border-top:0}
+.fv-table>tbody>tr.fv-hrow[data-kind="alternative"]>td{background:color-mix(in srgb,var(--color-brand-tint) 60%,var(--color-wash))}
+.fv-table>tbody>tr.fv-hrow[data-kind="alternative"]>td:first-child{box-shadow:inset 3px 0 0 var(--color-brand-line)}
+.fv-table>tbody>tr.fv-hrow[data-editing]>td{background:var(--color-brand-tint)}
+.fv-table>tbody>tr.fv-hrow[data-editing]>td:first-child{box-shadow:inset 3px 0 0 var(--color-brand-strong)}
+.fv-hf{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}
+.fv-hf-main{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;flex:1 1 auto;min-width:0}
+.fv-hf-name{font-weight:700;color:var(--color-ink);white-space:nowrap}
+.fv-hf-route{font-weight:700;letter-spacing:.03em;color:var(--color-ink);white-space:nowrap}
+.fv-hf-meta{font-size:13px;color:var(--color-quiet);font-variant-numeric:tabular-nums}
+.fv-hf-main .fv-tag{margin-top:0}
+.fv-hf-prog{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--color-copy);white-space:nowrap}
+.fv-hf-btns{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
+.fv-fares{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--color-line-strong)}
+.fv-fi{display:inline-flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap}
+.fv-fi-l{font-weight:600;color:var(--color-ink)}
+.fv-fi-x,.fv-fi-amt{color:var(--color-quiet);font-variant-numeric:tabular-nums}
+.fv-fi-amt{min-width:5.5rem}
+.fv-in-fare{width:7.5rem;min-width:0}
+.fv-fi-total{margin-left:auto;font-size:13px;color:var(--color-copy);white-space:nowrap}
+.fv-fi-total b{color:var(--color-ink);font-variant-numeric:tabular-nums}
+.fv-hnote{display:flex;align-items:center;gap:6px;margin:8px 0 0;font-size:12px;color:var(--color-quiet)}
+.fv-hnote[data-tone="warning"]{color:var(--color-status-warning)}
+.fv-hnote[data-tone="brand"]{color:var(--color-brand-deep);font-weight:600}
+.fv-table>tbody>tr.fv-prow>td{padding-top:6px;padding-bottom:6px}
+.fv-table>tbody>tr.fv-prow[data-status="confirmed"]>td{background:color-mix(in srgb,var(--color-status-success-tint) 45%,var(--color-card))}
+.fv-table>tbody>tr.fv-prow>td:nth-child(2){padding-left:18px}
+.fv-pname{font-weight:600;color:var(--color-ink);white-space:nowrap}
+.fv-table-conf2 .fv-in{min-width:6rem}
+.fv-table-conf2 .fv-in-fare{min-width:0}
+.fv-hedit{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 14px}
+.fv-hedit .fv-stack .fv-in{width:8.5rem;min-width:0}
+.fv-hedit select.fv-in{min-width:13rem}
+.fv-hedit-act{margin-left:auto}
+.fv-hedit-pax{margin-top:10px;padding-top:10px;border-top:1px dashed var(--color-brand-line);align-items:center}
+.fv-hedit-pax .fv-gpax-row{flex-wrap:wrap}
+.fv-hedit-act .fv-rowact-col{flex-direction:row}
+@media (max-width:640px){.fv-hf-btns,.fv-fi-total{margin-left:0}}
+
+/* Confirmation: passenger drop-down under each flight (user correction 3 Nov 2026) */
+.fv-ptoggle{display:inline-flex;align-items:center;gap:8px;min-height:34px;margin-left:auto;padding:0 10px;border:1px solid var(--color-line-strong);border-radius:999px;background:var(--color-card);font:inherit;font-size:13px;font-weight:600;color:var(--color-ink);cursor:pointer;white-space:nowrap}
+.fv-ptoggle:hover{border-color:var(--color-quiet)}
+.fv-ptoggle:focus-visible{outline:2px solid var(--color-brand-strong);outline-offset:2px}
+.fv-ptoggle>svg:first-child{color:var(--color-quiet)}
+.fv-ptoggle-n{font-weight:500;color:var(--color-quiet);font-size:12px}
+.fv-ptoggle[aria-expanded="true"]{background:var(--color-brand-tint);border-color:var(--color-brand-line);color:var(--color-brand-deep)}
+.fv-ptoggle[aria-expanded="true"] .fv-chev-dd{transform:rotate(180deg)}
+.fv-table>tbody>tr.fv-prow[hidden]{display:none}
+/* Passenger rows: nested under the flight with a rail, soft card look, avatar by passenger type */
+.fv-table>tbody>tr.fv-prow>td{background:var(--color-card);border-top:1px solid var(--color-line);padding-top:8px;padding-bottom:8px}
+.fv-table>tbody>tr.fv-prow:nth-child(even of .fv-prow)>td{background:color-mix(in srgb,var(--color-canvas) 70%,var(--color-card))}
+.fv-table>tbody>tr.fv-prow>td:first-child{position:relative}
+.fv-prail{position:absolute;left:50%;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--color-line-strong)}
+.fv-table>tbody>tr.fv-prow:has(+ tr:not(.fv-prow)) .fv-prail,.fv-table>tbody>tr.fv-prow:last-child .fv-prail{bottom:50%}
+.fv-prail::after{content:"";position:absolute;top:50%;left:0;width:12px;height:2px;background:var(--color-line-strong)}
+.fv-table>tbody>tr.fv-prow[data-status="pending"]>td:nth-child(2){box-shadow:inset 3px 0 0 var(--color-status-warning-line)}
+.fv-table>tbody>tr.fv-prow[data-status="confirmed"]>td{background:color-mix(in srgb,var(--color-status-success-tint) 50%,var(--color-card))}
+.fv-table>tbody>tr.fv-prow[data-status="confirmed"]>td:nth-child(2){box-shadow:inset 3px 0 0 var(--color-status-success)}
+.fv-pwho{display:flex;align-items:center;gap:10px;min-width:0}
+.fv-avatar{display:inline-grid;place-items:center;flex-shrink:0;width:32px;height:32px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.02em;background:var(--color-brand-tint);color:var(--color-brand-deep);border:1px solid var(--color-brand-line)}
+.fv-avatar[data-type="child"]{background:var(--color-status-info-tint);color:var(--color-status-info);border-color:var(--color-status-info-line)}
+.fv-avatar[data-type="infant"]{background:var(--color-status-warning-tint);color:var(--color-status-warning);border-color:var(--color-status-warning-line)}
+.fv-pwho-txt{display:flex;flex-direction:column;min-width:0;line-height:1.25}
+.fv-ptype-line{font-size:12px;color:var(--color-quiet)}
+.fv-prow .tabular-nums{white-space:nowrap}
+.fv-table>tbody>tr.fv-paddrow>td{background:var(--color-card)!important;box-shadow:none!important;padding-top:6px;padding-bottom:8px}
+.fv-paddrow .fv-meta.fv-inline{margin-left:10px;white-space:normal}
+
+/* A closed section must stay hidden even when it also has a layout class such as "flex". */
+.fv-body[hidden],.fv-subwrap[hidden]{display:none!important}
+
+/* Smaller screens. Touch screens keep the app-wide 44px touch target. */
+@media (pointer:coarse){.fv-in,.fv-btn-sm{min-height:44px!important;height:44px!important}}
+@media (max-width:900px){.fv-summary{grid-template-columns:repeat(3,minmax(0,1fr))}.fv-stat-wide{grid-column:1/-1;flex-direction:row;flex-wrap:wrap;align-items:baseline;gap:4px 10px}}
+@media (max-width:520px){.fv-summary,.fv-summary-finish{gap:6px}.fv-stat{padding:8px}.fv-stat-n{font-size:17px}.fv-head-desc{padding-left:0}.fv-bar>button{width:100%}.fv-done-btn{width:100%}.fv-done-row p{min-width:0}}
+@media (prefers-reduced-motion:reduce){.fv-chev,.fv-chev-dd,.fv-meter>span,.fv-mini-meter>span,.fv-in{transition:none}.fv-body:not([hidden]),.fv-subwrap:not([hidden])>td{animation:none}}
+
+/* No animation or transition anywhere in the Flight module (user request 3 Nov 2026: no blink when the page redraws). */
+.fv-card,.fv-card *,.fv-prog,.fv-prog *,.fv-finish,.fv-finish *{animation:none!important;transition:none!important}
+.fv-sched-arr{grid-template-columns:26px auto;justify-content:start}
+.fv-sched-arr .fv-in{width:7.5rem}
+
+/* Alternative rows (user correction 3 Nov 2026): the edit boxes are always there; read-only boxes have no border or
+   background so they read as plain text. Alternate turns the same boxes into normal editable inputs. */
+.fv-in.fv-ro,.fv-in.fv-ro:hover,.fv-in.fv-ro:focus{border-color:transparent;background:transparent;box-shadow:none;cursor:default;color:var(--color-ink)}
+.fv-in.fv-ro::-webkit-calendar-picker-indicator{display:none}
+.fv-in.fv-ro::placeholder{color:transparent}
+.fv-table>tbody>tr[data-ro]>td{vertical-align:top}
+.fv-table>tbody>tr[data-ro] .fv-tag{display:flex;width:fit-content;max-width:8.5rem;height:auto;padding:1px 6px;white-space:normal;line-height:1.3}
+
+/* Alternative table as a plain grid (user correction 3 Nov 2026): one line per flight, cell borders like a database
+   table, and NO change of colour or shape between view and edit. Only the cells become typeable. */
+.fv-grid{min-width:0;table-layout:fixed;border-collapse:collapse}
+.fv-grid>thead th{padding:6px 8px;border:1px solid var(--color-line)}
+.fv-grid>tbody>tr>td,.fv-grid>tbody>tr:first-child>td{padding:0;border:1px solid var(--color-line);background:var(--color-card)!important;box-shadow:none!important;vertical-align:middle;height:40px}
+.fv-grid>tbody>tr:hover>td{background:var(--color-card)!important}
+.fv-grid .fv-in.fv-g,.fv-grid .fv-in.fv-g:hover{display:block;width:100%;min-width:0;height:40px;min-height:40px;margin:0;padding:0 8px;border:0;border-radius:0;background:transparent;box-shadow:none;font-size:14px;color:var(--color-ink);text-transform:none;letter-spacing:normal;font-weight:400}
+.fv-grid .fv-in.fv-g:focus{outline:2px solid var(--color-brand-strong);outline-offset:-2px;box-shadow:none}
+.fv-grid .fv-in.fv-g.fv-ro{cursor:default}
+.fv-grid .fv-in.fv-g.fv-ro:focus{outline:none}
+.fv-grid .fv-in.fv-g::-webkit-calendar-picker-indicator{opacity:.5}
+.fv-grid .fv-in.fv-g.fv-ro::-webkit-calendar-picker-indicator{display:none}
+.fv-grid select.fv-in.fv-g{padding-right:4px}
+.fv-gact{display:flex;align-items:center;justify-content:center;gap:4px;height:40px;padding:0 6px}
+.fv-gbtn{height:28px;padding:0 10px;border:1px solid var(--color-line-strong);border-radius:6px;background:var(--color-card);font:inherit;font-size:13px;font-weight:600;color:var(--color-ink);cursor:pointer;white-space:nowrap}
+.fv-gbtn:hover:not(:disabled){background:var(--color-wash)}
+.fv-gbtn:disabled{opacity:.45;cursor:not-allowed}
+.fv-gbtn:focus-visible{outline:2px solid var(--color-brand-strong);outline-offset:1px}
+.fv-gbtn-q{border-color:transparent;font-weight:500;color:var(--color-quiet)}
+.fv-gnote{font-size:12px;font-weight:600;color:var(--color-status-warning);white-space:nowrap}
+.fv-wrap:has(.fv-grid){overflow-x:auto}
+@media (max-width:900px){.fv-grid{min-width:900px}}
+
+/* In-row passenger drop-down (multi-select) in the Alternative grid */
+.fv-pd{height:40px}
+.fv-pd-sum{display:flex;align-items:center;gap:6px;height:40px;padding:0 8px;cursor:pointer;list-style:none;font-size:14px;color:var(--color-ink)}
+.fv-pd-sum::-webkit-details-marker{display:none}
+.fv-pd-sum:focus-visible{outline:2px solid var(--color-brand-strong);outline-offset:-2px}
+.fv-pd-txt{display:flex;align-items:center;gap:6px;min-width:0;flex:1}
+.fv-pd-n{display:inline-grid;place-items:center;flex-shrink:0;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:var(--color-wash);font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+.fv-pd-names{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fv-pd-chev{flex-shrink:0;color:var(--color-quiet)}
+.fv-pd[open] .fv-pd-chev{transform:rotate(180deg)}
+.fv-pd-list{position:fixed;z-index:60;display:flex;flex-direction:column;gap:2px;max-height:280px;overflow:auto;padding:6px;border:1px solid var(--color-line-strong);border-radius:8px;background:var(--color-card);box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.fv-pd-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;font-size:13px;color:var(--color-ink);cursor:pointer;white-space:nowrap}
+.fv-pd-item:hover{background:var(--color-wash)}
+.fv-pd-item:has(input:disabled){cursor:default}
+.fv-pd-item .fv-chip-note{margin-left:6px}
+.fv-pd-all{font-weight:600;border-bottom:1px solid var(--color-line);border-radius:6px 6px 0 0}
+.fv-gpax-drop{max-width:34rem;border:1px solid var(--color-control);border-radius:8px;background:var(--color-card)}
+.fv-gpax-drop .fv-pd,.fv-gpax-drop .fv-pd-sum{height:38px}
+.fv-gpax-drop .fv-pd-item{white-space:normal}
+
+/* Flight sector confirmation grid (user correction 3 Nov 2026): one line per flight, one line per passenger. */
+.fv-cgrid>thead th:nth-child(1){width:2.5rem}.fv-cgrid>thead th:nth-child(2){width:12rem}.fv-cgrid>thead th:nth-child(3){width:7rem}
+.fv-cgrid>thead th:nth-child(4),.fv-cgrid>thead th:nth-child(5){width:6.5rem}.fv-cgrid>thead th:nth-child(6){width:auto}
+.fv-cgrid>thead th:nth-child(7){width:6.5rem}.fv-cgrid>thead th:nth-child(8){width:6rem}.fv-cgrid>thead th:nth-child(9){width:7.5rem}
+.fv-cgrid>tbody>tr.fv-cflight>td{background:var(--color-wash)!important;border-top:2px solid var(--color-line-strong)}
+.fv-cgrid>tbody>tr.fv-cflight>td:first-child,.fv-cgrid>tbody>tr.fv-cpax>td:first-child{text-align:center}
+.fv-cf-wrap{overflow:hidden}
+.fv-cf{display:flex;align-items:center;gap:14px;height:40px;padding:0 8px;white-space:nowrap;font-size:14px;color:var(--color-ink)}
+.fv-cf-date{font-variant-numeric:tabular-nums}
+.fv-cf-flight,.fv-cf-route{font-weight:700}
+.fv-cf-meta{color:var(--color-quiet)}
+.fv-cf-total{margin-left:auto;color:var(--color-copy)}
+.fv-cf-total b{color:var(--color-ink);font-variant-numeric:tabular-nums}
+.fv-cgrid>tbody>tr.fv-cpax>td:nth-child(2) .fv-in.fv-g{padding-left:16px}
+.fv-cgrid select.fv-in.fv-g{appearance:auto}
+.fv-cst{display:block;padding:0 8px;font-size:13px;font-weight:600;color:var(--color-status-warning)}
+.fv-cst[data-s="ok"]{color:var(--color-status-success)}
+.fv-gplus{width:28px;padding:0;font-size:16px;line-height:1}
+.fv-cempty{display:block;padding:0 16px;line-height:40px;color:var(--color-quiet)}
+.fv-cgrid>tbody>tr[data-draft]>td{padding:8px}
+
+/* Alternative grid tick box + "Confirm tickets" popup (user request 3 Nov 2026) */
+.fv-gtick{display:flex;align-items:center;justify-content:center;height:40px}
+#tn-overlay:has(.fv-modal),#tn-overlay:has(.fv-modal) *{animation:none!important;transition:none!important}
+.fv-club{display:flex;flex-direction:column;gap:8px}
+.fv-mcap{margin:8px 0 0;font-size:13px;font-weight:700;color:var(--color-ink)}
+.fv-mwrap{max-width:100%;overflow-x:auto;border:1px solid var(--color-line);border-radius:8px}
+.fv-mtable{width:100%;border-collapse:collapse;font-size:14px}
+.fv-mtable th,.fv-mtable td{padding:6px 8px;border-top:1px solid var(--color-line);text-align:left;vertical-align:middle;white-space:nowrap}
+.fv-mtable thead th{border-top:0;background:var(--color-wash);font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--color-quiet)}
+.fv-mtable tfoot th,.fv-mtable tfoot td{border-top:1px solid var(--color-line-strong);font-weight:700;color:var(--color-ink)}
+.fv-mtable-in td{padding:4px 6px}
+.fv-mnum{text-align:right!important;font-variant-numeric:tabular-nums}
+.fv-in.fv-mg{min-width:7rem;height:36px;min-height:36px}
+select.fv-in.fv-mg{min-width:12rem}
+.fv-in.fv-mg-num{min-width:5.5rem;width:6.5rem;text-align:right}
+.fv-collapse.fv-static{cursor:default;padding-left:30px}
+.fv-collapse.fv-static:hover>span:first-of-type{text-decoration:none}
+.fv-mtable-t th,.fv-mtable-t td{white-space:normal;padding:6px}
+.fv-mtable-t td.tabular-nums,.fv-mtable-t td.fv-mnum{white-space:nowrap}
+.fv-tline{display:block;white-space:nowrap}
+.fv-tline.fv-tline-f{white-space:normal}
+.fv-tline.fv-tline-f+.fv-tline-f{margin-top:4px}
+.fv-table-alt .fv-gbtn{height:24px;padding:0 8px;font-size:12px}
+.fv-table-alt .fv-gact{padding:0 4px;gap:2px}
+.fv-table-alt .fv-g-class{font-size:13px}
+.fv-table-alt .fv-gnote{font-size:11px;white-space:normal;text-align:center;line-height:1.2}
+.fv-table-alt .fv-gact .fv-gbtn+.fv-gbtn{padding:0 4px}
+.fv-mtable-t td[rowspan]{vertical-align:top;background:var(--color-card)}
+.fv-mtable-t tr.fv-pnr-first>td{border-top:2px solid var(--color-line-strong)}
+.fv-mtable-t tbody tr:first-child>td{border-top:0}
+
+/* Passenger itinerary tables ("Add New Table") */
+.fv-toolbar-stack{flex-direction:column;align-items:stretch;gap:6px}
+.fv-itin{display:flex;flex-direction:column;gap:8px;margin-top:8px;padding-top:12px;border-top:2px solid var(--color-line-strong)}
+.fv-itin-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
+.fv-itin-head>.min-w-0{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.fv-itin-title{margin:0;font-size:15px;font-weight:700;color:var(--color-ink)}
+.fv-prev-wrap{margin:0 12px 12px}
+.fv-bk{display:flex;flex-direction:column;gap:4px}
+.fv-bk .fv-mcap{margin-top:4px}
+.fv-bk .fv-in.fv-mg-num{width:100%;min-width:4.5rem}
+.fv-bk-wrap{max-width:30rem}
+.fv-bk-wrap th{width:7rem}
+.fv-wrap:has(.fv-grid){overflow-y:hidden}
+.fv-mainh{margin:4px 0 0;font-size:15px;font-weight:700;color:var(--color-ink)}
+.fv-main-body{display:flex;flex-direction:column;gap:12px}
+.fv-main-body[hidden]{display:none!important}
+
+/* Alternative grid, compact (user request 4 Nov 2026): 32 px rows, columns sized by class, Remark takes the rest. */
+.fv-table-alt.fv-grid>thead th{padding:4px 6px;font-size:10.5px;letter-spacing:.03em}
+.fv-table-alt.fv-grid>tbody>tr>td{height:32px}
+.fv-table-alt .fv-in.fv-g,.fv-table-alt .fv-in.fv-g:hover{height:32px;min-height:32px;padding:0 6px;font-size:13px}
+.fv-table-alt .fv-gtick,.fv-table-alt .fv-gact{height:32px}
+.fv-table-alt select.fv-in.fv-g{padding:0 2px}
+.fv-table-alt th.c-tick{width:1.75rem}.fv-table-alt th.c-departureDate{width:5.5rem}.fv-table-alt th.c-flightNumber{width:4.75rem}
+.fv-table-alt th.c-from,.fv-table-alt th.c-to{width:3.25rem}.fv-table-alt th.c-departure,.fv-table-alt th.c-arrival{width:4.75rem}
+.fv-table-alt th.c-class{width:3.75rem}.fv-table-alt th.c-pax{width:3.25rem;text-align:center}.fv-table-alt th.c-remark{width:auto}.fv-table-alt th.c-act{width:6.5rem}
+.fv-table-alt th.c-departure,.fv-table-alt th.c-arrival{white-space:normal;line-height:1.1}
+.fv-gnum{display:block;text-align:center;font-size:13px;font-variant-numeric:tabular-nums;color:var(--color-ink)}
+.fv-gicon{display:inline-grid;place-items:center;width:24px;height:24px;padding:0;border:1px solid transparent;border-radius:6px;background:none;color:var(--color-quiet);cursor:pointer}
+.fv-gicon:hover{border-color:var(--color-status-danger-line);color:var(--color-status-danger);background:var(--color-status-danger-tint)}
+.fv-gicon:focus-visible{outline:2px solid var(--color-brand-strong);outline-offset:1px}
+.fv-table-alt .fv-cst,.fv-table-alt .fv-gnote{display:inline-block;padding:1px 6px;border-radius:999px;font-size:10.5px;font-weight:600;line-height:1.4;white-space:nowrap;background:var(--color-status-warning-tint);color:var(--color-status-warning)}
+.fv-table-alt .fv-cst[data-s="ok"]{background:var(--color-status-success-tint);color:var(--color-status-success)}
+.fv-toolbar-right{justify-content:flex-end}

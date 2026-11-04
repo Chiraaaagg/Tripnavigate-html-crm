@@ -520,10 +520,21 @@ function fareTotal(k){
   return{auto:false,v:S.fare[k]===''?null:Number(S.fare[k]),missing:priced.length?fl.filter(f=>!has(f)).map(f=>S.svc.flight.indexOf(f)+1):[]};
 }
 const flyersOf=k=>new Set(S.svc.flight.flatMap(f=>f.pax).filter(id=>S.pax.find(p=>p.id===id)?.type===TYPE_OF[k])).size;
+/* Passengers of one type on one flight. */
+const typeCount=(f,k)=>f.pax.filter(id=>S.pax.find(p=>p.id===id)?.type===TYPE_OF[k]).length;
+/* Fare total. Fixed 3 Nov 2026: each flight's fare is multiplied by the passengers of that type ON THAT FLIGHT.
+   Before, the fares of all flights were added and multiplied by everyone of that type in the booking, which was too
+   high when a flight carried only some of the passengers. A single typed fare (no fare per flight) still × flyers. */
 function fareLine(){
-  const ps=fareTypes().map(([k,l])=>{const t=fareTotal(k),n=flyersOf(k);return t.v==null||!n?null:{l,n,v:t.v,sum:t.v*n}}).filter(Boolean);
+  const ps=fareTypes().map(([k,l])=>{
+    const t=fareTotal(k),n=flyersOf(k);if(t.v==null||!n)return null;
+    if(!t.auto)return{l,text:`${inr(t.v)} × ${n}`,sum:t.v*n};
+    const parts=S.svc.flight.filter(f=>typeOn(f,k)).map(f=>({v:Number(f['fare'+k]),c:typeCount(f,k)}));
+    const same=parts.every(x=>x.c===n);
+    return{l,text:same?`${inr(t.v)} × ${n}`:parts.map(x=>`${inr(x.v)} × ${x.c}`).join(' + '),sum:parts.reduce((s,x)=>s+x.v*x.c,0)};
+  }).filter(Boolean);
   if(!ps.length)return'';
-  return ps.map(p=>`${p.l}: ${inr(p.v)} × ${p.n} = ${inr(p.sum)}`).join('<br>')+`<br>All flights: <strong>${inr(ps.reduce((a,p)=>a+p.sum,0))}</strong>`;
+  return ps.map(p=>`${p.l}: ${p.text} = ${inr(p.sum)}`).join('<br>')+`<br>All flights: <strong>${inr(ps.reduce((a,p)=>a+p.sum,0))}</strong>`;
 }
 function fareBox(){
   const ts=fareTypes().map(([k,l])=>[k,l,fareTotal(k)]),allAuto=ts.every(([,,t])=>t.auto),miss=ts.filter(([,,t])=>t.missing?.length);
@@ -1254,12 +1265,25 @@ function submitBooking(){
   S.svc.hotel.forEach(r=>add(r,{kind:'hotel',dept:'purchase',title:`${r.hotel}, ${r.city}`,detail:[plural(Number(r.nights),'night'),roomsText(r),r.room,r.meal].filter(Boolean).join(' · '),start:r.checkin,end:addDays(r.checkin,r.nights),goAhead:'waiting',budget:hotelCost(r)}));
   S.svc.car.forEach(r=>add(r,{kind:'transfer',dept:'purchase',title:`${CAR_KINDS[r.kind]}: ${r.kind==='full'?r.route:r.pickup+' to '+r.drop}`,detail:`${r.qty} × ${r.vehicle}${r.time?' · '+r.time:''}`,start:r.kind==='full'?r.start:r.date,end:r.kind==='full'?r.end:r.date,goAhead:null,budget:r.rate?Number(r.rate)*Number(r.qty):null}));
   const typedFare=['A','C','I'].reduce((s,k)=>s+(S.fare[k]?Number(S.fare[k])*flyersOf(k):0),0);
-  S.svc.flight.forEach((r,i)=>{
-    const segments=r.mode==='shot'?[]:[{from:r.from,to:r.to,date:r.date,departureDate:r.date,arrivalDate:r.adate||r.date,departure:r.dep,arrival:r.arr,airline:r.airline,flightNumber:r.no,class:r.cabin,fareBreakup:{adult:r.fareA||'',child:r.fareC||'',infant:r.fareI||''}}];
-    const passengers=r.pax.map(id=>S.pax.find(p=>p.id===id)).filter(Boolean).map(p=>({id:p.id,name:p.name,type:p.type,...(p.age!==undefined?{age:p.age}:{})}));
-    const flightRequest={segments:structuredClone(segments),preferredTime:'',cabin:r.cabin,notes:r.note||'',passengers:structuredClone(passengers),versionNo:S.version,passengerIds:[...r.pax],preferences:[...r.prefs],preferencesFor:{...r.prefsFor},files:[...r.files],mode:r.mode};
-    add(r,{kind:'flight',dept:'flight',title:r.mode==='shot'?`Flight from screenshot${r.note?': '+r.note:''}`:`${r.from} to ${r.to}`,detail:[[r.airline,r.no].filter(Boolean).join(' '),plural(r.pax.length,'passenger')].filter(Boolean).join(' · '),start:r.date,end:r.adate||r.date,budget:flightBudget(r)??(i===0&&typedFare?typedFare:null),flightRequest,segments,passengers,cabin:r.cabin,notes:r.note||'',preferredTime:'',versionNo:S.version});
-  });
+  /* All flights of the booking go to the Flight department as ONE task (each flight is a sector inside it,
+     with its own passengers and fares). Before, every flight row made its own task. */
+  const fl=S.svc.flight;
+  if(fl.length){
+    const segments=fl.filter(r=>r.mode!=='shot').map(r=>({from:r.from,to:r.to,date:r.date,departureDate:r.date,arrivalDate:r.adate||r.date,departure:r.dep,arrival:r.arr,airline:r.airline,flightNumber:r.no,class:r.cabin,passengerIds:[...r.pax],fareBreakup:{adult:r.fareA||'',child:r.fareC||'',infant:r.fareI||''},notes:r.note||''})).sort((a,b)=>String(a.departureDate+(a.departure||'')).localeCompare(String(b.departureDate+(b.departure||''))));  /* in date order */
+    const paxIds=[...new Set(fl.flatMap(r=>r.pax))];
+    const passengers=paxIds.map(id=>S.pax.find(p=>p.id===id)).filter(Boolean).map(p=>({id:p.id,name:p.name,type:p.type,...(p.age!==undefined?{age:p.age}:{})}));
+    const notes=fl.map(r=>r.note).filter(Boolean).join(' · ');
+    const flightRequest={segments:structuredClone(segments),preferredTime:'',cabin:fl[0].cabin,notes,passengers:structuredClone(passengers),versionNo:S.version,passengerIds:paxIds,preferences:[...new Set(fl.flatMap(r=>r.prefs||[]))],preferencesFor:Object.assign({},...fl.map(r=>r.prefsFor||{})),files:fl.flatMap(r=>r.files||[]),mode:fl.every(r=>r.mode==='shot')?'shot':'form'};
+    const legs=segments.map(g=>`${g.from} to ${g.to}`);
+    const back=segments.length===2&&segments[0].from===segments[1].to&&segments[0].to===segments[1].from;
+    const title=!segments.length?`Flight from screenshot${notes?': '+notes:''}`:back?`${segments[0].from} to ${segments[0].to} and back`:legs.join(' · ');
+    const flightNos=fl.map(r=>[r.airline,r.no].filter(Boolean).join(' ')).filter(Boolean);
+    const budgets=fl.map(flightBudget);
+    const budget=budgets.some(b=>b!=null)?budgets.reduce((s,b)=>s+(b||0),0):(typedFare||null);
+    const dates=fl.flatMap(r=>[r.date,r.adate]).filter(Boolean).sort();
+    /* Booking sent again: keep the existing flight task (the first flight row that already had one). */
+    rows.push({srcId:(fl.find(r=>r.srcId&&TN.DATA.services[r.srcId])||{}).srcId,svc:{kind:'flight',dept:'flight',title,detail:[flightNos.join(' / '),plural(segments.length||fl.length,'flight'),plural(passengers.length,'passenger')].filter(Boolean).join(' · '),start:dates[0]||'',end:dates.at(-1)||'',budget,flightRequest,segments,passengers,cabin:fl[0].cabin,notes,preferredTime:'',versionNo:S.version}});
+  }
   S.svc.activity.forEach(r=>add(r,{kind:'activity',dept:'purchase',title:r.name,detail:`${r.city} · ${plural(r.pax.length,'person','people')}`,start:r.date,end:r.date,goAhead:null,budget:null}));
   S.svc.visa.forEach(r=>add(r,{kind:'visa',dept:'visa',title:`${r.country} ${r.vtype.toLowerCase()} visa`,detail:plural(r.pax.length,'traveller'),start:r.date,end:r.date,budget:null}));
   S.svc.passport.forEach(r=>add(r,{kind:'passport',dept:'visa',title:`Passport, ${r.atype.toLowerCase()} application`,detail:`${r.city} passport office`,start:'',end:'',budget:null}));
