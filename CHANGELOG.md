@@ -2,6 +2,11 @@
 
 This file records the major committed changes and the current uncommitted work in the repository.
 
+## 5 November 2026 — Every Visa task uses the same page
+
+- At the owner's request, the shorter Work page used once every passenger had applied was removed. Every taken Visa task now shows the same sections in the same order: Progress, Passengers and documents, Planned application date, the applicant cards, Appointment, Fees and costs, Fee receipt and invoice lines, with the task summary above. This replaces "Earlier page once everyone has applied" of 4 November.
+- When everyone has applied, Planned application date shows a short line instead of an empty form. Passport tasks are unchanged.
+
 ## 5 November 2026 — Embassy status and document upload brought into the project
 
 - Work that existed only in the owner's downloaded copies (`full-crm-preview_1.html` of 5 November) was brought into `build/src/50-flight-visa.js`, so a rebuild keeps it. The rebuilt page matched that copy exactly before the change below. The earlier source and pages are in `_to_delete/before-downloads-merge-2026-11-05/`.

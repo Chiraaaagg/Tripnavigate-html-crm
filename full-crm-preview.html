@@ -14761,8 +14761,10 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
   }
   function planCard(id, canWork) {
     const s = S[id];
+    const active = VF.activeApplicants(s);
+    const allApplied = active.length > 0 && !active.some(VF.notStarted);
     const closed = VF.requirementFor(s).value === 'not_configured';
-    const body = closed ? notice('warning', 'Appointment requirement needs confirmation.') : canWork ? planForm(id) : '';
+    const body = allApplied ? '<p class="m-0 text-quiet">Every passenger has applied, so no new plan is needed.</p>' : closed ? notice('warning', 'Appointment requirement needs confirmation.') : canWork ? planForm(id) : '';
     const list = planList(id);
     return card({ id: `visa-plan-${id}`, title: 'Planned application date', desc: 'Separate from the actual submission date.', bodyCls: C.bodyCol3, body: `${body}${list}${!body && !list ? '<p class="m-0 text-quiet">No plan saved yet.</p>' : ''}` });
   }
@@ -14897,8 +14899,6 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
       : canWork && tab !== 'work' ? `<a class="${B.linkLg}" href="#${base}?tab=work">Continue the applications</a>` : '';
     const v = s.visa || {};
     const list = VF.activeApplicants(s);
-    /* Once every passenger has applied the early steps are over: the page goes back to the application cards. */
-    const laterOnly = !isPassport(s) && list.length > 0 && !list.some(VF.notStarted);
     const facts = isPassport(s)
       ? [['Service', esc(visaFactsLine(s))]]
       : [['Service', esc(visaFactsLine(s))], ['Government fee paid by', v.feePaidBy === 'company' ? 'Company pays (expense record for Accounts; no approval bypass)' : v.feePaidBy === 'customer' ? 'Customer pays the government fee directly' : 'Not decided yet']];
@@ -14913,8 +14913,7 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
     else {
       const later = VF.applicants(s).map((a) => applicantCard(id, a, canWork)).join('');
       const fee = canWork ? card({ id: `fee-${id}-heading`, title: 'Fee receipt', body: `${fileUpload(`up-${id}-fee`, 'Upload the fee receipt', `<input type="hidden" name="task" value="${id}">`, [['fee_receipt', 'Fee receipt']])}<p class="m-0 mt-2.5 text-sm text-quiet">${OUTCOME_NEEDS_DOC}</p>` }) : '';
-      if (laterOnly) work = `<div class="flex flex-col gap-5">${later}${appointmentSection(id)}${costCard(id, 'visa', canWork)}${fee}${visaInvoiceLines(id)}</div>`;
-      else work = `<div class="flex flex-col gap-5">${visaProgress(id)}${card({ id: `visa-pax-${id}`, title: 'Passengers and documents', desc: 'One passenger’s missing documents do not hold up the others.', body: passengerTable(id), bodyCls: VF.applicants(s).length ? null : C.body })}${planCard(id, canWork)}<section aria-labelledby="visa-later-${id}" class="flex flex-col gap-3"><h2 class="${C.cardTitle}" id="visa-later-${id}">Application, decision and handover</h2>${later || notice('info', 'No passengers on this task.')}</section>${appointmentSection(id)}${costCard(id, 'visa', canWork)}${canWork ? card({ id: `fee-${id}-heading`, title: 'Fee receipt', body: `${fileUpload(`up-${id}-fee`, 'Upload the fee receipt', `<input type="hidden" name="task" value="${id}">`, [['fee_receipt', 'Fee receipt']])}<p class="m-0 mt-2.5 text-sm text-quiet">${OUTCOME_NEEDS_DOC}</p>` }) : ''}${list.length ? visaInvoiceLines(id) : ''}</div>`;
+      work = `<div class="flex flex-col gap-5">${visaProgress(id)}${card({ id: `visa-pax-${id}`, title: 'Passengers and documents', desc: 'One passenger’s missing documents do not hold up the others.', body: passengerTable(id), bodyCls: VF.applicants(s).length ? null : C.body })}${planCard(id, canWork)}<section aria-labelledby="visa-later-${id}" class="flex flex-col gap-3"><h2 class="${C.cardTitle}" id="visa-later-${id}">Application, decision and handover</h2>${later || notice('info', 'No passengers on this task.')}</section>${appointmentSection(id)}${costCard(id, 'visa', canWork)}${canWork ? card({ id: `fee-${id}-heading`, title: 'Fee receipt', body: `${fileUpload(`up-${id}-fee`, 'Upload the fee receipt', `<input type="hidden" name="task" value="${id}">`, [['fee_receipt', 'Fee receipt']])}<p class="m-0 mt-2.5 text-sm text-quiet">${OUTCOME_NEEDS_DOC}</p>` }) : ''}${list.length ? visaInvoiceLines(id) : ''}</div>`;
     }
     let content = details;
     if (tab === 'work') content = work;
@@ -14927,7 +14926,7 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
       ${flashLine(id)}
       ${bookingChanges(id)}
       ${nextLine(visaNext(s, id, canClaim, mine))}
-      ${laterOnly ? '' : visaSummary(id)}
+      ${visaSummary(id)}
       ${taskTabs(base, tab)}
       ${content}
     </div>`;

@@ -489,7 +489,14 @@ function salesBooking(store = new Map(), dealId = 'BX-38533') {
   assert.match(closedCard, /Applied date: 8 Oct 2026 Documents/, 'the applied date has its own line on the card');
   assert.match(strip(t.render('s-390-v', 'work')), /Applied date: 20 Oct 2026/);
   assert.match(closedCard, /This applicant is closed\./);
-  ['>Progress<', 'Passengers and documents', 'Planned application date', 'Task summary', 'Application, decision and handover'].forEach((w) => assert.ok(!t.render('s-301-v', 'work').includes(w), `no ${w} once everyone has applied`));
+  const fullPage = t.render('s-301-v', 'work');
+  ['>Progress<', 'Passengers and documents', 'Planned application date', 'Application, decision and handover', 'id="visa-appt-s-301-v'].forEach((w) => assert.ok(fullPage.includes(w), `every Visa task keeps ${w}`));
+  assert.match(strip(fullPage), /Every passenger has applied, so no new plan is needed\./);
+  assert.doesNotMatch(fullPage, /data-act="vw-plan-save"/, 'no empty plan form once everyone has applied');
+  const openPage = (take(t, 's-612-v3'), t.render('s-612-v3', 'work'));
+  const people = ['s-301-v', 's-612-v3'].flatMap((x) => t.D.services[x].applicants.map((p) => p.name));
+  const parts = (html) => [...html.matchAll(/<h2[^>]*>([^<]+)</g)].map((m) => m[1]).filter((h) => !people.includes(h));
+  assert.deepEqual(parts(fullPage), parts(openPage), 'an applied task and an open task have the same sections in the same order');
   assert.match(closedCard, /Fees and costs.*Visa lines for the invoice/);
   assert.equal((t.render('s-301-v', 'work').match(/type="checkbox"[^>]*checked=""[^>]*disabled=""/g) || []).length, 6, 'each received document on the card is a ticked box');
   take(t, 's-612-v2');
@@ -524,7 +531,7 @@ function salesBooking(store = new Map(), dealId = 'BX-38533') {
   viewer.acts['vw-doc-received']({ dataset: { id: 's-612-v2', seq: String(vDocs.seq), code: added.code } });
   assert.equal(vDocs.documents.length, before + 2); assert.equal(vDocs.documents[before].status, 'missing', 'the Manager cannot add or mark');
   assert.doesNotMatch(viewer.render('s-612-v2', 'work'), /Add document|Mark received/);
-  assert.doesNotMatch(closedCard, /View checklist/, 'the closed card matches the owner\'s screenshot');
+  assert.doesNotMatch(closedCard.split('Application, decision and handover')[1], /View checklist/, 'the closed cards have no checklist button; the passenger table above still has it');
   take(t, 's-612-v1');
   assert.match(strip(t.render('s-612-v1', 'work')), /Progress.*Passengers and documents/, 'a task with someone still to apply keeps the workflow');
   assert.doesNotMatch(t.render('s-301-v', 'work'), /<details class="[^"]*" data-slot="card"/, 'the applicant card is not collapsed');
