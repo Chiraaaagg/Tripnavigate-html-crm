@@ -2,7 +2,7 @@
 
 A clickable preview of the whole TripNavigate CRM (Holiday Chacha Pvt LTD) as it will be once every planned feature is built: the screens that are live today plus every pending feature, for every department.
 
-- **Open it:** download the repository and double-click `full-crm-preview.html`. Keep the `fonts` folder next to it. It runs entirely in the browser; nothing is saved or sent, and reloading resets it.
+- **Open it:** download the repository and double-click `full-crm-preview.html`. Keep the `fonts` folder next to it. It runs entirely in the browser and sends nothing anywhere. Reloading resets it, except work the Purchase and Visa desks saved in this browser.
 - **Switch role:** open the account menu at the bottom of the left menu (on a phone: Menu) and pick a role under "View as": Sales, Purchase, Flight, Visa and passport, Accounts, Accounts checker, Branch Manager, Super Admin.
 - **What is live and what is pending:** see `CHANGES.md` (every screen per role, marked "Live today" or "Pending (to build)", plus the open questions and build notes).
 - **Data:** every customer, phone number, e-mail, amount and Deal number in the preview is invented.

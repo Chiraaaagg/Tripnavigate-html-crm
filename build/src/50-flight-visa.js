@@ -188,6 +188,7 @@
      Data: extra fields on the shared services + own collections
      ------------------------------------------------------------------ */
   const S = TN.DATA.services;
+  const VF = TN.visaFlow;
   const NOW = () => { const d = new Date(); return `${TN.TODAY} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
   const uid = (p) => p + Math.random().toString(36).slice(2, 8);
 
@@ -346,8 +347,28 @@
   ]);
   const addH = (id, title, extra = {}) => (H[id] = H[id] || []).push({ title, at: NOW(), by: TN.me().key, ...extra });
 
+  /* Sample Deal for the three appointment paths and a passport task, all waiting to be taken.
+     France = required, UAE transit = not required, Thailand = not configured (demo rules). */
+  if (!TN.deal('BX-38612')) {
+    TN.DATA.customers['c-sisodia'] = { name: 'Devendra Sisodia', phone: '+91 98290 41763', email: 'devendra.sisodia@example.com', city: 'Jodhpur' };
+    TN.DATA.travellers['BX-38612'] = [['Devendra Sisodia', 'adult', '1982-05-19'], ['Sunita Sisodia', 'adult', '1985-11-02'], ['Aarav Sisodia', 'child', '2017-02-14'], ['Ira Sisodia', 'infant', '2026-01-08']].map(([name, type, dob]) => ({ name, type, dob, id: null }));
+    TN.DATA.deals.push({ id: 'BX-38612', title: 'Sisodia family · France and Thailand · 12N', customer: 'c-sisodia', owner: 'sales', stage: 'Won - Payment Received',
+      destination: 'Paris, Phuket', start: '2027-02-06', end: '2027-02-18', nights: 12, adults: 2, children: 1, infants: 1, tripType: 'International',
+      bookingState: 'being_arranged', tripStatus: null, accountsReview: 'approved', submittedAt: '2026-10-26',
+      sellingPrice: 842000, costEstimate: 711000, services: ['s-612-v1', 's-612-v2', 's-612-v3', 's-612-p1'] });
+    const family = (...seqs) => seqs.map((n) => { const p = TN.DATA.travellers['BX-38612'][n - 1]; return { seq: n, paxId: `pax-612-${n}`, name: p.name, type: p.type, born: p.dob, state: null }; });
+    const task = (o) => ({ deal: 'BX-38612', dept: 'visa', assignee: null, taskStatus: 'new', budget: null, versionNo: 1, savedAt: '2026-10-26', createdAt: '2026-10-26 15:20', ...o });
+    S['s-612-v1'] = task({ kind: 'visa', title: 'France tourism visa', detail: '4 travellers', start: '2027-02-06', end: '2027-02-12', visa: { country: 'France', purpose: 'Tourism', travelDate: '2027-02-06', feePaidBy: 'customer' }, applicants: family(1, 2, 3, 4) });
+    S['s-612-v2'] = task({ kind: 'visa', title: 'Thailand tourism visa', detail: '3 travellers', start: '2027-02-12', end: '2027-02-18', visa: { country: 'Thailand', purpose: 'Tourism', travelDate: '2027-02-12', feePaidBy: 'undecided' }, applicants: family(1, 2, 3) });
+    S['s-612-v3'] = task({ kind: 'visa', title: 'United Arab Emirates transit visa', detail: '3 travellers', start: '2027-02-18', end: '2027-02-18', visa: { country: 'United Arab Emirates', purpose: 'Transit', travelDate: '2027-02-18', feePaidBy: 'company' }, applicants: family(1, 2, 3) });
+    S['s-612-p1'] = task({ kind: 'passport', title: 'Passport, minor application', detail: 'Jodhpur passport office', start: '', end: '', passport: { atype: 'Minor', city: 'Jodhpur' }, applicants: family(4) });
+    ['s-612-v1', 's-612-v2', 's-612-v3', 's-612-p1'].forEach((id) => seedH(id, [{ title: 'Task created from the submitted booking', at: '2026-10-26 15:20' }]));
+  }
+  VF.restore();
+  Object.entries(S).forEach(([id, s]) => VF.normalizeTask(id, s));
+
   /* In-page UI state: open forms, typed values, refusals, one-time success lines. */
-  const UI = { open: {}, vals: {}, err: {}, ferr: {}, flash: {} };
+  const UI = { open: {}, vals: {}, err: {}, ferr: {}, flash: {}, docTab: {} };
 
   /* ------------------------------------------------------------------
      Words (live contracts; pending words marked)
@@ -358,7 +379,9 @@
   const EXPENSE = { draft: ['neutral', 'Draft', 'clock'], submitted: ['info', 'Sent to Accounts', 'info'], accepted: ['success', 'Accepted (recorded only; not approved for payment)', 'circle-check'], returned: ['danger', 'Returned by Accounts', 'circle-x'] };
   const SP_STATUS = { requested: ['info', 'Waiting for Accounts'], waiting_manager: ['warning', 'Waiting for the branch Manager'], approved: ['info', 'Approved · not paid yet'], paid: ['info', 'Paid · waiting for a second check'], verified: ['success', 'Paid and checked'], returned: ['danger', 'Returned'], on_hold: ['warning', 'On hold'] };
   const VISA_STATE = { docs_pending: ['warning', 'Documents pending'], submitted: ['info', 'Submitted (reference recorded)'], decision_pending: ['info', 'Waiting for decision'], issued: ['success', 'Issued'], refused: ['danger', 'Refused'], withdrawn: ['neutral', 'Withdrawn'] };
-  const FILE_KIND = { applicant_document: 'Applicant document', fee_receipt: 'Fee receipt', authority_outcome: 'Authority outcome document', direct_payment_proof: 'Direct payment proof', e_ticket: 'E-ticket' };
+  const FILE_KIND = { applicant_document: 'Applicant document', fee_receipt: 'Fee receipt', authority_outcome: 'Authority outcome document', direct_payment_proof: 'Direct payment proof', e_ticket: 'E-ticket', appointment_confirmation: 'Appointment confirmation' };
+  const MAX_FILE = 4 * 1024 * 1024;
+  const sizeText = (file) => (file.size >= 1048576 ? `${(file.size / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(file.size / 1024))} KB`);
   const FLIGHT_LIMIT = 50000;
   const OVER_LIMIT = 'Company can pay directly up to ₹50,000 per purchase. Above that, choose “Not yet”: it goes through a supplier payment request.';
   const OUTCOME_NEEDS_DOC = 'A fee receipt or reference never proves issue. Upload the authority’s outcome document.';
@@ -372,13 +395,22 @@
   const canWorkDept = (dept) => TN.is(dept);
   const statusKey = (s) => (s.taskStatus === 'new' ? 'not_started' : s.taskStatus === 'done' ? 'completed' : s.taskStatus);
   const personName = (key) => (key === me() ? 'you' : (TN.person(key) || {}).name || 'Another staff member');
-  const takenBy = (s) => (isMine(s) ? 'You' : s.assignee ? TN.person(s.assignee).name : 'Not taken yet');
+  const takenBy = (s) => (isMine(s) ? 'You' : s.assignee ? (TN.person(s.assignee) || {}).name || 'Another staff member' : 'Not taken yet');
   const costsOf = (id) => COSTS.filter((c) => c.task === id);
   const filesOf = (id) => FILES.filter((f) => f.task === id);
   const routeOf = (s) => { const seg = s.segments || []; if (!seg.length) return s.title; const pts = [seg[0].from]; seg.forEach((g) => pts.push(g.to)); return pts.join(' → '); };
   const segText = (g) => `${g.from} → ${g.to} · ${TN.fmt.day(g.date)}`;
-  const visaTitle = (s) => `${s.visa.country} · ${s.visa.purpose}`;
-  const visaFactsLine = (s) => { const v = s.visa; return [v.country, v.purpose, `travel ${TN.fmt.date(v.travelDate)}`, v.applyBy ? `apply by ${TN.fmt.date(v.applyBy)}` : null].filter(Boolean).join(' · '); };
+  const visaTitle = (s) => {
+    if (s.kind === 'passport') return `Passport · ${(s.passport && s.passport.atype) || s.title || 'application'}`;
+    return s.visa && s.visa.country ? `${s.visa.country} · ${s.visa.purpose || 'Category not recorded'}` : s.title || 'Visa task';
+  };
+  const taskLabel = (s) => (s.kind === 'passport' ? visaTitle(s) : `Visa · ${visaTitle(s)}`);
+  const branchOf = (s) => { const d = TN.deal(s.deal); const o = d && TN.person(d.owner); return (o && o.branch) || 'Branch not recorded'; };
+  const visaFactsLine = (s) => {
+    if (s.kind === 'passport') return [s.passport && s.passport.atype, s.passport && s.passport.city ? `${s.passport.city} passport office` : s.detail].filter(Boolean).join(' · ');
+    const v = s.visa || {}; const travel = v.travelDate || s.start; const by = VF.applyByOf(s);
+    return [v.country, v.purpose, travel ? `travel ${TN.fmt.date(travel)}` : null, by ? `apply by ${TN.fmt.date(by)}` : null].filter(Boolean).join(' · ') || s.title || 'Details not recorded';
+  };
   const fileName = (id) => (FILES.find((f) => f.id === id) || {}).name;
   const ownerName = (dealId) => { const d = TN.deal(dealId); return d ? TN.person(d.owner).name : 'Sales'; };
   const familyName = (dealId) => { const d = TN.deal(dealId); return d ? d.title.split(' · ')[0] : dealId; };
@@ -433,15 +465,21 @@
 
   function filesPanel(id, { idProofs = true } = {}) {
     const s = S[id];
-    const dep = filesOf(id).map((f) => ({ name: f.name, meta: `${FILE_KIND[f.kind]} · ${f.size} · ${TN.fmt.dateTime(f.at)}` }));
-    const proofs = idProofs && isMine(s) ? Object.entries(ID_PROOFS[id] || {}).map(([who, [n, sz]]) => ({ name: n, meta: `ID proof of ${who} · ${sz}` })) : [];
-    const group = (gid, title, lines) => (lines.length ? `<section aria-labelledby="${gid}" class="flex flex-col gap-2"><h3 id="${gid}" class="m-0 text-base font-semibold text-ink">${title}</h3><ul class="m-0 flex list-none flex-col gap-2 p-0" aria-label="${title}">${lines.map((f) => `<li class="m-0 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">${ic('file-text', 'size-4 shrink-0 text-faint')}<a href="#" data-act="fv-open-file" rel="noopener" class="${C.linkF}">${esc(f.name)}</a><span class="text-quiet">${esc(f.meta)}</span></li>`).join('')}</ul></section>` : '');
+    const dep = filesOf(id).map((f) => ({ name: fileShown(f), metaOnly: f.metaOnly, meta: `${FILE_KIND[f.kind]} · ${f.size} · ${TN.fmt.dateTime(f.at)}${f.metaOnly ? ' · file name only' : ''}` }));
+    const proofs = idProofs && isMine(s) ? Object.entries(idProofMap(id)).map(([who, [n, sz]]) => ({ name: n, meta: `ID proof of ${who} · ${sz}` })) : [];
+    const group = (gid, title, lines) => (lines.length ? `<section aria-labelledby="${gid}" class="flex flex-col gap-2"><h3 id="${gid}" class="m-0 text-base font-semibold text-ink">${title}</h3><ul class="m-0 flex list-none flex-col gap-2 p-0" aria-label="${title}">${lines.map((f) => `<li class="m-0 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">${ic('file-text', 'size-4 shrink-0 text-faint')}${f.metaOnly ? `<span class="font-medium text-ink wrap-anywhere">${esc(f.name)}</span>` : `<a href="#" data-act="fv-open-file" rel="noopener" class="${C.linkF}">${esc(f.name)}</a>`}<span class="text-quiet">${esc(f.meta)}</span></li>`).join('')}</ul></section>` : '');
     const body = `${!dep.length && !proofs.length ? '<p class="m-0 text-quiet">No files on this task yet.</p>' : ''}${group('task-files-department', 'Department files', dep)}${group('task-files-id', 'Traveller ID proofs', proofs)}${proofs.length ? internalLine('Private identity documents for this work. Every view is recorded.') : ''}`;
     return card({ id: 'task-files-heading', title: 'Files', desc: 'Only files for this task. Customer payment proofs and acceptance messages are never listed here.', extra: ic('folder-open', 'size-4 text-faint'), body, bodyCls: C.bodyCol4 });
   }
 
+  /* Seeded proofs plus the ID files Sales attached for each passenger (names only). */
+  function idProofMap(id) {
+    const map = { ...(ID_PROOFS[id] || {}) };
+    VF.applicants(S[id]).forEach((a) => { if (!map[a.name] && a.idFiles && a.idFiles.length) map[a.name] = [a.idFiles[0], '', S[id].createdAt]; });
+    return map;
+  }
   function idProofsCard(id, people) {
-    const map = ID_PROOFS[id] || {};
+    const map = idProofMap(id);
     const deal = TN.deal(S[id].deal);
     const missing = people.filter((p) => !map[p.name]).length;
     const attached = people.length - missing;
@@ -466,7 +504,7 @@
             </div>
             <p class="m-0 text-sm text-copy">
               <strong class="font-semibold text-ink">Client:</strong> ${esc(TN.clientName(cust))}
-              <span class="text-quiet"> · ${people.length} travellers on this flight</span>
+              <span class="text-quiet"> · ${TN.fmt.plural(people.length, 'traveller')} on this ${S[id].dept === 'flight' ? 'flight' : 'task'}</span>
             </p>
             <p class="m-0 text-xs text-quiet">
               <span class="inline-flex items-center gap-1.5">${ic('lock', 'size-3.5 shrink-0 text-faint')}Private identity documents for this work. Every view is recorded. Do not copy or forward them.</span>
@@ -484,8 +522,8 @@
     const s = S[id];
     if (!s) return;
     const deal = TN.deal(s.deal);
-    const people = s.passengers || [];
-    const map = ID_PROOFS[id] || {};
+    const people = s.passengers || VF.activeApplicants(s);
+    const map = idProofMap(id);
     const cust = deal ? TN.customer(deal.customer) : null;
     const missing = people.filter((p) => !map[p.name]).length;
     const attached = people.length - missing;
@@ -794,23 +832,354 @@
 
   /* ------------------------------------------------------------------
      VISA AND PASSPORT
+     Early workflow: documents per passenger → appointment → application
+     plan. Rules live in 49-visa-workflow.js (TN.visaFlow). The later
+     submission, outcome and handover steps below are unchanged in meaning.
      ------------------------------------------------------------------ */
   const visaRoles = ['visa', 'manager'];
+  const isPassport = (s) => s.kind === 'passport';
+  const canEditVisa = (id) => { const s = S[id]; return !!s && s.dept === 'visa' && TN.is('visa') && s.assignee === me() && s.taskStatus !== 'done' && !s.removedFromBooking; };
+  const applicantBySeq = (id, seq) => VF.applicants(S[id]).find((a) => a.seq === Number(seq));
+  const canEditApplicant = (id, a) => canEditVisa(id) && !!a && VF.isActive(a) && VF.notStarted(a);
+  const paxNames = (s, ids) => ids.map((pid) => { const a = VF.applicants(s).find((x) => x.paxId === pid); return a ? VF.displayName(a) : 'Passenger no longer listed'; });
+  const typeWord = (a) => { const t = a.type || 'passenger'; return t.charAt(0).toUpperCase() + t.slice(1); };
+  const typedChecks = (v) => Object.keys(v).filter((k) => k.startsWith('pax:')).map((k) => k.slice(4));
+  const applyLine = (rec) => `${esc(rec.byName)} · Saved on ${esc(TN.fmt.dateTime(rec.at))}`;
+  const apptWhen = (r) => { const [d, t = '00:00'] = String(r.at).split('T'); return `${TN.fmt.dateTime(`${d} ${t.slice(0, 5)}`).replace(/ IST$/, '')} · ${esc(r.timezone)}`; };
+  const STATUS_ICON = { success: 'circle-check', warning: 'triangle-alert', neutral: 'info', info: 'info', danger: 'circle-x' };
+  const statusBadge = (o, sr) => badge(o.tone, esc(o.label), { wrap: true, sr, icon: STATUS_ICON[o.tone] }).replace('min-w-0 wrap-anywhere', 'min-w-0'); // break between words, never inside one
+  const fileShown = (f) => (f.title ? `${f.title} (${f.name})` : f.name);
+  const fileLabel = (f) => (f.metaOnly ? `<span class="font-medium text-ink wrap-anywhere">${esc(fileShown(f))}</span>` : `<a href="#" data-act="fv-open-file" rel="noopener" class="${C.linkPlain}">${esc(fileShown(f))}</a>`);
+  const META_NOTE = 'Only the file name and size are kept in this browser. The file itself is not stored.';
+  function storeNotice() {
+    const p = VF.store.problem;
+    if (!p) return '';
+    return notice('warning', p === 'read' ? 'Some saved Visa work in this browser could not be read and was left out.' : 'Browser storage is unavailable. Changes may not survive a refresh.', { role: 'alert', cls: 'mb-4' });
+  }
+
   function visaQueue(params, q) {
     const taker = canWorkDept('visa');
     const show = ['not_taken', 'mine', 'all'].includes(q.show) && (taker || q.show !== 'mine') ? q.show : taker ? 'not_taken' : 'all';
     const all = deptTasks('visa');
-    const notTaken = all.filter((t) => !t.s.assignee && t.s.taskStatus === 'new');
+    const notTaken = all.filter((t) => !t.s.assignee && t.s.taskStatus === 'new' && !t.s.removedFromBooking);
     const mine = all.filter((t) => isMine(t.s));
     const list = show === 'mine' ? mine : show === 'not_taken' ? notTaken : all;
     const tabs = (taker ? ['not_taken', 'mine', 'all'] : ['not_taken', 'all']).map((k) => ({ label: { not_taken: 'Not taken', mine: 'Mine', all: 'All' }[k], href: '#/app/visa' + (k === (taker ? 'not_taken' : 'all') ? '' : '?show=' + k), current: k === show, count: { not_taken: notTaken.length, mine: mine.length, all: all.length }[k] }));
-    const items = list.map(({ id, s }) => `<li class="m-0 flex flex-col gap-1.5 px-4.5 py-3.5 sm:flex-row sm:items-center sm:justify-between"><div class="min-w-0"><p class="m-0 font-semibold text-ink"><a class="rounded-chip text-brand-strong underline underline-offset-4 hover:text-brand-deep ${FOCUS}" href="#/app/visa/${id}">Visa · ${esc(visaTitle(s))}</a></p><p class="m-0 text-sm text-copy">${esc(visaFactsLine(s))}</p><p class="${C.small}">${esc(s.deal)} · Jodhpur · ${TN.fmt.plural(s.applicants.length, 'applicant')} · Taken by: ${esc(takenBy(s))}</p></div>${visaStatus(s)}</li>`).join('');
+    const items = list.map(({ id, s }) => {
+      const stage = VF.stageLabel(s);
+      return `<li class="m-0 flex flex-col gap-1.5 px-4.5 py-3.5 sm:flex-row sm:items-center sm:justify-between"><div class="min-w-0"><p class="m-0 font-semibold text-ink"><a class="rounded-chip text-brand-strong underline underline-offset-4 hover:text-brand-deep ${FOCUS}" href="#/app/visa/${id}">${esc(taskLabel(s))}</a></p><p class="m-0 text-sm text-copy">${esc(visaFactsLine(s))}</p><p class="${C.small}">${esc(s.deal)} · ${esc(branchOf(s))} · ${TN.fmt.plural(VF.activeApplicants(s).length, 'applicant')} · Taken by: ${esc(takenBy(s))}${stage ? ` · ${esc(stage)}` : ''}</p></div>${s.removedFromBooking ? badge('warning', 'Removed from the booking', { wrap: true, sr: 'Task status: ' }) : visaStatus(s)}</li>`;
+    }).join('');
     const empty = all.length === 0 ? emptyState('stamp', 'No tasks here yet', 'Tasks appear after Sales submits a booking with a visa or passport service.') : emptyState('stamp', show === 'mine' ? 'No tasks taken by you' : 'Nothing waiting to be taken', show === 'mine' ? 'Open the Not taken tab to pick one up.' : 'Open the All tab to see who has each task.');
     return `<div class="${C.page}">
       <header class="${C.headerList}" data-slot="page-header"><div class="min-w-0"><p class="${C.eyebrow}">Visa and passport desk</p><h1 class="${C.h1}">Visa and passport tasks</h1><p class="${C.headDesc}">Visa and passport tasks from submitted bookings.</p></div></header>
+      ${storeNotice()}
       ${tabsNav('Visa and passport task filters', tabs, C.tabsNavList)}
       <div class="${C.card}" data-slot="card"><section aria-labelledby="visa-queue-heading"><div class="${C.cardHead}"><h2 class="${C.cardTitle}" id="visa-queue-heading">Tasks</h2><span class="text-sm text-quiet">${list.length} ${list.length === 1 ? 'task' : 'tasks'}</span></div>${list.length ? `<ol class="m-0 flex list-none flex-col divide-y divide-line p-0" aria-label="Visa and passport tasks">${items}</ol>` : `<div role="status">${empty}</div>`}</section></div>
     </div>`;
+  }
+
+  /* Compact summary, shown on every tab. */
+  function visaSummary(id) {
+    const s = S[id];
+    const d = TN.deal(s.deal);
+    const cust = d && TN.customer(d.customer);
+    const v = s.visa || {};
+    const who = s.assignee ? (TN.person(s.assignee) || {}).name || 'Another staff member' : 'Not taken yet';
+    const when = s.takenBy || s.takenAt ? `Taken ${TN.fmt.dateTime((s.takenBy && s.takenBy.at) || s.takenAt)}` : '';
+    const rows = [
+      ['Deal ID', esc(s.deal)],
+      ['Customer', esc(cust ? TN.clientName(cust) : 'Not recorded')],
+      [isPassport(s) ? 'Passport application' : 'Country / Visa category', esc(visaTitle(s))],
+      ['Travel date', esc(TN.fmt.date(v.travelDate || s.start))],
+      ['Passengers', String(VF.activeApplicants(s).length)],
+      ['Branch', esc(branchOf(s))],
+      ['Assigned executive', `${esc(who)}${when ? `<span class="block text-sm font-normal text-quiet">${esc(when)}</span>` : ''}`],
+    ];
+    return `<div class="${C.card} mb-4 px-4.5 py-3.5" data-slot="card"><dl class="m-0 grid grid-cols-2 gap-x-4 gap-y-3 lg:grid-cols-4" aria-label="Task summary">${rows.map(([k, val]) => `<div class="min-w-0"><dt class="text-sm font-medium text-quiet">${k}</dt><dd class="m-0 font-semibold text-ink wrap-anywhere">${val}</dd></div>`).join('')}</dl></div>`;
+  }
+
+  /* Documents → Appointment → Application plan. Never the application itself. */
+  function visaProgress(id) {
+    const steps = VF.progress(S[id]);
+    const mark = { done: ['circle-check', 'text-status-success', 'Done: '], current: ['circle-dot', 'text-brand-strong', 'Now: '], upcoming: ['circle', 'text-faint', 'Later: '] };
+    return card({ id: `visa-progress-${id}`, title: 'Progress', bodyCls: C.body, body: `<ol class="m-0 grid list-none gap-3 p-0 sm:grid-cols-3" aria-label="Documents, then appointment, then application plan">${steps.map((p) => { const [icon, cls, sr] = mark[p.state]; return `<li class="m-0 flex gap-2.5"${p.state === 'current' ? ' aria-current="step"' : ''}>${ic(icon, `mt-0.5 size-4.5 shrink-0 ${cls}`)}<div class="min-w-0"><p class="m-0 font-semibold text-ink"><span class="sr-only">${sr}</span>${p.title}</p><p class="${C.small}">${esc(p.text)}</p></div></li>`; }).join('')}</ol>` });
+  }
+
+  /* Booking changes, passengers added or removed: said out loud, never silent. */
+  function bookingChanges(id) {
+    const s = S[id];
+    const out = [];
+    if (s.removedFromBooking) out.push(notice('warning', `<p>Removed in booking version ${esc(s.removedFromBooking.version)} by ${esc(s.removedFromBooking.byName)}, ${esc(TN.fmt.dateTime(s.removedFromBooking.at))}. Every record on this task is kept. Editing is closed.</p>`, { title: 'This service was removed from the booking' }));
+    const last = ((s.workflow && s.workflow.changes) || []).slice(-1)[0];
+    if (last) out.push(notice('info', `<ul class="m-0 list-disc pl-5">${last.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>`, { title: `Booking version ${esc(last.version)} changed this task` }));
+    return out.length ? `<div class="mb-4 flex flex-col gap-3">${out.join('')}</div>` : '';
+  }
+
+  /* Section 1: one row per passenger; the full checklist opens in a drawer. */
+  function passengerTable(id) {
+    const s = S[id];
+    const list = VF.applicants(s);
+    if (!list.length) return notice('warning', 'No passengers came with this task. Ask Sales to check the booking.');
+    const rows = list.map((a) => {
+      const sum = VF.docSummary(a);
+      const removed = !VF.isActive(a);
+      const plan = VF.planOf(s, a);
+      return [
+        { html: `<span class="font-semibold text-ink">${esc(VF.displayName(a))}</span><span class="block text-sm text-quiet">${esc(typeWord(a))}</span>${removed ? badge('warning', 'Removed from the booking', { wrap: true }) : ''}` },
+        { cls: 'tabular-nums', html: sum.total ? `${sum.verified} of ${sum.total}` : 'Not set' },
+        { html: statusBadge(VF.docStatus(a), 'Documents: ') },
+        { html: statusBadge(VF.appointmentStatus(s, a), 'Appointment: ') },
+        { html: plan ? esc(TN.fmt.date(plan.plannedDate)) : '—' },
+        { html: a.submittedAt ? `<span class="font-medium text-ink">${esc(TN.fmt.date(a.submittedAt))}</span><span class="block text-sm text-quiet">${esc(VF.returnWord(a))}</span>` : 'Not applied yet' },
+        { html: `<button type="button" class="${B.secondaryMd}" data-act="vw-checklist" data-id="${id}" data-seq="${a.seq}" data-slot="button">View checklist<span class="sr-only"> for ${esc(VF.displayName(a))}</span></button>` },
+      ];
+    });
+    return `<div class="vw-pax">${table({ label: 'Passengers and documents', caption: TN.fmt.plural(VF.activeApplicants(s).length, 'passenger'), heads: ['Passenger', 'Documents verified', 'Document status', 'Appointment status', 'Planned apply date', 'Applied date', 'Action'], rows })}</div>`;
+  }
+
+  /* The checklist drawer. A draft survives closing it; it clears on save or discard. */
+  function checklistForm(id, a, editable, draft) {
+    const docsList = VF.docList(a);
+    if (!docsList.length) return notice('warning', '<p>No checklist is set for this country, category and passenger type. This does not count as complete.</p>', { title: 'Document requirements need confirmation' });
+    const rows = docsList.map((d) => {
+      const dr = (draft && draft[d.code]) || {};
+      const received = draft ? !!dr.received : d.status !== 'missing';
+      const verified = draft ? !!dr.verified && received : d.status === 'checked';
+      const remark = draft ? dr.remark : d.remark;
+      const saved = filesOf(id).filter((f) => f.applicant === a.seq && f.doc === d.code);
+      const fileList = saved.map((f) => `<span class="block text-sm wrap-anywhere">${esc(fileShown(f))}</span>`).join('');
+      const word = d.status === 'checked' ? badge('success', 'Verified') : d.status === 'received' ? badge('info', 'Received') : badge('warning', 'Missing');
+      if (!editable) return [
+        { html: `<span class="font-medium text-ink">${esc(d.label)}</span><span class="block">${word}</span>` },
+        { html: TN.ui.checkbox({ id: `chk-rec-${d.code}`, label: `<span class="sr-only">Received: ${esc(d.label)}</span>`, checked: d.status !== 'missing', disabled: true }) },
+        { html: TN.ui.checkbox({ id: `chk-ver-${d.code}`, label: `<span class="sr-only">Verified: ${esc(d.label)}</span>`, checked: d.status === 'checked', disabled: true }) },
+        { html: fileList || '—' }, { html: esc(d.remark) || '—' },
+      ];
+      return [
+        { html: `<span class="font-medium text-ink">${esc(d.label)}</span>${d.status === 'missing' ? `<span class="block">${word}</span>` : ''}` },
+        { html: TN.ui.checkbox({ id: `chk-rec-${d.code}`, name: `rec-${d.code}`, value: '1', label: `<span class="sr-only">Received: ${esc(d.label)}</span>`, checked: received, change: 'vw-check', data: { code: d.code } }) },
+        { html: TN.ui.checkbox({ id: `chk-ver-${d.code}`, name: `ver-${d.code}`, value: '1', label: `<span class="sr-only">Verified: ${esc(d.label)}</span>`, checked: verified, disabled: !received, change: 'vw-check', data: { code: d.code } }) },
+        { html: `${fileList}<input type="file" class="block w-full text-sm text-copy" name="file-${d.code}" accept=".pdf,.jpg,.jpeg,.png" aria-label="File for ${esc(d.label)}" data-change="vw-check" data-code="${d.code}">` },
+        { html: `<input type="text" class="${C.input}" data-slot="input" name="rem-${d.code}" maxlength="200" autocomplete="off" aria-label="Remark for ${esc(d.label)}" value="${esc(remark || '')}" data-change="vw-check" data-code="${d.code}">` },
+      ];
+    });
+    return table({ label: 'Document checklist', caption: `${docsList.length} documents`, heads: ['Document', 'Received', 'Verified', 'File', 'Remark'], rows });
+  }
+  const checklistLock = (id, a) => (!TN.is('visa') ? 'View only. The assigned Visa executive edits this checklist.' : !VF.isActive(a) ? 'This passenger was removed from the booking, so the checklist is locked.' : !VF.notStarted(a) ? 'The application is already submitted, so the checklist is locked.' : 'Only the executive who took this task can change the checklist.');
+  /* Upload a document for one passenger, with the name to keep for it. Typed values stay after a refusal.
+     While the checklist is open, uploading a not-received document marks it received. */
+  const canUploadDoc = (id, a) => canEditVisa(id) && !!a && VF.isActive(a) && !isClosed(a);
+  function docUploadDrawer(id, seq, code, typed, errors = {}) {
+    const s = S[id]; const a = applicantBySeq(id, seq);
+    if (!s || !a) return;
+    const docs = VF.docList(a);
+    const missing = docs.filter((x) => x.status === 'missing');
+    const pick = typed ? typed.code : code || (missing[0] || docs[0] || {}).code || '__new';
+    const d = docs.find((x) => x.code === pick);
+    const k = `docup-${id}-${a.seq}`;
+    const v = typed || { code: pick, title: d ? d.label : '' };
+    const options = [...missing, ...docs.filter((x) => x.status !== 'missing')].map((x) => [x.code, `${x.label} · ${x.status === 'missing' ? 'Not received' : 'Received'}`]);
+    options.push(['__new', 'Other document (not on the list)']);
+    const tick = canEditApplicant(id, a) ? 'If the document was not received, saving marks it received. It still needs to be verified in the checklist.' : 'The checklist is locked for this passenger, so only the file is added.';
+    const body = `<form novalidate id="docup-form" class="flex flex-col gap-4" data-act="vw-doc-upload"><input type="hidden" name="task" value="${id}"><input type="hidden" name="seq" value="${a.seq}">
+      ${Object.keys(errors).length ? errorSummary(esc(errors.form || 'Some details are missing or wrong.'), errors.file ? 'Your typed details are still here. Choose the file again.' : undefined) : ''}
+      ${readOnlyFacts([['Passenger name', esc(VF.displayName(a))]])}
+      ${field(`${k}-code`, 'Which document', select(`${k}-code`, 'code', options, v.code, ' data-change="vw-doc-upload-pick"'), { error: errors.code })}
+      ${field(`${k}-title`, 'Document name', textInput(`${k}-title`, 'title', v.title, { max: 120, invalid: !!errors.title }).replace('<input ', typed ? '<input ' : '<input data-auto="1" '), { error: errors.title, hint: 'The name to keep for this file, for example “Passport copy, front and back”.' })}
+      <div class="flex flex-col gap-1.5" data-slot="field"><label class="${C.label}" for="${k}-file">File</label><input type="file" id="${k}-file" name="file" class="block w-full text-sm text-copy" accept=".pdf,.jpg,.jpeg,.png"${errors.file ? ` aria-invalid="true" aria-describedby="${k}-file-error"` : ` aria-describedby="${k}-file-hint"`}><p class="${C.hint}" id="${k}-file-hint">PDF, JPG or PNG, up to 4 MB.</p>${errors.file ? fieldError(`${k}-file`, errors.file) : ''}</div>
+      <p class="${C.small}">${tick} ${META_NOTE}</p></form>`;
+    const footer = `<button type="button" class="${B.secondaryMd}" data-close data-slot="button">Cancel</button><button type="submit" form="docup-form" class="${B.primaryMd}" data-slot="button">Upload and save</button>`;
+    TN.drawer({ title: 'Upload document', description: esc(VF.displayName(a)), body, footer, wide: true });
+  }
+  function checklistDrawer(id, seq, flash) {
+    const s = S[id]; const a = applicantBySeq(id, seq);
+    if (!a) return;
+    const key = `chk-${id}-${a.seq}`;
+    const editable = canEditApplicant(id, a) && VF.docList(a).length > 0;
+    const draft = editable ? UI.vals[key] : null;
+    const sum = VF.docSummary(a);
+    const up = a.checklistUpdated;
+    const body = `<form novalidate id="chk-form" class="flex flex-col gap-3" data-act="vw-chk-save"><input type="hidden" name="task" value="${id}"><input type="hidden" name="seq" value="${a.seq}">
+      ${flash ? notice('success', esc(flash), { role: 'status' }) : ''}
+      ${sum.missing.length ? notice('warning', esc(sum.missing.join(', ')), { title: `Missing: ${sum.missing.length} of ${sum.total}` }) : ''}
+      ${!editable && sum.total ? notice('locked', esc(checklistLock(id, a))) : ''}
+      ${checklistForm(id, a, editable, draft)}
+      <p id="chk-dirty" class="m-0 text-sm font-semibold text-status-warning" role="status" aria-live="polite">${draft ? 'Unsaved changes' : ''}</p>
+      <p class="${C.small}" data-slot="checklist-updated">${up ? `Last updated by ${esc(up.byName)} · ${esc(TN.fmt.dateTime(up.at))}` : 'Not updated yet'}</p>
+      <p class="${C.small}">${esc(VF.CONFIG.label)} ${editable ? META_NOTE : ''}</p></form>`;
+    const footer = `${editable ? `<button type="submit" form="chk-form" class="${B.primaryMd}" data-slot="button">Save checklist</button>${draft ? `<button type="button" class="${B.ghostMd}" data-act="vw-chk-discard" data-id="${id}" data-seq="${a.seq}" data-slot="button">Discard changes</button>` : ''}` : ''}<button type="button" class="${B.secondaryMd}" data-close data-slot="button">Close</button>`;
+    TN.drawer({ title: `Document checklist · ${esc(VF.displayName(a))}`, description: `${esc(visaTitle(s))} · ${esc(typeWord(a))}`, body, footer, wide: true });
+  }
+
+  /* Passenger tick boxes; a passenger who cannot be chosen says why. */
+  function paxChoices(prefix, id, test, typed, legend, error) {
+    const s = S[id];
+    const items = VF.activeApplicants(s).map((a) => {
+      const r = test(s, a);
+      const note = !r.ok ? r.why : prefix.startsWith('appt') && VF.appointmentOf(s, a) ? 'Has an appointment. Saving replaces it.' : prefix.startsWith('plan') && VF.planOf(s, a) ? 'Has a plan. Saving updates it.' : '';
+      return { id: `${prefix}-${a.seq}`, name: `pax:${a.paxId}`, value: '1', label: esc(VF.displayName(a)), description: note ? esc(note) : undefined, checked: r.ok && !!(typed && typed[`pax:${a.paxId}`]), disabled: !r.ok };
+    });
+    return TN.ui.choices({ id: prefix, legend, items, error: error ? esc(error) : undefined });
+  }
+
+  /* Appointment: one row per passenger, saved against that passenger's stable id.
+     This section is the only place an appointment is edited. */
+  const NP = 'Not provided';
+  const APPT_TONE = { scheduled: 'success', attended: 'success', rescheduled: 'info', cancelled: 'danger', not_scheduled: 'neutral', not_required: 'neutral', unconfirmed: 'warning' };
+  const apptBadge = (row) => statusBadge({ tone: APPT_TONE[row.status], label: row.label }, 'Appointment status: ');
+  const canSetAppt = (id, a) => canEditVisa(id) && VF.canHaveAppointment(S[id], a).ok;
+  function apptAction(id, a, row) {
+    const btn = (act, label) => `<button type="button" class="${B.openSm}" data-act="${act}" data-id="${id}" data-seq="${a.seq}" data-slot="button">${label}<span class="sr-only"> for ${esc(a.name || `passenger ${a.seq}`)}</span></button>`;
+    const embBtn = btn('vw-emb-open', canEditVisa(id) ? 'Edit embassy status' : 'View embassy status');
+    if (row.status === 'not_required' || row.status === 'unconfirmed') return `<div class="flex flex-wrap gap-2">${embBtn}</div>`;
+    const out = [];
+    const live = !!row.record && row.status !== 'cancelled';
+    if (row.record) out.push(btn('vw-appt-details', 'Embassy / Centre details'));
+    if (live && canEditVisa(id)) out.push(btn('vw-appt-open', 'Edit appointment'), btn('vw-appt-status-open', 'Update status'));
+    if (!live && canSetAppt(id, a)) out.push(btn('vw-appt-open', 'Set appointment'));
+    if (!live && canEditVisa(id) && !canSetAppt(id, a)) out.push(`<span class="text-sm text-quiet">${esc(VF.canHaveAppointment(S[id], a).why)}</span>`);
+    out.push(embBtn);
+    return `<div class="flex flex-wrap gap-2">${out.join('')}</div>`;
+  }
+  function appointmentSection(id) {
+    const s = S[id]; const req = VF.requirementFor(s); const v = s.visa || {};
+    const notes = [];
+    if (req.value === 'not_required') notes.push(notice('info', 'Appointment not required for the configured application route.'));
+    if (req.value === 'not_configured') notes.push(notice('warning', '<p>Application planning stays closed until this is confirmed. It is not treated as “not required”.</p>', { title: 'Appointment requirement needs confirmation.' }));
+    if (req.value === 'not_configured') notes.push(TN.can('resolveVisaRoute') ? resolveForm(id) : `<p class="${C.small}">Only the branch Manager can confirm this.</p>`);
+    if (req.resolution) notes.push(`<p class="${C.small}">Confirmed by ${applyLine(req.resolution)}: ${esc(req.resolution.reason)}</p>`);
+    notes.push(`<p class="${C.small}">${req.route && req.route.route ? `Application route: ${esc(req.route.route)}. ` : ''}${esc(VF.CONFIG.label)}</p>`);
+    const list = VF.activeApplicants(s);
+    const rows = list.map((a) => {
+      const row = VF.appointmentRow(s, a);
+      const date = row.status === 'not_required' ? 'Not required' : row.record ? apptWhen(row.record) : 'Not set';
+      return [
+        { html: `<span class="font-semibold text-ink">${esc(a.name || NP)}</span>` },
+        { html: esc(v.country || NP) },
+        { html: esc(v.purpose || NP) },
+        { html: date },
+        { html: apptBadge(row) },
+        { html: embassyCell(embassyOf(s, a)) },
+        { html: apptAction(id, a, row) },
+      ];
+    });
+    const sent = list.filter((a) => embassyOf(s, a).status === 'submitted').length;
+    const people = rows.length ? `<div class="vw-pax">${table({ label: 'Appointments and embassy submission', caption: `${TN.fmt.plural(rows.length, 'passenger')} · Embassy: ${sent} submitted, ${rows.length - sent} not submitted`, heads: ['Passenger name', 'Country', 'Visa type', 'Appointment date &amp; time', 'Status', 'Embassy submission', 'Action'], rows })}</div>` : `<p class="m-0 px-4.5 py-4 text-quiet">No passengers on this task.</p>`;
+    return card({ id: `visa-appt-${id}`, title: 'Appointment', desc: 'Separate from the visa result. Attended does not issue a visa or finish the task. Record each passenger’s embassy submission from the Action column.', bodyCls: null, body: `<div class="${C.bodyCol3}">${notes.join('')}</div>${people}` });
+  }
+  /* Embassy submission: one record per passenger, saved against the passenger's stable id.
+     Separate from the appointment and from the visa result. Until someone records it here,
+     a passenger whose application was already submitted shows that submission. */
+  const EMB_STATUSES = [['submitted', 'Submitted'], ['not_submitted', 'Not submitted']];
+  const EMB_WORD = { submitted: 'Submitted', not_submitted: 'Not submitted' };
+  function embassyOf(s, a) {
+    const rec = ((s.workflow || {}).embassy || {})[a.paxId];
+    if (rec) return { status: rec.status, date: rec.date || '', reference: rec.reference || '', remarks: rec.remarks || '', set: rec.set || null, source: 'recorded' };
+    if (a.submittedAt) return { status: 'submitted', date: String(a.submittedAt).slice(0, 10), reference: a.reference || '', remarks: '', set: null, source: 'application' };
+    return { status: 'not_submitted', date: '', reference: '', remarks: '', set: null, source: 'none' };
+  }
+  const embBadge = (e) => statusBadge({ tone: e.status === 'submitted' ? 'success' : 'warning', label: EMB_WORD[e.status] || e.status }, 'Embassy submission: ');
+  const embUpdated = (e) => (e.set ? applyLine(e.set) : e.source === 'application' ? 'From the application record' : 'Not recorded yet');
+  const embLock = (id) => { const s = S[id]; return !TN.is('visa') ? 'View only. The assigned Visa executive records the embassy submission.' : s.removedFromBooking ? 'This service was removed from the booking, so editing is closed.' : s.taskStatus === 'done' ? 'This task is complete, so the embassy status is locked.' : 'Only the executive who took this task can change the embassy status.'; };
+  /* Embassy column of the Appointment table: status, then date and reference when submitted. */
+  const embassyCell = (e) => `<div class="flex flex-col gap-1">${embBadge(e)}${e.status === 'submitted' && e.date ? `<span class="text-sm text-copy">${esc(TN.fmt.date(e.date))}</span>` : ''}${e.status === 'submitted' && e.reference ? `<span class="text-sm text-quiet wrap-anywhere">Ref: ${esc(e.reference)}</span>` : ''}</div>`;
+  /* Record one passenger's embassy submission. Typed values stay after a refusal. */
+  function embassyDrawer(id, seq, typed, errors = {}) {
+    const s = S[id]; const a = applicantBySeq(id, seq);
+    if (!s || !a) return;
+    const e = embassyOf(s, a);
+    const editable = canEditVisa(id) && VF.isActive(a);
+    const k = `emb-${id}-${a.seq}`;
+    const v = typed || { status: e.status, date: e.date, reference: e.reference, remarks: e.remarks };
+    const note = `<p class="${C.small}">This records the embassy submission only. It does not change the appointment, the visa result or the task.</p>`;
+    const current = readOnlyFacts([['Embassy submission', embBadge(e)], ['Submission date', e.status === 'submitted' && e.date ? esc(TN.fmt.date(e.date)) : '—'], ['Reference', esc(e.reference || NP)], ['Remarks', esc(e.remarks || NP)], ['Last updated', embUpdated(e)]]);
+    const body = editable
+      ? `<form novalidate id="emb-form" class="flex flex-col gap-4" data-act="vw-emb-save"><input type="hidden" name="task" value="${id}"><input type="hidden" name="seq" value="${a.seq}">
+      ${Object.keys(errors).length ? errorSummary(esc(errors.form || 'Some details are missing or wrong.')) : ''}
+      ${readOnlyFacts(apptWho(s, a))}
+      <div class="grid gap-3 sm:grid-cols-2">
+      ${field(`${k}-status`, 'Submitted to the embassy?', select(`${k}-status`, 'status', EMB_STATUSES, v.status), { error: errors.status })}
+      ${field(`${k}-date`, 'Submission date', textInput(`${k}-date`, 'date', v.date, { type: 'date', invalid: !!errors.date }), { error: errors.date, hint: 'Needed when the status is Submitted.' })}
+      ${field(`${k}-ref`, 'Embassy / application reference', textInput(`${k}-ref`, 'reference', v.reference, { max: 120 }), { optional: true })}
+      ${field(`${k}-rem`, 'Remarks', textInput(`${k}-rem`, 'remarks', v.remarks, { max: 300 }), { optional: true })}
+      </div>${note}</form>`
+      : `<div class="flex flex-col gap-4">${readOnlyFacts(apptWho(s, a))}${current}${notice('locked', esc(embLock(id)))}${note}</div>`;
+    const footer = editable
+      ? `<button type="button" class="${B.secondaryMd}" data-close data-slot="button">Cancel</button><button type="submit" form="emb-form" class="${B.primaryMd}" data-slot="button">Save embassy status</button>`
+      : `<button type="button" class="${B.secondaryMd}" data-close data-slot="button">Close</button>`;
+    TN.drawer({ title: 'Embassy status', description: esc(a.name || NP), body, footer, wide: true });
+  }
+  const readOnlyFacts = (rows) => `<dl class="m-0 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 max-sm:grid-cols-1">${rows.map(([k, val]) => `<dt class="text-sm font-semibold text-quiet">${k}</dt><dd class="m-0 text-ink wrap-anywhere">${val}</dd>`).join('')}</dl>`;
+  const apptWho = (s, a) => [['Passenger name', esc(a.name || NP)], ['Country', esc((s.visa || {}).country || NP)], ['Visa type', esc((s.visa || {}).purpose || NP)]];
+  /* Set or edit one passenger's appointment. Typed values stay after a refusal. */
+  function appointmentDrawer(id, seq, typed, errors = {}) {
+    const s = S[id]; const a = applicantBySeq(id, seq);
+    if (!a) return;
+    const row = VF.appointmentRow(s, a);
+    const old = row.record && row.status !== 'cancelled' ? row.record : null;
+    const [oldDate = '', oldTime = ''] = old ? String(old.at).split('T') : [];
+    const v = typed || (old ? { date: oldDate, time: oldTime.slice(0, 5), timezone: old.timezone, centre: old.centre, location: old.location, reference: old.reference, remarks: old.remarks } : {});
+    const route = VF.routeOf(s) || {};
+    const k = `appt-${id}-${a.seq}`;
+    const body = `<form novalidate id="appt-form" class="flex flex-col gap-4" data-act="vw-appt-save"><input type="hidden" name="task" value="${id}"><input type="hidden" name="seq" value="${a.seq}">
+      ${Object.keys(errors).length ? errorSummary(esc(errors.form || 'Some details are missing or wrong.')) : ''}
+      ${readOnlyFacts(apptWho(s, a))}
+      <div class="grid gap-3 sm:grid-cols-2">
+      ${field(`${k}-date`, 'Appointment date', textInput(`${k}-date`, 'date', v.date, { type: 'date', invalid: !!errors.date }), { error: errors.date })}
+      ${field(`${k}-time`, 'Appointment time', textInput(`${k}-time`, 'time', v.time, { type: 'time', invalid: !!errors.time }), { error: errors.time })}
+      ${field(`${k}-zone`, 'Timezone', select(`${k}-zone`, 'timezone', VF.CONFIG.timezones, v.timezone || route.timezone || 'Asia/Kolkata'), { error: errors.timezone })}
+      ${field(`${k}-centre`, 'Embassy / Visa centre name', textInput(`${k}-centre`, 'centre', v.centre, { max: 200, invalid: !!errors.centre }), { error: errors.centre })}
+      ${field(`${k}-loc`, 'Location / address', textInput(`${k}-loc`, 'location', v.location, { max: 300, invalid: !!errors.location }), { error: errors.location, cls: 'sm:col-span-2' })}
+      ${field(`${k}-ref`, 'Appointment reference', textInput(`${k}-ref`, 'reference', v.reference, { max: 120 }), { optional: true })}
+      ${field(`${k}-rem`, 'Remarks', textInput(`${k}-rem`, 'remarks', v.remarks, { max: 300 }), { optional: true })}
+      </div></form>`;
+    const footer = `<button type="button" class="${B.secondaryMd}" data-close data-slot="button">Cancel</button><button type="submit" form="appt-form" class="${B.primaryMd}" data-slot="button">Save appointment</button>`;
+    TN.drawer({ title: old ? 'Edit appointment' : 'Set appointment', description: esc(a.name || NP), body, footer, wide: true });
+  }
+  function appointmentDetails(id, seq) {
+    const s = S[id]; const a = applicantBySeq(id, seq);
+    const row = a && VF.appointmentRow(s, a);
+    if (!row || !row.record) return;
+    const r = row.record;
+    const body = `<div class="flex flex-col gap-4">${readOnlyFacts([...apptWho(s, a), ['Appointment', apptWhen(r)], ['Status', esc(row.label)], ['Embassy / Visa centre', esc(r.centre || NP)], ['Location / address', esc(r.location || NP)], ['Reference', esc(r.reference || NP)], ['Remarks', esc(r.remarks || NP)]])}<p class="${C.small}">Saved by ${applyLine(r.created)}</p>${r.statusSet && r.statusSet[a.paxId] ? `<p class="${C.small}">Status updated by ${applyLine(r.statusSet[a.paxId])}</p>` : ''}</div>`;
+    TN.drawer({ title: 'Embassy / Centre details', description: esc(a.name || NP), body, footer: `<button type="button" class="${B.secondaryMd}" data-close data-slot="button">Close</button>`, wide: true });
+  }
+  function appointmentStatusDrawer(id, seq) {
+    const s = S[id]; const a = applicantBySeq(id, seq);
+    const row = a && VF.appointmentRow(s, a);
+    if (!row || !row.record) return;
+    const k = `appt-st-${id}-${a.seq}`;
+    const body = `<form novalidate id="appt-st-form" class="flex flex-col gap-4" data-act="vw-appt-status"><input type="hidden" name="task" value="${id}"><input type="hidden" name="seq" value="${a.seq}">${readOnlyFacts([...apptWho(s, a), ['Appointment', apptWhen(row.record)]])}${field(k, 'Appointment status', select(k, 'status', VF.APPT_STATUSES, row.status))}<p class="${C.small}">This changes the appointment only, not the visa result or the task.</p></form>`;
+    const footer = `<button type="button" class="${B.secondaryMd}" data-close data-slot="button">Cancel</button><button type="submit" form="appt-st-form" class="${B.primaryMd}" data-slot="button">Save status</button>`;
+    TN.drawer({ title: 'Update status', description: esc(a.name || NP), body, footer, wide: true });
+  }
+  function resolveForm(id) {
+    const k = `res-${id}`; const v = UI.vals[k] || {}; const fe = UI.ferr[k] || {};
+    return `<form novalidate class="flex flex-col gap-3 rounded-control border border-line bg-canvas px-3.5 py-3" aria-label="Confirm the appointment requirement" data-act="vw-resolve"><input type="hidden" name="task" value="${id}">${field(`${k}-value`, 'Is an appointment needed?', select(`${k}-value`, 'value', [['', 'Choose'], ['required', 'Required'], ['not_required', 'Not required']], v.value), { error: fe.value })}${field(`${k}-reason`, 'How was this confirmed?', textInput(`${k}-reason`, 'reason', v.reason, { max: 200, invalid: !!fe.reason }), { error: fe.reason })}<div><button type="submit" class="${B.primary}" data-slot="button">Confirm requirement</button></div></form>`;
+  }
+
+  /* Section 3: planned only. The actual submission is a later, separate step. */
+  function planList(id) {
+    const s = S[id];
+    const rows = VF.activeApplicants(s).filter((a) => VF.planOf(s, a));
+    if (!rows.length) return '';
+    return `<ul class="m-0 flex list-none flex-col gap-2 p-0" aria-label="Saved application plans">${rows.map((a) => { const p = VF.planOf(s, a); const warn = VF.planWarnings(s, p.plannedDate); return `<li class="${C.costItem}"><p class="m-0 font-semibold text-ink">${esc(VF.displayName(a))}</p><p class="m-0 text-copy">Planned apply date: ${esc(TN.fmt.date(p.plannedDate))}</p>${p.remarks ? `<p class="m-0 text-sm text-copy">${esc(p.remarks)}</p>` : ''}<p class="${C.small}">Set by: ${applyLine(p.updated).replace(' · Saved on ', ' · Saved on: ')}</p>${warn.length ? notice('warning', esc(warn.join(' '))) : ''}</li>`; }).join('')}</ul>`;
+  }
+  function planForm(id) {
+    const k = `plan-${id}`; const v = UI.vals[k] || {}; const fe = UI.ferr[k] || {};
+    return `<form novalidate class="flex flex-col gap-3 rounded-control border border-line bg-canvas px-3.5 py-3" aria-label="Save an application plan" data-act="vw-plan-save">${UI.err[k] ? errorSummary(esc(UI.err[k])) : ''}<input type="hidden" name="task" value="${id}">
+      ${paxChoices(k, id, VF.canPlan, v, 'Passengers for this date', fe.pax)}
+      <div class="grid gap-3 sm:grid-cols-2">${field(`${k}-date`, 'Planned application date', textInput(`${k}-date`, 'date', v.date, { type: 'date', invalid: !!fe.date }).replace('<input ', `<input data-change="vw-plan-date" data-id="${id}" `), { error: fe.date })}${field(`${k}-rem`, 'Remarks', textInput(`${k}-rem`, 'remarks', v.remarks, { max: 300 }), { optional: true })}</div>
+      <p id="${k}-warn" class="m-0 text-sm font-medium text-status-warning" role="status" aria-live="polite"></p>
+      <p class="${C.small}">This does not mark the application as submitted.</p>
+      <div><button type="submit" class="${B.primary}" data-slot="button">Save application plan</button></div></form>`;
+  }
+  function planCard(id, canWork) {
+    const s = S[id];
+    const closed = VF.requirementFor(s).value === 'not_configured';
+    const body = closed ? notice('warning', 'Appointment requirement needs confirmation.') : canWork ? planForm(id) : '';
+    const list = planList(id);
+    return card({ id: `visa-plan-${id}`, title: 'Planned application date', desc: 'Separate from the actual submission date.', bodyCls: C.bodyCol3, body: `${body}${list}${!body && !list ? '<p class="m-0 text-quiet">No plan saved yet.</p>' : ''}` });
   }
 
   const isClosed = (a) => (a.state === 'issued' && a.documentsReturnedAt) || ((a.state === 'refused' || a.state === 'withdrawn') && a.customerInformedAt);
@@ -821,63 +1190,90 @@
     const outcome = a.state === 'issued' ? 'Issued' : a.state === 'refused' ? 'Refused' : a.state === 'withdrawn' ? 'Withdrawn' : 'Authority’s decision';
     return [
       { title: 'Documents checked', state: reached('docs_pending') ? 'done' : a.state === 'docs_pending' ? 'current' : 'upcoming' },
-      { title: 'Application submitted', meta: a.reference ? `Reference ${esc(a.reference)}${a.submittedAt ? ` · ${TN.fmt.date(a.submittedAt)}` : ''}` : '', state: reached('submitted') ? 'done' : a.state === 'submitted' ? 'current' : 'upcoming' },
+      { title: 'Application submitted', meta: a.reference ? `Reference ${esc(a.reference)}${a.submittedAt ? ` · ${TN.fmt.date(a.submittedAt)}` : ''}${a.returnMode ? ` · Comes back: ${esc(VF.returnWord(a))}${a.returnNote ? ` (${esc(a.returnNote)})` : ''}` : ''}` : '', state: reached('submitted') ? 'done' : a.state === 'submitted' ? 'current' : 'upcoming' },
       { title: outcome, meta: a.outcomeAt ? TN.fmt.date(a.outcomeAt) : '', state: final ? 'done' : a.state === 'decision_pending' ? 'current' : 'upcoming' },
-      { title: a.state === 'issued' ? 'Documents returned to the customer' : 'Customer informed', meta: a.documentsReturnedAt ? `${TN.fmt.date(a.documentsReturnedAt)}${a.documentsReturnedBy ? ` · ${esc(TN.person(a.documentsReturnedBy).name)}` : ''}` : a.customerInformedAt ? TN.fmt.date(a.customerInformedAt) : '', state: isClosed(a) ? 'done' : final ? 'current' : 'upcoming' },
+      { title: a.state === 'issued' ? 'Documents returned to the customer' : 'Customer informed', meta: a.documentsReturnedAt ? `${TN.fmt.date(a.documentsReturnedAt)}${a.documentsReturnedBy ? ` · ${esc((TN.person(a.documentsReturnedBy) || {}).name || '')}` : ''}` : a.customerInformedAt ? TN.fmt.date(a.customerInformedAt) : '', state: isClosed(a) ? 'done' : final ? 'current' : 'upcoming' },
     ];
+  }
+  /** Why the actual submission cannot be recorded yet, or ''. */
+  function submitBlock(s, a) {
+    if (!VF.docsVerified(a)) return 'All documents must be checked before the application is marked submitted.';
+    const v = VF.requirementFor(s).value;
+    if (v === 'not_configured') return 'Appointment requirement needs confirmation.';
+    if (v === 'required' && !VF.appointmentOf(s, a)) return 'Schedule the appointment before the application is marked submitted.';
+    return '';
   }
 
   function applicantCard(id, a, canWork) {
     const s = S[id];
-    const work = canWork && !isClosed(a);
+    const active = VF.isActive(a);
+    const work = canWork && active && !isClosed(a);
     const aid = `${id}-${a.seq}`;
-    const checked = a.documents.filter((d) => d.status === 'checked').length;
+    const sum = VF.docSummary(a);
     const ev = filesOf(id).filter((f) => f.applicant === a.seq);
     const outcomeDocs = ev.filter((f) => f.kind === 'authority_outcome');
-    const docRows = a.documents.map((d) => {
-      const did = `doc-${aid}-${d.code}`;
-      const editable = work && a.state === 'docs_pending';
-      return `<li class="m-0"><form novalidate class="flex flex-col gap-2 rounded-control border border-line px-3 py-2 sm:flex-row sm:items-end sm:justify-between" data-act="fv-doc-save"><input type="hidden" name="task" value="${id}"><input type="hidden" name="seq" value="${a.seq}"><input type="hidden" name="code" value="${d.code}"><div class="min-w-0 flex-1">${editable
-        ? field(did, esc(d.label), select(did, 'status', [['missing', 'Missing'], ['received', 'Received'], ['checked', 'Checked']], d.status, ` data-change="fv-doc-change" data-orig="${d.status}"`))
-        : `<p class="m-0 flex flex-wrap items-center justify-between gap-2"><span class="font-medium text-ink">${esc(d.label)}</span>${badge(d.status === 'checked' ? 'success' : d.status === 'received' ? 'info' : 'warning', { checked: 'Checked', received: 'Received', missing: 'Missing' }[d.status])}</p>`}<div role="status" aria-live="polite"></div></div>${editable ? `<button type="submit" class="${B.secondary}" disabled data-slot="button">Save<span class="sr-only"> ${esc(d.label)}</span></button>` : ''}</form></li>`;
-    }).join('');
-    const upload = work ? `<details class="${C.details}"${UI.open[`up-${aid}`] ? ' open' : ''}><summary class="${C.summaryF}">Upload a document for ${esc(a.name)}</summary><div class="${C.detailsBody}">${fileUpload(`up-${aid}`, `Upload a document for ${a.name}`, `<input type="hidden" name="task" value="${id}"><input type="hidden" name="seq" value="${a.seq}">`, [['applicant_document', 'Applicant document'], ['authority_outcome', 'Authority outcome document']])}</div></details>` : '';
-    const evList = ev.length ? `<ul class="m-0 flex list-none flex-col gap-1.5 p-0" aria-label="Stored files">${ev.map((f) => `<li class="m-0 flex flex-wrap items-center gap-2 text-sm">${ic('file-check', 'size-4 text-status-success')}<a href="#" data-act="fv-open-file" rel="noopener" class="${C.linkPlain}">${esc(f.name)}</a><span class="text-quiet">${FILE_KIND[f.kind]} · ${f.size}</span></li>`).join('')}</ul>` : '';
+    /* Two buttons beside the heading sort the documents; the box shows only on received ones. */
+    const canEditDocs = canEditApplicant(id, a);
+    const docTab = UI.docTab[aid] || (sum.received < sum.total ? 'missing' : 'received');
+    const shownDocs = VF.docList(a).filter((d) => (docTab === 'received' ? d.status !== 'missing' : d.status === 'missing'));
+    const tabBtn = (k, label, n) => `<button type="button" class="${docTab === k ? B.primaryMd : B.secondaryMd}" aria-pressed="${docTab === k}" data-act="vw-doc-tab" data-id="${aid}" data-tab="${k}" data-slot="button">${label} (${n})</button>`;
+    const docRows = shownDocs.map((d) => {
+      const name = { html: `<span class="font-medium text-ink">${esc(d.label)}</span>${d.remark ? `<span class="block text-sm text-quiet">${esc(d.remark)}</span>` : ''}` };
+      if (docTab === 'received') return [name, { html: TN.ui.checkbox({ id: `doc-${aid}-${d.code}`, label: `<span class="sr-only">Received: ${esc(d.label)}</span>`, checked: true, disabled: true }) }];
+      const row = [name, { html: badge('warning', 'Not received') }];
+      if (canEditDocs) row.push({ html: `<div class="flex flex-wrap gap-2"><button type="button" class="${B.openSm}" data-act="vw-doc-received" data-id="${id}" data-seq="${a.seq}" data-code="${d.code}" data-slot="button">Mark received<span class="sr-only">: ${esc(d.label)}</span></button><button type="button" class="${B.openSm}" data-act="vw-doc-upload-open" data-id="${id}" data-seq="${a.seq}" data-code="${d.code}" data-slot="button">Upload document<span class="sr-only">: ${esc(d.label)}</span></button></div>` });
+      return row;
+    });
+    const docHeads = docTab === 'received' ? ['Document', 'Received'] : canEditDocs ? ['Document', 'Not received', 'Action'] : ['Document', 'Not received'];
+    const docTable = docRows.length ? table({ label: `Documents for ${esc(VF.displayName(a))}`, caption: `${sum.received} of ${sum.total} received`, heads: docHeads, rows: docRows }) : `<p class="m-0 px-4.5 py-4 text-quiet">${docTab === 'received' ? 'No document received yet.' : 'Every document has been received.'}</p>`;
+    const addKey = `add-${aid}`;
+    const addForm = canEditDocs && UI.open[addKey] ? `<form novalidate aria-label="Add a document for ${esc(VF.displayName(a))}" class="flex flex-col gap-3 rounded-control border border-line bg-canvas px-3.5 py-3" data-act="vw-doc-add"><input type="hidden" name="task" value="${id}"><input type="hidden" name="seq" value="${a.seq}">${field(`${addKey}-name`, 'Document name', textInput(`${addKey}-name`, 'label', (UI.vals[addKey] || {}).label, { max: 120, invalid: !!UI.err[addKey] }), { error: UI.err[addKey] ? esc(UI.err[addKey]) : '' })}${TN.ui.checkbox({ id: `${addKey}-rec`, name: 'received', value: '1', label: 'Already received', checked: !!(UI.vals[addKey] || {}).received })}<div class="flex flex-wrap gap-2"><button type="submit" class="${B.primaryMd}" data-slot="button">Save document</button><button type="button" class="${B.ghostMd}" data-act="vw-doc-add-open" data-id="${aid}" data-slot="button">Cancel</button></div></form>` : '';
+    const docHead = `<div class="flex flex-wrap items-center justify-between gap-2"><h3 id="app-${aid}-docs" class="m-0 text-base font-semibold text-ink">Documents <span class="font-normal text-quiet">(${sum.verified} of ${sum.total} checked)</span></h3><div class="flex flex-wrap items-center gap-2">${sum.total ? `<div role="group" aria-label="Show documents" class="flex flex-wrap gap-2">${tabBtn('received', 'Received', sum.received)}${tabBtn('missing', 'Not received', sum.total - sum.received)}</div>` : ''}${work ? `<button type="button" class="${B.primaryMd}" data-act="vw-doc-upload-open" data-id="${id}" data-seq="${a.seq}" data-code="" data-slot="button">Upload document<span class="sr-only"> for ${esc(VF.displayName(a))}</span></button>` : ''}${canEditDocs ? `<button type="button" class="${B.secondaryMd}" data-act="vw-doc-add-open" data-id="${aid}" data-slot="button">Add document</button>` : ''}${canEditDocs && sum.total ? `<button type="button" class="${B.ghostSm}" data-act="vw-checklist" data-id="${id}" data-seq="${a.seq}" data-slot="button">View checklist<span class="sr-only"> for ${esc(VF.displayName(a))}</span></button>` : ''}</div></div>`;
+    const docLine = `${docHead}${addForm}${sum.total ? `<div class="overflow-hidden rounded-control border border-line">${docTable}</div>` : notice('warning', 'Document requirements need confirmation')}`;
+    const upload = work ? `<details class="${C.details}"${UI.open[`up-${aid}`] ? ' open' : ''}><summary class="${C.summaryF}">Upload a document for ${esc(VF.displayName(a))}</summary><div class="${C.detailsBody}">${fileUpload(`up-${aid}`, `Upload a document for ${VF.displayName(a)}`, `<input type="hidden" name="task" value="${id}"><input type="hidden" name="seq" value="${a.seq}">`, [['applicant_document', 'Applicant document'], ['authority_outcome', 'Authority outcome document']])}</div></details>` : '';
+    const evList = ev.length ? `<ul class="m-0 flex list-none flex-col gap-1.5 p-0" aria-label="Stored files">${ev.map((f) => `<li class="m-0 flex flex-wrap items-center gap-2 text-sm">${ic('file-check', 'size-4 text-status-success')}${fileLabel(f)}<span class="text-quiet">${FILE_KIND[f.kind]} · ${f.size}</span></li>`).join('')}</ul>` : '';
     let steps = '';
     if (work) {
       const k = `sub-${aid}`;
-      const allChecked = a.documents.every((d) => d.status === 'checked');
+      const block = submitBlock(s, a);
       const v = UI.vals[k] || {};
       const fe = UI.ferr[k] || {};
       const stateBtn = (state, label, cls = B.secondary) => `<form novalidate class="flex flex-col gap-2" data-act="fv-visa-state"><div role="status" aria-live="polite"></div><input type="hidden" name="task" value="${id}"><input type="hidden" name="seq" value="${a.seq}"><input type="hidden" name="state" value="${state}"><div><button type="submit" class="${cls}" data-slot="button">${label}</button></div></form>`;
       if (a.state === 'docs_pending') {
-        steps += `<form novalidate aria-label="Record the submission for ${esc(a.name)}" class="flex flex-col gap-3 rounded-control border border-line bg-canvas px-3.5 py-3" data-act="fv-visa-submit">${UI.err[k] ? errorSummary(esc(UI.err[k])) : '<div role="status" aria-live="polite"></div>'}<input type="hidden" name="task" value="${id}"><input type="hidden" name="seq" value="${a.seq}"><div class="grid gap-3 sm:grid-cols-2">${field(`${k}-ref`, 'Application or file reference', textInput(`${k}-ref`, 'reference', v.reference, { max: 120, invalid: !!fe.reference }), { error: fe.reference })}${field(`${k}-at`, 'Appointment (India time)', textInput(`${k}-at`, 'appointmentAt', v.appointmentAt, { type: 'datetime-local', describe: `${k}-at-hint` }), { optional: true, hint: 'If there is one.' })}${field(`${k}-place`, 'Appointment place', textInput(`${k}-place`, 'appointmentPlace', v.appointmentPlace, { max: 200 }), { optional: true, cls: 'sm:col-span-2' })}</div>${allChecked ? '' : `<p id="${k}-note" class="m-0 text-sm text-copy">All documents must be checked before the application is marked submitted.</p>`}<div><button type="submit" class="${allChecked ? B.primary : B.secondary}" data-slot="button"${allChecked ? '' : ` aria-describedby="${k}-note"`}>Record submission</button></div></form>`;
+        steps += `<form novalidate aria-label="Record the submission for ${esc(VF.displayName(a))}" class="flex flex-col gap-3 rounded-control border border-line bg-canvas px-3.5 py-3" data-act="fv-visa-submit">${UI.err[k] ? errorSummary(esc(UI.err[k])) : '<div role="status" aria-live="polite"></div>'}<input type="hidden" name="task" value="${id}"><input type="hidden" name="seq" value="${a.seq}">${VF.appointmentOf(s, a) ? `<p class="m-0 text-sm text-copy">Appointment: ${apptWhen(VF.appointmentOf(s, a))}, ${esc(VF.appointmentOf(s, a).centre)}</p>` : ''}<div class="grid gap-3 sm:grid-cols-2">${field(`${k}-ref`, 'Application or file reference', textInput(`${k}-ref`, 'reference', v.reference, { max: 120, invalid: !!fe.reference }), { error: fe.reference })}${field(`${k}-date`, 'Applied date', textInput(`${k}-date`, 'submittedOn', v.submittedOn || VF.todayIST(), { type: 'date', invalid: !!fe.submittedOn }), { error: fe.submittedOn, hint: 'The date on the embassy or visa centre receipt.' })}${field(`${k}-mode`, 'How it comes back from the embassy', select(`${k}-mode`, 'returnMode', [['', 'Choose'], ...VF.RETURN_MODES], v.returnMode), { error: fe.returnMode })}${field(`${k}-note`, 'Tracking or collection details', textInput(`${k}-note`, 'returnNote', v.returnNote, { max: 200 }), { optional: true })}</div>${block ? `<p id="${k}-note" class="m-0 text-sm text-copy">${esc(block)}</p>` : ''}<div><button type="submit" class="${block ? B.secondary : B.primary}" data-slot="button"${block ? ` aria-describedby="${k}-note"` : ''}>Record submission</button></div></form>`;
       }
       if (a.state === 'submitted') steps += stateBtn('decision_pending', 'Mark waiting for the decision');
       if (a.state === 'submitted' || a.state === 'decision_pending') {
+        const rk = `ret-${aid}`;
+        steps += `<form novalidate aria-label="How the visa comes back for ${esc(VF.displayName(a))}" class="flex flex-col gap-3 rounded-control border border-line bg-canvas px-3.5 py-3" data-act="vw-return-save"><input type="hidden" name="task" value="${id}"><input type="hidden" name="seq" value="${a.seq}"><div class="grid gap-3 sm:grid-cols-2">${field(`${rk}-mode`, 'How it comes back from the embassy', select(`${rk}-mode`, 'returnMode', [['', 'Choose'], ...VF.RETURN_MODES], a.returnMode))}${field(`${rk}-note`, 'Tracking or collection details', textInput(`${rk}-note`, 'returnNote', a.returnNote, { max: 200 }), { optional: true })}</div><div><button type="submit" class="${B.secondary}" data-slot="button">Save return details</button></div></form>`;
+      }
+      if (a.state === 'submitted' || a.state === 'decision_pending') {
         const ok = `out-${aid}`;
         const outV = (UI.vals[ok] || {}).state || 'issued';
-        steps += `<form novalidate aria-label="Record the outcome for ${esc(a.name)}" class="flex flex-col gap-3 rounded-control border border-line bg-canvas px-3.5 py-3" data-act="fv-visa-outcome">${UI.err[ok] ? errorSummary(esc(UI.err[ok]), '') : '<div role="status" aria-live="polite"></div>'}<input type="hidden" name="task" value="${id}"><input type="hidden" name="seq" value="${a.seq}"><div class="grid gap-3 sm:grid-cols-2">${field(`${ok}-state`, 'Outcome', select(`${ok}-state`, 'state', [['issued', 'Issued'], ['refused', 'Refused']], outV, ' data-change="fv-outcome-change"'))}${field(`${ok}-doc`, 'Authority’s document', select(`${ok}-doc`, 'evidence', outcomeDocs.length ? outcomeDocs.map((f) => [f.id, f.name]) : [['', 'None uploaded yet']], outcomeDocs[0] && outcomeDocs[0].id), { hint: outcomeDocs.length ? '' : 'Upload the approval or refusal letter above first (kind: authority outcome document).' })}</div><div><button type="submit" class="${outV === 'refused' ? B.danger : B.primary}" data-slot="button">${outV === 'refused' ? 'Record refused' : 'Record issued'}</button></div></form>`;
+        steps += `<form novalidate aria-label="Record the outcome for ${esc(VF.displayName(a))}" class="flex flex-col gap-3 rounded-control border border-line bg-canvas px-3.5 py-3" data-act="fv-visa-outcome">${UI.err[ok] ? errorSummary(esc(UI.err[ok]), '') : '<div role="status" aria-live="polite"></div>'}<input type="hidden" name="task" value="${id}"><input type="hidden" name="seq" value="${a.seq}"><div class="grid gap-3 sm:grid-cols-2">${field(`${ok}-state`, 'Outcome', select(`${ok}-state`, 'state', [['issued', 'Issued'], ['refused', 'Refused']], outV, ' data-change="fv-outcome-change"'))}${field(`${ok}-doc`, 'Authority’s document', select(`${ok}-doc`, 'evidence', outcomeDocs.length ? outcomeDocs.map((f) => [f.id, f.name]) : [['', 'None uploaded yet']], outcomeDocs[0] && outcomeDocs[0].id), { hint: outcomeDocs.length ? '' : 'Upload the approval or refusal letter above first (kind: authority outcome document).' })}</div><div><button type="submit" class="${outV === 'refused' ? B.danger : B.primary}" data-slot="button">${outV === 'refused' ? 'Record refused' : 'Record issued'}</button></div></form>`;
       }
       if (a.state === 'issued' && !a.documentsReturnedAt) steps += stateBtn('documents_returned', 'Record documents returned to the customer');
       if ((a.state === 'refused' || a.state === 'withdrawn') && !a.customerInformedAt) steps += stateBtn('customer_informed', 'Record that the customer was informed');
       if (!['issued', 'refused', 'withdrawn'].includes(a.state)) steps += stateBtn('withdrawn', 'Withdraw this application', B.ghostWrap);
-      steps = `<section aria-labelledby="app-${aid}-steps" class="flex flex-col gap-3"><h3 id="app-${aid}-steps" class="m-0 text-base font-semibold text-ink">Next for ${esc(a.name)}</h3>${steps}<p class="${C.small}">${OUTCOME_NEEDS_DOC}</p></section>`;
+      steps = `<section aria-labelledby="app-${aid}-steps" class="flex flex-col gap-3"><h4 id="app-${aid}-steps" class="m-0 text-base font-semibold text-ink">Next for ${esc(VF.displayName(a))}</h4>${steps}<p class="${C.small}">${OUTCOME_NEEDS_DOC}</p></section>`;
     }
-    const [tone, word] = VISA_STATE[a.state];
-    const desc = `Applicant ${a.seq} · ${a.type}${a.age ? `, ${a.age}` : ''}${isMine(s) || TN.is('manager') ? ` · born ${TN.fmt.date(a.born)} · ${a.nationality} · passport ${a.passport}` : ''}`;
-    const body = `<div class="flex min-w-0 flex-col gap-5"><section aria-labelledby="app-${aid}-docs" class="flex flex-col gap-2"><h3 id="app-${aid}-docs" class="m-0 text-base font-semibold text-ink">Documents <span class="font-normal text-quiet">(${checked} of ${a.documents.length} checked)</span></h3><ul class="m-0 flex list-none flex-col gap-2 p-0">${docRows}</ul>${upload}${evList}</section>${steps}${isClosed(a) ? notice('success', 'This applicant is closed.', { icon: 'check-check' }) : ''}</div>${timeline(`Progress for ${esc(a.name)}`, applicantTimeline(a), true)}`;
-    return card({ id: `app-${aid}-heading`, title: esc(a.name), desc, extra: badge(tone, word, { wrap: true, sr: 'Application: ', icon: tone === 'info' ? 'info' : undefined }), body, bodyCls: 'px-4.5 py-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]' });
+    const [tone, word] = VISA_STATE[a.state] || VISA_STATE.docs_pending;
+    const showPrivate = isMine(s) || TN.is('manager');
+    const desc = [`Applicant ${a.seq}`, `${a.type || 'passenger'}${a.age != null ? `, ${a.age}` : ''}`, ...(showPrivate ? [a.born ? `born ${TN.fmt.date(a.born)}` : null, a.nationality, a.passport ? `passport ${a.passport}` : null] : [])].filter(Boolean).join(' · ');
+    const removed = active ? '' : notice('warning', `Removed from booking version ${esc(a.removedFromBooking.version)} by ${esc(a.removedFromBooking.byName)}. Records are kept and editing is closed.`);
+    const appliedLine = `<p class="m-0"><span class="font-semibold text-ink">Applied date:</span> ${a.submittedAt ? esc(TN.fmt.date(a.submittedAt)) : 'Not applied yet'}</p>`;
+    const body = `<div class="flex min-w-0 flex-col gap-5">${removed}${appliedLine}<section aria-labelledby="app-${aid}-docs" class="flex flex-col gap-2">${docLine}${upload}${evList}</section>${steps}${isClosed(a) ? notice('success', 'This applicant is closed.', { icon: 'check-check' }) : ''}</div>${timeline(`Progress for ${esc(VF.displayName(a))}`, applicantTimeline(a), true)}`;
+    return card({ id: `app-${aid}-heading`, title: esc(VF.displayName(a)), desc: esc(desc), extra: active ? badge(tone, word, { wrap: true, sr: 'Application: ', icon: tone === 'info' ? 'info' : undefined }) : badge('warning', 'Removed from the booking', { wrap: true }), body, bodyCls: 'px-4.5 py-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]' });
   }
 
   /* PENDING: fees per traveller as cost lines for the customer Invoice (no selling price). */
   function visaInvoiceLines(id) {
     const s = S[id];
-    const rows = s.applicants.map((a) => {
-      const [tone, word] = VISA_STATE[a.state];
+    const rows = VF.activeApplicants(s).map((a) => {
+      const [tone, word] = VISA_STATE[a.state] || VISA_STATE.docs_pending;
       return [
-        { html: `<span class="font-semibold text-ink">${esc(a.name)}</span>` },
-        { cls: 'text-sm', html: `${esc(s.visa.country)} · ${esc(s.visa.purpose)}` },
+        { html: `<span class="font-semibold text-ink">${esc(VF.displayName(a))}</span>` },
+        { cls: 'text-sm', html: esc(visaTitle(s)) },
         { cls: 'whitespace-nowrap tabular-nums', html: inr(a.govFee) },
         { cls: 'whitespace-nowrap tabular-nums', html: a.serviceFee ? inr(a.serviceFee) : '—' },
         { html: badge(tone, word, { wrap: true, sr: 'Application: ', icon: tone === 'info' ? 'info' : undefined }) },
@@ -886,35 +1282,67 @@
     return `<div class="${C.card}" data-slot="card"><section aria-labelledby="vinv-${id}-heading"><div class="${C.cardHead}"><div class="min-w-0"><h2 class="${C.cardTitle}" id="vinv-${id}-heading">Visa lines for the invoice</h2><p class="${C.small}">Fees per traveller, as recorded for Accounts. These lines go on the customer’s Invoice; Sales sets the price, no price is shown here.</p></div>${ic('file-text', 'size-4 text-faint')}</div>${table({ label: 'Visa lines for the invoice', caption: `${TN.fmt.plural(rows.length, 'traveller')}`, heads: ['Traveller', 'Visa', 'Government fee', 'Service fee', 'Result'], rows })}</section></div>`;
   }
 
+  function passportWork(id, canWork, taken) {
+    const s = S[id];
+    const rows = VF.activeApplicants(s).map((a) => [{ html: `<span class="font-semibold text-ink">${esc(VF.displayName(a))}</span>` }, { html: esc(typeWord(a)) }]);
+    const people = rows.length ? table({ label: 'Passport applicants', caption: TN.fmt.plural(rows.length, 'applicant'), heads: ['Applicant', 'Type'], rows }) : '<p class="m-0 px-4.5 py-4 text-quiet">No applicant came with this task.</p>';
+    return `<div class="flex flex-col gap-5">${taken ? card({ id: `pass-${id}-heading`, title: 'Applicants', desc: 'The visa document checklist, appointment and application plan do not apply to a passport task.', body: people, bodyCls: null }) : notice('info', 'Applicants appear when the task is taken.')}${costCard(id, 'visa', canWork)}${canWork ? card({ id: `fee-${id}-heading`, title: 'Fee receipt', body: fileUpload(`up-${id}-fee`, 'Upload the fee receipt', `<input type="hidden" name="task" value="${id}">`, [['fee_receipt', 'Fee receipt']]) }) : ''}</div>`;
+  }
+  function visaNext(s, id, canClaim, mine) {
+    if (s.taskStatus === 'done' || s.removedFromBooking) return 'Nothing waiting.';
+    if (!s.assignee) return canClaim ? 'take this task' : 'the Visa and passport desk takes this task';
+    if (!mine) return `${(TN.person(s.assignee) || {}).name || 'Another staff member'} works on this task`;
+    if (isPassport(s)) return 'finish the steps on the Work tab';
+    return { 'Documents pending': 'check and save each passenger’s documents', 'Document requirements need confirmation': 'confirm the document requirements', 'Appointment requirement pending': 'the branch Manager confirms the appointment requirement', 'Appointment pending': 'schedule the appointment', 'Appointment scheduled': 'save the planned application date', 'Appointment not required': 'save the planned application date', 'Application planned': 'record the actual submission' }[VF.stageLabel(s)] || 'finish the steps on the Work tab';
+  }
+
   function visaTask(params, q) {
     const id = params.taskId;
     const s = S[id];
     if (!s || s.dept !== 'visa') return notAvailable('#/app', 'Back to Home');
+    VF.normalizeTask(id, s);
     const base = `/app/visa/${id}`;
     const tab = ['work', 'files', 'history'].includes(q.tab) ? q.tab : 'details';
     const taker = canWorkDept('visa');
     const mine = isMine(s);
-    const done = s.taskStatus === 'done';
-    const canWork = taker && mine && !done;
-    const canClaim = taker && !s.assignee && s.taskStatus === 'new';
+    const canWork = canEditVisa(id);
+    const canClaim = taker && !s.assignee && s.taskStatus === 'new' && !s.removedFromBooking;
     const actions = canClaim
       ? `<form novalidate data-act="fv-take"><input type="hidden" name="task" value="${id}"><button type="submit" class="${B.primary}" data-slot="button">Take this task</button></form>`
       : canWork && tab !== 'work' ? `<a class="${B.linkLg}" href="#${base}?tab=work">Continue the applications</a>` : '';
-    const next = done ? 'Nothing waiting.' : !s.assignee ? (canClaim ? 'take this task' : 'the Visa and passport desk takes this task') : mine ? 'finish the steps on the Work tab' : `${TN.person(s.assignee).name} works on this task`;
-    const v = s.visa;
-    const details = `<div class="flex flex-col gap-5">${card({ id: 'visa-details-heading', title: 'Service', bodyCls: C.bodyCol3, body: `<dl class="m-0 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 max-sm:grid-cols-1"><dt class="text-sm font-semibold text-quiet">Service</dt><dd class="m-0">${esc(visaFactsLine(s))}</dd><dt class="text-sm font-semibold text-quiet">Government fee paid by</dt><dd class="m-0">${v.feePaidBy === 'company' ? 'Company pays (expense record for Accounts; no approval bypass)' : v.feePaidBy === 'customer' ? 'Customer pays the government fee directly' : 'Not decided yet'}</dd><dt class="text-sm font-semibold text-quiet">From</dt><dd class="m-0">Accepted version ${s.versionNo || 1} · ${TN.fmt.date(s.savedAt)}</dd><dt class="text-sm font-semibold text-quiet">Applicants</dt><dd class="m-0">${s.applicants.length}</dd></dl>${notice('restricted', 'Private applicant documents: Visa &amp; Passport desk and branch Manager only.')}` })}${mine ? `<div>${idProofsCard(id, s.applicants)}</div>` : ''}</div>`;
+    const v = s.visa || {};
+    const list = VF.activeApplicants(s);
+    /* Once every passenger has applied the early steps are over: the page goes back to the application cards. */
+    const laterOnly = !isPassport(s) && list.length > 0 && !list.some(VF.notStarted);
+    const facts = isPassport(s)
+      ? [['Service', esc(visaFactsLine(s))]]
+      : [['Service', esc(visaFactsLine(s))], ['Government fee paid by', v.feePaidBy === 'company' ? 'Company pays (expense record for Accounts; no approval bypass)' : v.feePaidBy === 'customer' ? 'Customer pays the government fee directly' : 'Not decided yet']];
+    const asked = v.requirements || (s.passport && s.passport.requirements);
+    if (asked) facts.push(['Requirements from Sales', esc(asked)]);
+    facts.push(['From', `Accepted version ${esc(s.versionNo || 1)} · ${TN.fmt.date(s.savedAt)}`], ['Applicants', list.length ? esc(list.map(VF.displayName).join(', ')) : 'None came with this task']);
+    const details = `<div class="flex flex-col gap-5">${card({ id: 'visa-details-heading', title: 'Service', bodyCls: C.bodyCol3, body: `<dl class="m-0 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 max-sm:grid-cols-1">${facts.map(([k, val]) => `<dt class="text-sm font-semibold text-quiet">${k}</dt><dd class="m-0">${val}</dd>`).join('')}</dl>${notice('restricted', 'Private applicant documents: Visa &amp; Passport desk and branch Manager only.')}` })}${mine ? `<div>${idProofsCard(id, list)}</div>` : ''}</div>`;
     const taken = !!s.assignee;
-    const applicants = taken ? s.applicants.map((a) => applicantCard(id, a, canWork)).join('') : notice('info', 'Applicants appear when the task is taken.');
-    const work = `<div class="flex flex-col gap-5">${applicants}${costCard(id, 'visa', canWork)}${canWork ? card({ id: `fee-${id}-heading`, title: 'Fee receipt', body: `${fileUpload(`up-${id}-fee`, 'Upload the fee receipt', `<input type="hidden" name="task" value="${id}">`, [['fee_receipt', 'Fee receipt']])}<p class="m-0 mt-2.5 text-sm text-quiet">${OUTCOME_NEEDS_DOC}</p>` }) : ''}${taken ? visaInvoiceLines(id) : ''}</div>`;
+    let work;
+    if (isPassport(s)) work = passportWork(id, canWork, taken);
+    else if (!taken) work = `<div class="flex flex-col gap-5">${notice('info', 'Applicants appear when the task is taken.')}${costCard(id, 'visa', canWork)}</div>`;
+    else {
+      const later = VF.applicants(s).map((a) => applicantCard(id, a, canWork)).join('');
+      const fee = canWork ? card({ id: `fee-${id}-heading`, title: 'Fee receipt', body: `${fileUpload(`up-${id}-fee`, 'Upload the fee receipt', `<input type="hidden" name="task" value="${id}">`, [['fee_receipt', 'Fee receipt']])}<p class="m-0 mt-2.5 text-sm text-quiet">${OUTCOME_NEEDS_DOC}</p>` }) : '';
+      if (laterOnly) work = `<div class="flex flex-col gap-5">${later}${appointmentSection(id)}${costCard(id, 'visa', canWork)}${fee}${visaInvoiceLines(id)}</div>`;
+      else work = `<div class="flex flex-col gap-5">${visaProgress(id)}${card({ id: `visa-pax-${id}`, title: 'Passengers and documents', desc: 'One passenger’s missing documents do not hold up the others.', body: passengerTable(id), bodyCls: VF.applicants(s).length ? null : C.body })}${planCard(id, canWork)}<section aria-labelledby="visa-later-${id}" class="flex flex-col gap-3"><h2 class="${C.cardTitle}" id="visa-later-${id}">Application, decision and handover</h2>${later || notice('info', 'No passengers on this task.')}</section>${appointmentSection(id)}${costCard(id, 'visa', canWork)}${canWork ? card({ id: `fee-${id}-heading`, title: 'Fee receipt', body: `${fileUpload(`up-${id}-fee`, 'Upload the fee receipt', `<input type="hidden" name="task" value="${id}">`, [['fee_receipt', 'Fee receipt']])}<p class="m-0 mt-2.5 text-sm text-quiet">${OUTCOME_NEEDS_DOC}</p>` }) : ''}${list.length ? visaInvoiceLines(id) : ''}</div>`;
+    }
     let content = details;
     if (tab === 'work') content = work;
     else if (tab === 'files') content = filesPanel(id);
     else if (tab === 'history') content = historyPanel(id);
     return `<div class="${C.page}">
       ${backLink('#/app/visa', 'Back to Visa and passport tasks')}
-      <header class="${C.headerTask}" data-slot="page-header"><div class="min-w-0"><p class="${C.eyebrow}">Visa task · ${esc(s.deal)}</p><h1 class="${C.h1}"><span class="block wrap-anywhere">${esc(visaTitle(s))}</span></h1><div class="${C.statusRow}">${visaStatus(s)}<span class="text-copy">Taken by: ${esc(takenBy(s))}</span></div></div>${actions ? `<div class="${C.actions}">${actions}</div>` : ''}</header>
+      <header class="${C.headerTask}" data-slot="page-header"><div class="min-w-0"><p class="${C.eyebrow}">${isPassport(s) ? 'Passport task' : 'Visa task'} · ${esc(s.deal)}</p><h1 class="${C.h1}"><span class="block wrap-anywhere">${esc(visaTitle(s))}</span></h1><div class="${C.statusRow}">${visaStatus(s)}<span class="text-copy">Taken by: ${esc(takenBy(s))}</span></div></div>${actions ? `<div class="${C.actions}">${actions}</div>` : ''}</header>
+      ${storeNotice()}
       ${flashLine(id)}
-      ${nextLine(next)}
+      ${bookingChanges(id)}
+      ${nextLine(visaNext(s, id, canClaim, mine))}
+      ${laterOnly ? '' : visaSummary(id)}
       ${taskTabs(base, tab)}
       ${content}
     </div>`;
@@ -935,10 +1363,18 @@
 
   TN.act('fv-take', (f) => {
     const id = fd(f).task; const s = S[id];
+    if (!s || !TN.is(s.dept)) { TN.toast('Not allowed', 'danger', 'Only this department can take the task.'); TN.refresh(); return; }
     if (s.assignee) { TN.toast('Someone at the desk took this task first.', 'danger'); TN.refresh(); return; }
-    s.assignee = me(); s.taskStatus = 'in_progress'; s.takenAt = NOW();
-    if (s.dept === 'visa') s.applicants.forEach((a) => { if (!a.state) { a.state = 'docs_pending'; a.documents = a.documents || docs(a.type === 'child' ? DOCS_CHILD : DOCS_ADULT, 'missing'); } });
-    addH(id, 'Task taken');
+    if (s.removedFromBooking) { TN.toast('Not allowed', 'danger', 'This service was removed from the booking.'); TN.refresh(); return; }
+    s.assignee = me(); s.taskStatus = 'in_progress';
+    if (s.dept === 'visa') {
+      VF.normalizeTask(id, s);
+      const who = VF.actor();
+      s.takenAt = who.at; s.takenBy = who;
+      s.applicants.forEach((a) => { if (!a.state) a.state = 'docs_pending'; if (s.kind === 'visa') VF.hydrateChecklist(s, a); });
+      VF.addHistory(id, 'Task taken', who);
+      saved(id);
+    } else { s.takenAt = NOW(); addH(id, 'Task taken'); }
     UI.flash[id] = s.dept === 'visa' ? 'The task is yours. Nothing has been filed yet.' : 'The task is yours. Taking it did not book the flight.';
     TN.refresh();
   });
@@ -950,6 +1386,7 @@
   TN.act('fv-cost-field', (el) => { const f = el.closest('form'); const v = fd(f); UI.vals[v.key] = { ...UI.vals[v.key], ...v }; TN.refresh(); focusLater(`#${el.id}`); });
   TN.act('fv-cost-save', (f) => {
     const v = fd(f); const s = S[v.task]; const key = v.key;
+    if (s.dept === 'visa' && !guardVisa(v.task)) return;
     UI.vals[key] = v; delete UI.err[key]; UI.ferr[key] = {};
     const amount = Number(String(v.amount || '').replace(/[,\s₹]/g, ''));
     const fe = UI.ferr[key];
@@ -970,6 +1407,7 @@
   });
   TN.act('fv-cost-send', (el) => {
     const c = COSTS.find((x) => x.id === el.dataset.id);
+    if (c.dept === 'visa' && !guardVisa(c.task)) return;
     if (!c.proof) { UI.err[`send-${c.id}`] = c.dept === 'flight' ? 'Choose the stored direct-payment proof under “Change this cost” first.' : 'Choose the stored fee receipt under “Change this cost” first.'; TN.refresh(); return; }
     delete UI.err[`send-${c.id}`];
     c.status = 'submitted'; c.submittedAt = NOW(); c.submittedBy = me(); c.returnReason = null;
@@ -1018,12 +1456,21 @@
   TN.act('fv-upload', (f) => {
     const v = fd(f); const file = f.querySelector('input[type=file]').files[0];
     const key = v.formKey;
+    const visaTask = S[v.task] && S[v.task].dept === 'visa';
+    if (visaTask && !guardVisa(v.task)) return;
     UI.open[key] = true;
     if (!file) { UI.err[key] = 'Choose a file to upload.'; TN.refresh(); return; }
-    if (file.size > 4 * 1024 * 1024) { UI.err[key] = 'This file is larger than 4 MB. Choose a smaller file.'; TN.refresh(); return; }
+    if (file.size > MAX_FILE) { UI.err[key] = 'This file is larger than 4 MB. Choose a smaller file.'; TN.refresh(); return; }
     delete UI.err[key]; delete UI.open[key];
-    const size = file.size >= 1048576 ? `${(file.size / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(file.size / 1024))} KB`;
-    FILES.push({ id: uid('df-'), task: v.task, kind: v.kind, applicant: v.seq ? Number(v.seq) : undefined, name: file.name, size, at: NOW() });
+    if (visaTask) {
+      metaFile(v.task, v.kind, file, { applicant: v.seq ? Number(v.seq) : undefined });
+      addVH(v.task, 'File added');
+      saved(v.task);
+      TN.toast(`${file.name} recorded. Only the file name and size are kept in this browser.`);
+      TN.refresh();
+      return;
+    }
+    FILES.push({ id: uid('df-'), task: v.task, kind: v.kind, applicant: v.seq ? Number(v.seq) : undefined, name: file.name, size: sizeText(file), at: NOW() });
     addH(v.task, 'File added');
     TN.toast(`${file.name} stored privately.`);
     TN.refresh();
@@ -1061,58 +1508,296 @@
   });
 
   /* Visa desk */
-  const applicant = (id, seq) => S[id].applicants.find((a) => a.seq === Number(seq));
-  TN.act('fv-doc-change', (el) => { const b = el.closest('form').querySelector('button[type=submit]'); if (b) b.disabled = el.value === el.dataset.orig; });
-  TN.act('fv-outcome-change', (el) => { const f = el.closest('form'); const v = fd(f); UI.vals[`out-${v.task}-${v.seq}`] = { state: v.state }; TN.refresh(); focusLater(`#${el.id}`); });
-  TN.act('fv-doc-save', (f) => {
-    const v = fd(f); const a = applicant(v.task, v.seq);
-    a.documents.find((d) => d.code === v.code).status = v.status;
-    addH(v.task, `Applicant ${a.seq}: details updated`);
-    TN.toast('Saved.'); TN.refresh();
+  const applicant = (id, seq) => applicantBySeq(id, seq);
+  const refuse = (text) => { TN.toast('Not allowed', 'danger', text); TN.refresh(); return false; };
+  /* Every Visa action checks here, not only by hiding the button. */
+  function guardVisa(id) {
+    const s = S[id];
+    if (canEditVisa(id)) return true;
+    if (!s || s.dept !== 'visa') return refuse('This task is not available.');
+    if (s.removedFromBooking) return refuse('This service was removed from the booking. Its records are kept and editing is closed.');
+    if (s.taskStatus === 'done') return refuse('This task is complete.');
+    return refuse(TN.is('visa') ? 'Only the executive who took this task can change it.' : 'Only the assigned Visa executive can change this task.');
+  }
+  const saved = (id) => { if (!VF.commit(id)) TN.toast('Browser storage is unavailable', 'danger', 'Changes may not survive a refresh.'); };
+  const addVH = (id, title, extra = {}) => VF.addHistory(id, title, VF.actor(), extra);
+  const metaFile = (task, kind, file, extra = {}) => { const rec = { id: uid('df-'), task, kind, metaOnly: true, name: file.name, size: sizeText(file), at: VF.nowIST(), ...extra }; FILES.push(rec); return rec; };
+
+  /* Checklist */
+  TN.act('vw-checklist', (el) => checklistDrawer(el.dataset.id, Number(el.dataset.seq)));
+  const readRows = (a, v) => Object.fromEntries(VF.docList(a).map((d) => [d.code, { received: !!v[`rec-${d.code}`], verified: !!v[`ver-${d.code}`], remark: v[`rem-${d.code}`] || '' }]));
+  TN.act('vw-check', (el) => {
+    const f = el.closest('form'); const code = el.dataset.code;
+    const rec = f.querySelector(`[name="rec-${code}"]`); const ver = f.querySelector(`[name="ver-${code}"]`);
+    /* Verified needs Received; unticking Received clears Verified. */
+    if (!rec.checked) ver.checked = false;
+    ver.disabled = !rec.checked;
+    const v = fd(f); const a = applicantBySeq(v.task, v.seq);
+    UI.vals[`chk-${v.task}-${v.seq}`] = readRows(a, v);
+    const dirty = document.querySelector('#chk-dirty'); if (dirty) dirty.textContent = 'Unsaved changes';
   });
-  TN.act('fv-visa-submit', (f) => {
-    const v = fd(f); const a = applicant(v.task, v.seq); const k = `sub-${v.task}-${v.seq}`;
-    UI.vals[k] = v; UI.ferr[k] = {}; delete UI.err[k];
-    if (!a.documents.every((d) => d.status === 'checked')) { UI.err[k] = 'All required documents must be checked before the application is marked submitted.'; TN.refresh(); return; }
-    if (!String(v.reference || '').trim()) { UI.ferr[k].reference = 'Enter the reference the authority gave.'; UI.err[k] = 'Enter the reference the authority gave.'; TN.refresh(); return; }
-    Object.assign(a, { state: 'submitted', reference: v.reference.trim(), submittedAt: TN.TODAY, appointmentAt: v.appointmentAt || null, appointmentPlace: v.appointmentPlace || null });
+  TN.act('vw-chk-discard', (el) => { delete UI.vals[`chk-${el.dataset.id}-${el.dataset.seq}`]; checklistDrawer(el.dataset.id, Number(el.dataset.seq)); });
+  TN.act('vw-chk-save', (f) => {
+    const v = fd(f); const id = v.task;
+    if (!guardVisa(id)) return;
+    const a = applicantBySeq(id, v.seq);
+    if (!canEditApplicant(id, a)) { refuse('This passenger’s checklist can no longer be changed.'); return; }
+    const picked = VF.docList(a).map((d) => { const inp = f.querySelector(`[name="file-${d.code}"]`); return { d, file: inp && inp.files && inp.files[0] }; }).filter((x) => x.file);
+    if (picked.some((x) => x.file.size > MAX_FILE)) { TN.toast('This file is larger than 4 MB', 'danger', 'Choose a smaller file. Nothing was saved.'); return; }
+    const changes = VF.applyChecklist(a, readRows(a, v));
+    picked.forEach(({ d, file }) => { metaFile(id, 'applicant_document', file, { applicant: a.seq, doc: d.code }); changes.push(`${d.label}: file ${file.name} recorded`); });
+    delete UI.vals[`chk-${id}-${a.seq}`];
+    if (!changes.length) { TN.toast('No changes to save.', 'info'); checklistDrawer(id, a.seq); return; }
+    a.checklistUpdated = VF.actor();
+    addVH(id, `Checklist updated: ${VF.displayName(a)}`, { detail: changes.join(' · ') });
+    saved(id);
+    TN.refresh();
+    checklistDrawer(id, a.seq, 'Checklist saved.');
+  });
+
+  /* Documents on the passenger card */
+  TN.act('vw-doc-tab', (el) => { UI.docTab[el.dataset.id] = el.dataset.tab; TN.refresh(); });
+  TN.act('vw-doc-add-open', (el) => { const k = `add-${el.dataset.id}`; UI.open[k] = !UI.open[k]; delete UI.err[k]; delete UI.vals[k]; TN.refresh(); });
+  TN.act('vw-doc-add', (f) => {
+    const v = fd(f); const id = v.task; const k = `add-${id}-${v.seq}`;
+    if (!guardVisa(id)) return;
+    const a = applicantBySeq(id, v.seq);
+    if (!canEditApplicant(id, a)) { refuse('Documents can no longer be added for this passenger.'); return; }
+    const who = VF.actor();
+    const res = VF.addDocument(a, { label: v.label, received: !!v.received }, who);
+    if (!res.ok) { UI.err[k] = res.error; UI.vals[k] = v; TN.refresh(); return; }
+    delete UI.err[k]; delete UI.vals[k]; delete UI.open[k]; delete UI.vals[`chk-${id}-${a.seq}`];
+    a.checklistUpdated = who;
+    UI.docTab[`${id}-${a.seq}`] = res.row.status === 'missing' ? 'missing' : 'received';
+    VF.addHistory(id, `Document added for ${VF.displayName(a)}`, who, { detail: `${res.row.label}: ${res.row.status === 'missing' ? 'not received' : 'received'}` });
+    saved(id);
+    TN.refresh();
+  });
+  TN.act('vw-doc-upload-open', (el) => {
+    const { id, seq, code } = el.dataset;
+    if (!guardVisa(id)) return;
+    const a = applicantBySeq(id, seq);
+    if (!canUploadDoc(id, a)) { refuse('Documents can no longer be uploaded for this passenger.'); return; }
+    docUploadDrawer(id, Number(seq), code || '');
+  });
+  /* Choosing a document fills its name, unless something was typed. */
+  TN.act('vw-doc-upload-pick', (el) => {
+    const f = el.closest('form'); const a = f && applicantBySeq(f.task.value, f.seq.value);
+    const d = a && VF.docList(a).find((x) => x.code === el.value);
+    const t = f && f.querySelector('[name="title"]');
+    if (t && (!t.value.trim() || t.dataset.auto === '1')) { t.value = d ? d.label : ''; t.dataset.auto = '1'; }
+  });
+  document.addEventListener('input', (ev) => { if (ev.target && ev.target.matches && ev.target.matches('#docup-form [name="title"]')) ev.target.dataset.auto = '0'; });
+  TN.act('vw-doc-upload', (f) => {
+    const v = fd(f); const id = v.task;
+    if (!guardVisa(id)) return;
+    const a = applicantBySeq(id, v.seq);
+    if (!canUploadDoc(id, a)) { refuse('Documents can no longer be uploaded for this passenger.'); return; }
+    const isNew = v.code === '__new';
+    const d = isNew ? null : VF.docList(a).find((x) => x.code === v.code);
+    const inp = f.querySelector('input[type="file"]'); const file = inp && inp.files && inp.files[0];
+    const title = String(v.title || '').trim();
+    const errors = {};
+    if (!isNew && !d) errors.code = 'Choose the document.';
+    if (!title) errors.title = 'Enter the document name.';
+    if (!file) errors.file = 'Choose the file to upload.';
+    else if (!/\.(pdf|jpe?g|png)$/i.test(file.name)) errors.file = 'Choose a PDF, JPG or PNG file.';
+    else if (file.size > MAX_FILE) errors.file = 'This file is larger than 4 MB. Choose a smaller file.';
+    if (Object.keys(errors).length) { docUploadDrawer(id, a.seq, v.code, { code: v.code, title }, errors); return; }
+    const who = VF.actor();
+    const changes = [];
+    let doc = d;
+    if (isNew && canEditApplicant(id, a)) {
+      const res = VF.addDocument(a, { label: title, received: true }, who);
+      if (!res.ok) { docUploadDrawer(id, a.seq, v.code, { code: v.code, title }, { title: res.error, file: 'Choose the file again.' }); return; }
+      doc = res.row; changes.push(`${doc.label}: added to the list as received`);
+    } else if (doc && doc.status === 'missing' && canEditApplicant(id, a)) {
+      changes.push(...VF.applyChecklist(a, { [doc.code]: { received: true, verified: false, remark: doc.remark } }));
+    }
+    const rec = metaFile(id, 'applicant_document', file, { applicant: a.seq, ...(doc ? { doc: doc.code } : {}), title: title.slice(0, 120) });
+    if (changes.length) { delete UI.vals[`chk-${id}-${a.seq}`]; a.checklistUpdated = who; UI.docTab[`${id}-${a.seq}`] = 'received'; }
+    addVH(id, `Document uploaded: ${VF.displayName(a)}`, { detail: [`${doc ? doc.label : 'Other document'}: ${rec.title} (${rec.name}, ${rec.size})`, ...changes].join(' · ') });
+    saved(id);
+    TN.closeOverlay();
+    UI.flash[id] = `Document uploaded for ${VF.displayName(a)} as “${rec.title}”.`;
+    TN.refresh();
+  });
+  TN.act('vw-doc-received', (el) => {
+    const { id, seq, code } = el.dataset;
+    if (!guardVisa(id)) return;
+    const a = applicantBySeq(id, seq);
+    if (!canEditApplicant(id, a)) { refuse('This passenger’s documents can no longer be changed.'); return; }
+    const d = VF.docList(a).find((x) => x.code === code);
+    if (!d || d.status !== 'missing') { TN.refresh(); return; }
+    const changes = VF.applyChecklist(a, { [code]: { received: true, verified: false, remark: d.remark } });
+    delete UI.vals[`chk-${id}-${a.seq}`];
+    a.checklistUpdated = VF.actor();
+    addVH(id, `Checklist updated: ${VF.displayName(a)}`, { detail: changes.join(' · ') });
+    saved(id);
+    TN.refresh();
+  });
+
+  /* Appointment: every save touches one passenger only. */
+  const apptEditor = (id, a) => {
+    if (!guardVisa(id)) return false;
+    if (!a || !VF.isActive(a)) { refuse('This passenger is not on the booking.'); return false; }
+    return true;
+  };
+  TN.act('vw-appt-open', (el) => { const { id, seq } = el.dataset; if (apptEditor(id, applicantBySeq(id, seq))) appointmentDrawer(id, Number(seq)); });
+  TN.act('vw-appt-details', (el) => appointmentDetails(el.dataset.id, Number(el.dataset.seq)));
+  TN.act('vw-appt-status-open', (el) => { const { id, seq } = el.dataset; if (apptEditor(id, applicantBySeq(id, seq))) appointmentStatusDrawer(id, Number(seq)); });
+  TN.act('vw-appt-save', (f) => {
+    const v = fd(f); const id = v.task; const s = S[id];
+    const a = s ? applicantBySeq(id, v.seq) : null;
+    if (!apptEditor(id, a)) return;
+    const before = VF.appointmentRow(s, a);
+    const res = VF.saveAppointment(s, a, v, VF.actor());
+    if (!res.ok) { TN.refresh(); appointmentDrawer(id, a.seq, v, res.errors); return; }
+    const when = apptWhen(res.record).replace(/<[^>]+>/g, '');
+    addVH(id, `${res.changed ? 'Appointment rescheduled' : before.record && before.status !== 'cancelled' ? 'Appointment updated' : 'Appointment scheduled'}: ${VF.displayName(a)}`, { detail: `${when} · ${res.record.centre}` });
+    saved(id);
+    TN.closeOverlay();
+    UI.flash[id] = `Appointment saved for ${VF.displayName(a)}.`;
+    TN.refresh();
+  });
+  TN.act('vw-appt-status', (f) => {
+    const v = fd(f); const id = v.task; const s = S[id];
+    const a = s ? applicantBySeq(id, v.seq) : null;
+    if (!apptEditor(id, a)) return;
+    const res = VF.setAppointmentStatus(s, a, v.status, VF.actor());
+    if (!res.ok) { TN.toast(res.error, 'danger'); return; }
+    addVH(id, `Appointment status: ${VF.displayName(a)}: ${res.label}`);
+    saved(id);
+    TN.closeOverlay();
+    UI.flash[id] = `Appointment status updated for ${VF.displayName(a)}.`;
+    TN.refresh();
+  });
+  TN.act('vw-emb-open', (el) => { const { id, seq } = el.dataset; const s = S[id]; if (!s || s.dept !== 'visa' || !applicantBySeq(id, seq)) { refuse('This passenger is not on the booking.'); return; } embassyDrawer(id, Number(seq)); });
+  TN.act('vw-emb-save', (f) => {
+    const v = fd(f); const id = v.task; const s = S[id];
+    const a = s ? applicantBySeq(id, v.seq) : null;
+    if (!apptEditor(id, a)) return;
+    const status = v.status === 'submitted' ? 'submitted' : v.status === 'not_submitted' ? 'not_submitted' : '';
+    const date = String(v.date || '').trim();
+    const errors = {};
+    if (!status) errors.status = 'Choose Submitted or Not submitted.';
+    if (status === 'submitted') {
+      if (!VF.validDate(date)) errors.date = 'Enter the date the application was submitted to the embassy.';
+      else if (date > VF.todayIST()) errors.date = 'The submission date cannot be in the future.';
+    }
+    if (Object.keys(errors).length) { TN.refresh(); embassyDrawer(id, a.seq, v, errors); return; }
+    const rec = { status, date: status === 'submitted' ? date : '', reference: String(v.reference || '').trim().slice(0, 120), remarks: String(v.remarks || '').trim().slice(0, 300), set: VF.actor() };
+    s.workflow = s.workflow || {};
+    s.workflow.embassy = { ...(s.workflow.embassy || {}), [a.paxId]: rec };
+    addVH(id, `Embassy submission: ${VF.displayName(a)}: ${EMB_WORD[status]}`, { detail: [rec.date ? TN.fmt.date(rec.date) : '', rec.reference ? `Reference ${rec.reference}` : '', rec.remarks].filter(Boolean).join(' · ') });
+    saved(id);
+    TN.closeOverlay();
+    UI.flash[id] = `Embassy status saved for ${VF.displayName(a)}.`;
+    TN.refresh();
+  });
+  TN.act('vw-resolve', (f) => {
+    const v = fd(f); const id = v.task; const s = S[id]; const k = `res-${id}`;
+    if (!s || s.dept !== 'visa' || !TN.can('resolveVisaRoute')) { refuse('Only the branch Manager can confirm the appointment requirement.'); return; }
+    UI.vals[k] = v; UI.ferr[k] = {};
+    const res = VF.resolveRequirement(s, v, VF.actor());
+    if (!res.ok) { UI.ferr[k] = res.errors; TN.refresh(); return; }
     delete UI.vals[k]; delete UI.ferr[k];
-    addH(v.task, `Applicant ${a.seq}: Submitted (reference recorded)`);
+    addVH(id, `Appointment requirement confirmed: ${v.value === 'required' ? 'Required' : 'Not required'}`, { detail: `Reason: ${v.reason.trim()}` });
+    saved(id);
+    UI.flash[id] = 'Appointment requirement confirmed.';
+    TN.refresh();
+  });
+
+  /* Application plan */
+  TN.act('vw-plan-date', (el) => {
+    const out = document.querySelector(`#plan-${el.dataset.id}-warn`);
+    if (out) out.textContent = VF.planWarnings(S[el.dataset.id], el.value).join(' ');
+  });
+  TN.act('vw-plan-save', (f) => {
+    const v = fd(f); const id = v.task; const s = S[id]; const k = `plan-${id}`;
+    if (!guardVisa(id)) return;
+    UI.vals[k] = v; delete UI.err[k]; UI.ferr[k] = {};
+    const res = VF.savePlan(s, { ...v, paxIds: typedChecks(v) }, VF.actor());
+    if (!res.ok) { UI.ferr[k] = res.errors; UI.err[k] = 'Some details are missing or wrong.'; TN.refresh(); return; }
+    delete UI.vals[k]; delete UI.ferr[k];
+    addVH(id, `Application planned for ${TN.fmt.date(v.date)}`, { detail: res.chosen.map(VF.displayName).join(', ') });
+    saved(id);
+    UI.flash[id] = 'Application plan saved. Nothing has been submitted.';
+    if (res.warnings.length) TN.toast('Check this date', 'warning', res.warnings.join(' '));
+    TN.refresh();
+  });
+
+  /* Later steps: same behaviour, now guarded, with the real clock. */
+  TN.act('fv-outcome-change', (el) => { const f = el.closest('form'); const v = fd(f); UI.vals[`out-${v.task}-${v.seq}`] = { state: v.state }; TN.refresh(); focusLater(`#${el.id}`); });
+  TN.act('fv-visa-submit', (f) => {
+    const v = fd(f); const s = S[v.task]; const k = `sub-${v.task}-${v.seq}`;
+    if (!guardVisa(v.task)) return;
+    const a = applicant(v.task, v.seq);
+    UI.vals[k] = v; UI.ferr[k] = {}; delete UI.err[k];
+    const block = submitBlock(s, a);
+    if (block) { UI.err[k] = block; TN.refresh(); return; }
+    if (!String(v.reference || '').trim()) { UI.ferr[k].reference = 'Enter the reference the authority gave.'; UI.err[k] = 'Enter the reference the authority gave.'; TN.refresh(); return; }
+    if (!VF.validDate(v.submittedOn) || v.submittedOn > VF.todayIST()) { UI.ferr[k].submittedOn = 'Enter the applied date (today or earlier).'; UI.err[k] = 'Enter the applied date (today or earlier).'; TN.refresh(); return; }
+    if (!VF.RETURN_MODES.some(([m]) => m === v.returnMode)) { UI.ferr[k].returnMode = 'Choose how it comes back. Use “Not known yet” if the centre has not said.'; UI.err[k] = 'Choose how it comes back from the embassy.'; TN.refresh(); return; }
+    const appt = VF.appointmentOf(s, a);
+    Object.assign(a, { state: 'submitted', reference: v.reference.trim(), submittedAt: v.submittedOn, returnMode: v.returnMode, returnNote: String(v.returnNote || '').trim(), appointmentAt: appt ? appt.at : a.appointmentAt || null, appointmentPlace: appt ? appt.centre : a.appointmentPlace || null });
+    delete UI.vals[k]; delete UI.ferr[k];
+    addVH(v.task, `Applicant ${a.seq}: Submitted (reference recorded)`, { detail: `Applied ${TN.fmt.date(a.submittedAt)} · Comes back: ${VF.returnWord(a)}` });
+    saved(v.task);
     UI.flash[v.task] = 'Submission recorded. Nothing is issued until the authority decides.';
     TN.refresh();
   });
+  TN.act('vw-return-save', (f) => {
+    const v = fd(f);
+    if (!guardVisa(v.task)) return;
+    const a = applicant(v.task, v.seq);
+    if (!a || !['submitted', 'decision_pending'].includes(a.state)) { refuse('This application is not waiting at the embassy.'); return; }
+    if (!VF.RETURN_MODES.some(([m]) => m === v.returnMode)) { TN.toast('Choose how it comes back from the embassy.', 'danger'); return; }
+    a.returnMode = v.returnMode; a.returnNote = String(v.returnNote || '').trim();
+    addVH(v.task, `Applicant ${a.seq}: Return details updated`, { detail: `Comes back: ${VF.returnWord(a)}${a.returnNote ? ` (${a.returnNote})` : ''}` });
+    saved(v.task);
+    UI.flash[v.task] = 'Return details saved.';
+    TN.refresh();
+  });
   function closeIfAllDone(id) {
-    const s = S[id];
-    if (s.applicants.every(isClosed) && s.taskStatus !== 'done') {
-      s.taskStatus = 'done'; s.doneAt = NOW(); addH(id, 'Task completed', { by: null });
+    const s = S[id]; const list = VF.activeApplicants(s);
+    if (list.length && list.every(isClosed) && s.taskStatus !== 'done') {
+      s.taskStatus = 'done'; s.doneAt = VF.nowIST(); VF.addHistory(id, 'Task completed', { ...VF.actor(), by: null });
       UI.flash[id] = 'Every applicant is closed, so the task is complete.';
     }
   }
   TN.act('fv-visa-state', (f) => {
-    const v = fd(f); const a = applicant(v.task, v.seq);
+    const v = fd(f);
+    if (!guardVisa(v.task)) return;
+    const a = applicant(v.task, v.seq); const today = VF.todayIST();
     const words = { decision_pending: ['Waiting for decision', 'Marked as waiting for the authority’s decision.'], documents_returned: ['Documents returned to the customer', 'Documents recorded as returned.'], customer_informed: ['Customer informed', 'Recorded that the customer was informed.'], withdrawn: ['application withdrawn', 'Application withdrawn.'] }[v.state];
     if (v.state === 'decision_pending' || v.state === 'withdrawn') a.state = v.state;
-    if (v.state === 'withdrawn') a.outcomeAt = TN.TODAY;
-    if (v.state === 'documents_returned') { a.documentsReturnedAt = TN.TODAY; a.documentsReturnedBy = me(); }
-    if (v.state === 'customer_informed') a.customerInformedAt = TN.TODAY;
-    addH(v.task, `Applicant ${a.seq}: ${words[0]}`);
+    if (v.state === 'withdrawn') a.outcomeAt = today;
+    if (v.state === 'documents_returned') { a.documentsReturnedAt = today; a.documentsReturnedBy = me(); }
+    if (v.state === 'customer_informed') a.customerInformedAt = today;
+    addVH(v.task, `Applicant ${a.seq}: ${words[0]}`);
     UI.flash[v.task] = words[1];
     closeIfAllDone(v.task);
+    saved(v.task);
     TN.refresh();
   });
   TN.act('fv-visa-outcome', (f) => {
-    const v = fd(f); const s = S[v.task]; const a = applicant(v.task, v.seq); const k = `out-${v.task}-${v.seq}`;
+    const v = fd(f); const s = S[v.task]; const k = `out-${v.task}-${v.seq}`;
+    if (!guardVisa(v.task)) return;
+    const a = applicant(v.task, v.seq);
     UI.vals[k] = { state: v.state };
     if (!v.evidence) { UI.err[k] = 'Upload the authority’s outcome document first. ' + OUTCOME_NEEDS_DOC.split('. ')[0] + '.'; TN.refresh(); return; }
     delete UI.err[k]; delete UI.vals[k];
-    a.state = v.state; a.outcomeAt = TN.TODAY;
-    addH(v.task, `Applicant ${a.seq}: ${v.state === 'issued' ? 'Issued' : 'Refused'}`);
+    a.state = v.state; a.outcomeAt = VF.todayIST();
+    addVH(v.task, `Applicant ${a.seq}: ${v.state === 'issued' ? 'Issued' : 'Refused'}`);
     /* PENDING: visa result notice to the Deal's Sales owner. */
-    const issued = s.applicants.filter((x) => x.state === 'issued').length;
-    const waiting = s.applicants.filter((x) => x.state === 'submitted' || x.state === 'decision_pending').length;
-    const text = `Visa result: ${s.visa.country === 'United Arab Emirates' ? 'UAE' : s.visa.country} visa ${v.state === 'issued' ? 'issued' : 'refused'} for ${a.name}. ${issued} of ${s.applicants.length} issued${waiting ? `, ${waiting} still with the authority` : ''}.`;
+    const list = VF.activeApplicants(s);
+    const issued = list.filter((x) => x.state === 'issued').length;
+    const waiting = list.filter((x) => x.state === 'submitted' || x.state === 'decision_pending').length;
+    const text = `Visa result: ${s.visa.country === 'United Arab Emirates' ? 'UAE' : s.visa.country} visa ${v.state === 'issued' ? 'issued' : 'refused'} for ${a.name}. ${issued} of ${list.length} issued${waiting ? `, ${waiting} still with the authority` : ''}.`;
     pushNotice(['sales'], text, s.deal);
-    addH(v.task, `Visa result sent to ${ownerName(s.deal)} (Sales)`, { by: null, detail: text.replace('Visa result: ', '') });
+    addVH(v.task, `Visa result sent to ${ownerName(s.deal)} (Sales)`, { by: null, detail: text.replace('Visa result: ', '') });
+    saved(v.task);
     UI.flash[v.task] = `Outcome recorded with the authority’s document. ${ownerName(s.deal)} (Sales) has a notice.`;
     TN.refresh();
   });
@@ -1128,6 +1813,6 @@
   const section = 'What needs you';
   TN.homeRow({ roles: ['flight'], section, label: 'Tickets to mark done', count: () => myFlights().filter((t) => readyToFinish(t.id)).length, get href() { return firstHref(myFlights().filter((t) => readyToFinish(t.id)), 'flight', '#/app/flight?show=mine'); } });
   TN.homeRow({ roles: ['flight'], section, label: 'Flight costs returned by Accounts', count: () => returnedOf(myFlights()).reduce((n, t) => n + costsOf(t.id).filter((c) => c.status === 'returned').length, 0), get href() { return firstHref(returnedOf(myFlights()), 'flight', '#/app/flight?show=mine'); } });
-  TN.homeRow({ roles: ['visa'], section, label: 'Travellers waiting for a visa result', count: () => myVisas().reduce((n, t) => n + t.s.applicants.filter((a) => a.state === 'submitted' || a.state === 'decision_pending').length, 0), get href() { return firstHref(myVisas(), 'visa', '#/app/visa?show=mine'); } });
+  TN.homeRow({ roles: ['visa'], section, label: 'Travellers waiting for a visa result', count: () => myVisas().reduce((n, t) => n + VF.activeApplicants(t.s).filter((a) => a.state === 'submitted' || a.state === 'decision_pending').length, 0), get href() { return firstHref(myVisas(), 'visa', '#/app/visa?show=mine'); } });
   TN.homeRow({ roles: ['visa'], section, label: 'Visa costs returned by Accounts', count: () => returnedOf(myVisas()).reduce((n, t) => n + costsOf(t.id).filter((c) => c.status === 'returned').length, 0), get href() { return firstHref(returnedOf(myVisas()), 'visa', '#/app/visa?show=mine'); } });
 })();

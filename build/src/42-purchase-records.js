@@ -17,6 +17,16 @@
   const money = (value) => value == null ? '' : TN.fmt.inr(value);
   const email = (value) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value);
   const validDate = (value) => value && Number.isFinite(Date.parse(value)) && Date.parse(value) <= Date.now() + 60000;
+  // Manual sent-email recording: say exactly which piece is missing.
+  const nowLocal = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
+  function manualIssue(f, values, what) {
+    if (f.get('sentAttested') !== 'yes') return `Tick “I sent this ${what} outside the CRM.”`;
+    if (!values.sentAt) return 'Enter the date and time you sent the email (both date and time).';
+    if (!Number.isFinite(Date.parse(values.sentAt))) return 'Enter a valid date and time for when you sent the email.';
+    if (Date.parse(values.sentAt) > Date.now() + 60000) return 'The sent time cannot be in the future. Enter when you actually sent the email.';
+    if (!values.manualReference) return 'Enter the sent email reference or mailbox link, for example the e-mail subject and time, or its Gmail or Outlook link.';
+    return '';
+  }
   const amount = (value) => { const n = Number(String(value || '').replace(/[₹,\s]/g, '')); return Number.isFinite(n) && n > 0 ? n : NaN; };
   const badge = (label, tone = 'neutral') => `<span class="records-badge is-${tone}">${esc(label)}</span>`;
   const control = (act, id, req, text, extra = '') => `<button type="button" class="button secondary" data-act="${act}" data-id="${esc(id)}" data-request="${esc(req || '')}" ${extra}>${text}</button>`;
@@ -47,7 +57,7 @@
   function composerExtra() {
     return `<p class="records-note">${canSend() ? 'A mail provider is connected. Review the requirements and send.' : 'No email service is connected. Copy or save a draft, send it from your email app, then record the sent email. No inbox synchronization is configured.'}</p>
       ${field('from', 'Sender email', 'email', 'value="purchase.jodhpur@holidaychacha.in" maxlength="254"')}
-      <fieldset class="records-manual"><legend>Manual sent-email recording</legend>${field('sentAt', 'Date and time sent', 'datetime-local')}${field('manualReference', 'Sent email reference / mailbox link', 'text', 'maxlength="500"')}${field('messageId', 'Actual Message-ID (if available)', 'text', 'maxlength="500"')}<label class="choice"><input type="checkbox" name="sentAttested" value="yes"/> I sent this request outside the CRM.</label></fieldset>`;
+      <fieldset class="records-manual"><legend>Manual sent-email recording</legend>${field('sentAt', 'Date and time sent', 'datetime-local', `value="${nowLocal()}" max="${nowLocal()}"`)}${field('manualReference', 'Sent email reference / mailbox link', 'text', 'maxlength="500"')}${field('messageId', 'Actual Message-ID (if available)', 'text', 'maxlength="500"')}<label class="choice"><input type="checkbox" name="sentAttested" value="yes"/> I sent this request outside the CRM.</label></fieldset>`;
   }
   function composerFooter() {
     return `<div class="booking-actions"><button type="button" class="button secondary" data-act="pur-rate-request-copy">Copy draft</button><button type="submit" form="pur-mail-form" class="button secondary" data-mode="draft">Save draft</button><button type="submit" form="pur-mail-form" class="button" data-mode="manual">Record manually sent</button>${canSend() ? '<button type="submit" form="pur-mail-form" class="button" data-mode="send">Send email</button>' : ''}</div>`;
@@ -77,7 +87,7 @@
     const ccText = String(f.get('cc') || '').trim();
     const cc = [...new Map(ccText.split(/[,;]/).map((x) => x.trim()).filter(Boolean).map((x) => [x.toLowerCase(), x])).values()];
     if (!email(values.to) || !email(values.from) || !values.subject || !values.body || values.subject.length > 200 || values.body.length > 12000 || ccText.length > 1000 || cc.some((x) => !email(x))) return fail(form, 'Enter valid To, CC, sender, subject and booking requirements.');
-    if (mode === 'manual' && (f.get('sentAttested') !== 'yes' || !values.manualReference || !validDate(values.sentAt))) return fail(form, 'Confirm external sending and enter its sent time and mailbox reference.');
+    if (mode === 'manual') { const issue = manualIssue(f, values, 'request'); if (issue) return fail(form, issue); }
     busy(form, true);
     try {
       const delivery = mode === 'send' ? await deliver(form, { taskId: id, purpose: 'rate', to: values.to, cc, from: values.from, subject: values.subject, body: values.body }) : null;

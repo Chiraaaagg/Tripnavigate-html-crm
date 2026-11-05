@@ -112,7 +112,7 @@
       ${field('body', 'Booking email preview', `<textarea id="bk-body" name="body" rows="15" maxlength="12000" required>${esc(draft?.body || template.body)}</textarea>`)}
       ${field('attachment', 'Attach file (optional)', input('attachment', '', 'file', 'accept="application/pdf,image/jpeg,image/png,image/webp"'))}<small>PDF, JPG, PNG or WebP, up to 4 MB. ${draft?.attachments?.length ? 'Previously saved attachment: ' + esc(draft.attachments[0].name) : ''}</small>
       <fieldset><legend>Manual sent-email record</legend>
-      ${field('sentAt', 'Date and time sent', input('sentAt', '', 'datetime-local'))}
+      ${field('sentAt', 'Date and time sent', input('sentAt', nowLocal(), 'datetime-local'))}
       ${field('manualReference', 'Sent email reference / mailbox link', input('manualReference', '', 'text', 'maxlength="500"'))}
       ${field('messageId', 'Actual email Message-ID (if available)', input('messageId', '', 'text', 'maxlength="500"'))}
       <label class="choice"><input type="checkbox" name="sentAttested" value="yes"/> I sent this booking request outside the CRM.</label></fieldset>
@@ -133,6 +133,16 @@
   }
   const emailValid = (value) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value);
   const dateValid = (value) => value && Number.isFinite(Date.parse(value)) && Date.parse(value) <= Date.now() + 60000;
+  // Manual sent-email recording: say exactly which piece is missing.
+  const nowLocal = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
+  function manualIssue(f, values, what) {
+    if (f.get('sentAttested') !== 'yes') return `Tick “I sent this ${what} outside the CRM.”`;
+    if (!values.sentAt) return 'Enter the date and time you sent the email (both date and time).';
+    if (!Number.isFinite(Date.parse(values.sentAt))) return 'Enter a valid date and time for when you sent the email.';
+    if (Date.parse(values.sentAt) > Date.now() + 60000) return 'The sent time cannot be in the future. Enter when you actually sent the email.';
+    if (!values.manualReference) return 'Enter the sent email reference or mailbox link, for example the e-mail subject and time, or its Gmail or Outlook link.';
+    return '';
+  }
   TN.act('pur-booking-save-request', async (form, event) => {
     if (form.dataset.busy === 'true' || form.dataset.saved === 'true') return;
     const id = form.dataset.id, f = new FormData(form);
@@ -143,7 +153,7 @@
     if (eligible.reason) return error(form, eligible.reason);
     if (String(eligible.cost.v) !== form.dataset.costVersion) return error(form, 'The agreed cost changed. Reopen the booking preview.');
     if (!emailValid(values.to) || !emailValid(values.from) || !values.subject || !values.body || values.subject.length > 200 || values.body.length > 12000) return error(form, 'Enter valid sender, recipient, subject and booking message.');
-    if (manual && (f.get('sentAttested') !== 'yes' || !dateValid(values.sentAt) || !values.manualReference)) return error(form, 'Confirm that you sent the email externally, and enter its sent time and mailbox reference.');
+    if (manual) { const issue = manualIssue(f, values, 'booking request'); if (issue) return error(form, issue); }
     busy(form, true);
     try {
       const existing = findRequest(id, form.dataset.request);

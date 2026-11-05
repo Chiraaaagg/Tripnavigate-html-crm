@@ -70,7 +70,7 @@ async function main() {
   assert.match(failed.alert.textContent, /quota/); assert.equal(c.W.t.bookingRequests[0].status, 'draft'); assert.equal(c.W.t.emails.length, 1);
   c.TN.purchase.persist = persist;
   // Manual sent recording needs an explicit attestation, timestamp and mailbox reference.
-  let f = requestForm(c); await c.handlers['pur-booking-save-request'](f, event('manual')); assert.match(f.alert.textContent, /Confirm that you sent/);
+  let f = requestForm(c); await c.handlers['pur-booking-save-request'](f, event('manual')); assert.match(f.alert.textContent, /I sent this booking request outside the CRM/);
   f = requestForm(c, 'manual'); await Promise.all([c.handlers['pur-booking-save-request'](f, event('manual')), c.handlers['pur-booking-save-request'](f, event('manual'))]);
   assert.equal(c.W.t.bookingRequests.length, 1); assert.equal(c.W.t.bookingRequests[0].status, 'manual_sent');
   assert.equal(c.W.t.bookingRequests[0].providerMessageId, '<mail@example.com>');
@@ -141,7 +141,10 @@ function smoke() {
   let count = 0;
   for (const [id, service] of Object.entries(c.TN.DATA.services)) {
     if (service.dept !== 'purchase' || service.kind !== 'hotel') continue;
-    const html = pages.get('/app/purchase/:taskId').render({ taskId: id }, { tab: 'work' });
+    // Short flow: the Work tab shows one step at a time; every step must render.
+    for (const step of ['take', 'final', 'confirm', 'pay']) pages.get('/app/purchase/:taskId').render({ taskId: id }, { tab: 'work', step });
+    pages.get('/app/purchase/:taskId').render({ taskId: id }, { tab: 'work' });
+    const html = pages.get('/app/purchase/:taskId').render({ taskId: id }, { tab: 'work', step: 'rates' });
     assert.match(html, /Rates &amp; Booking Records/); assert.match(html, /rate-records-grid/); if (c.TN.purchaseRecords.entries(id).length) { assert.match(html, /Rate Request Status/); assert.match(html, /Booking Request Status/); assert.match(html, /vs Budget/); } else assert.match(html, /No records yet/); assert.doesNotMatch(html, /id="work-mails"/); count++;
   }
   console.log('PASS: actual core/data/Purchase modules rendered ' + count + ' hotel Work tabs without runtime errors.');

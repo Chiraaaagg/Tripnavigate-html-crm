@@ -90,3 +90,21 @@ Flight and Visa see only their own costs, the approved budget and their own paym
 5. **Can Flight mark done while the payment request still waits for the Manager?** Recommended: yes (the airline is paid through Accounts later); the request status stays visible on the task.
 6. **Passport mask style**: live shows `••••4821`; the lead's brief example was `Z••••4821`. Built as live. Recommended: keep live.
 7. **Visa per-traveller fees on the invoice when one fee line covers all travellers**: recommended: split equally per traveller unless the desk records per-traveller fees.
+
+## 7. Visa early workflow (4 Nov 2026)
+
+Rules: `build/src/49-visa-workflow.js` (`TN.visaFlow`). Screens and actions: `build/src/50-flight-visa.js`. Tests: `build/tests/visa-workflow.test.js`.
+
+Records on a Visa task:
+
+- `s.visa`: country, purpose, travelDate, feePaidBy (company, customer, undecided), requirements, optional applyBy. Passport tasks have `s.passport` instead, and neither may be assumed.
+- `s.applicants[]`: seq, paxId (stable), name, type, then only what Sales gave. `a.state` is the actual application state. `a.documents[].status` stays missing, received or checked, so the later steps read it unchanged. `a.removedFromBooking` flags a passenger; nothing is deleted.
+- `s.workflow`: appointments (one record per passenger since the 4 November rebuild; older shared records still read, with a per-passenger status), plans keyed by paxId, embassy keyed by paxId, resolution, changes.
+- Appointment is edited only in its table after the last applicant. Embassy status is reached from the same table. Neither moves the application state, the visa result or the task.
+
+Decisions to confirm before the real build:
+
+1. **Who settles a Not configured route?** Built: the branch Manager only, with a reason (`TN.CAPS.resolveVisaRoute`). This is a small new grant to the Manager; the executive who works the task cannot.
+2. **Must a plan exist before the actual submission?** Built: no. Documents and the appointment requirement block the submission; a plan does not, so tasks already in flight keep working.
+3. **Checklist not configured for a passenger type** (for example an infant on France): that passenger stays blocked and the others continue. There is no override yet; the configuration must be extended.
+4. **Passport tasks** have applicants, costs, files and History but no application steps yet, so a passport task cannot be completed.

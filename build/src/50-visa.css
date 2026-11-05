@@ -1,0 +1,7 @@
+/* Visa passenger table: seven columns need tighter side padding above phone width.
+   Phones use the stacked rows, which are left alone. */
+@media (min-width: 640px) {
+  .vw-pax th, .vw-pax td { padding-left: 0.625rem; padding-right: 0.625rem; }
+  .vw-pax th:first-child, .vw-pax td:first-child { padding-left: 1.125rem; }
+  .vw-pax th:last-child, .vw-pax td:last-child { padding-right: 1.125rem; }
+}

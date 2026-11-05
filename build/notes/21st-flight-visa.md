@@ -9,3 +9,7 @@ Tool: connected 21st.dev search (`mcp__b7058f30-...__search`, type component). O
 | 3 | `confirm dialog` | shadcn Alert Dialog, originui Dialog and Alert Dialog, soralabs Base Alert Dialog, ephraimduncan Dialog Info. | Idea only | A confirm step before an action that locks the task. Built with the live Dialog (`TN.dialog`, Agent A's live Dialog markup): title, a short summary list, Cancel and "Mark flight done". |
 
 No new CSS file. Every class used exists in `build/live.css`.
+
+## Visa early workflow, 4 Nov 2026
+
+The 21st.dev tool was not connected in this session, so no search was made and nothing was sent to it. The screens reuse existing CRM patterns only: Card, Notice, StatusBadge, Table, Drawer, Timeline and the checkbox and field helpers. Please run a 21st.dev pass on the checklist drawer when the tool is back.

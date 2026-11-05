@@ -813,13 +813,13 @@ function openPaxDrawer(id){
   drawer(`Passenger details`,'',`
     <div class="g2"><div class="f"><label>Full name</label><input class="in" id="pdName" value="${esc(p.name)}"></div>
     <div class="f"><label>Passenger type</label><input class="in" readonly value="${p.type}"><span class="hint">Set by the traveller counts.</span></div></div>
-    ${p.type!=='Adult'?`<div class="f"><label>Age at travel</label><input class="in" inputmode="numeric" style="max-width:120px"></div>`:''}
+    ${p.type!=='Adult'?`<div class="f"><label for="pdAge">Age at travel</label><input class="in" id="pdAge" inputmode="numeric" style="max-width:120px" value="${esc(p.age??'')}"></div>`:''}
     ${mselField('pdReqs','Special requests',reqs,'')}
     <div class="f"><label>Other requirements <span class="opt">(optional)</span></label><textarea class="in" rows="2"></textarea></div>
     <div class="grp"><h3>Private details</h3><div class="note lock">${ic('lock')}<div>Phone, email and date of marriage: only the deal owner, the branch Manager and the Flight or Visa &amp; Passport colleague who needs them. Date of birth is also shown to Purchase on its task, with the ID proof.</div></div>
-      <div class="g2"><div class="f"><label>Date of birth <span class="opt">(optional)</span></label><input class="in" type="date"></div><div class="f"><label>Date of marriage <span class="opt">(optional)</span></label><input class="in" type="date"></div>
+      <div class="g2"><div class="f"><label for="pdDob">Date of birth <span class="opt">(optional)</span></label><input class="in" id="pdDob" type="date" value="${esc(p.dob??'')}"></div><div class="f"><label>Date of marriage <span class="opt">(optional)</span></label><input class="in" type="date"></div>
       <div class="f"><label>Phone <span class="opt">(optional)</span></label><input class="in" type="tel"></div><div class="f"><label>Email <span class="opt">(optional)</span></label><input class="in" type="email"></div></div></div>`,
-   'Save passenger',()=>{p.name=$('#pdName').value;p.reqs=reqs;return true},'Passenger details saved. They are visible only to the people who need them.',()=>bindMsel('pdReqs',PAX_REQS,reqs));
+   'Save passenger',()=>{p.name=$('#pdName').value;p.reqs=reqs;p.dob=$('#pdDob').value;const ag=$('#pdAge');if(ag)p.age=ag.value.replace(/\D/g,'');return true},'Passenger details saved. They are visible only to the people who need them.',()=>bindMsel('pdReqs',PAX_REQS,reqs));
 }
 function toast(t){$('#bf-toast').innerHTML=`<div class="toast" role="status">${esc(t)}</div>`;clearTimeout(timers.t);timers.t=setTimeout(()=>$('#bf-toast').innerHTML='',3200)}
 
@@ -1049,13 +1049,13 @@ function openEditor(k,existing,isCopy,banner){
   const o=structuredClone(existing||{id:null,name:'',city:'',date:'',country:'',vtype:'Tourism',atype:'Fresh',fee:'Not decided yet',req:'',pax:k==='passport'?[]:everyone()});
   const bodies={
     activity:`<div class="g2"><div class="f"><label>Activity</label><input class="in" id="oName" value="${esc(o.name)}"></div><div class="f"><label>City / location</label><input class="in" id="oCity" value="${esc(o.city)}"></div><div class="f"><label>Required date</label><input class="in" type="date" id="oDate" value="${esc(o.date)}"></div></div>`,
-    visa:`<div class="g2"><div class="f"><label>Visa type</label><select class="in" id="oVtype">${['Tourism','Business','Visiting family','Transit'].map(v=>`<option ${o.vtype===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="f"><label>Country</label><input class="in" id="oCountry" value="${esc(o.country)}"></div><div class="f"><label>Planned travel date</label><input class="in" type="date" id="oDate" value="${esc(o.date||trip().start)}"></div><div class="f"><label>Government fee paid by</label><select class="in"><option>Not decided yet</option><option>Customer pays directly</option><option>Company pays (recorded for Accounts review)</option></select></div></div>`,
+    visa:`<div class="g2"><div class="f"><label>Visa type</label><select class="in" id="oVtype">${['Tourism','Business','Visiting family','Transit'].map(v=>`<option ${o.vtype===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="f"><label>Country</label><input class="in" id="oCountry" value="${esc(o.country)}"></div><div class="f"><label>Planned travel date</label><input class="in" type="date" id="oDate" value="${esc(o.date||trip().start)}"></div><div class="f"><label for="oFee">Government fee paid by</label><select class="in" id="oFee">${['Not decided yet','Customer pays directly','Company pays (recorded for Accounts review)'].map(v=>`<option ${o.fee===v?'selected':''}>${v}</option>`).join('')}</select></div></div>`,
     passport:`<div class="g2"><div class="f"><label>Application type</label><select class="in" id="oAtype">${['Fresh','Renewal','Tatkaal','Minor'].map(v=>`<option ${o.atype===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="f"><label>City / location</label><input class="in" id="oCity" value="${esc(o.city)}"><span class="hint">The passport office city.</span></div></div>`
   };
   drawer(k==='activity'?(isNew?'Add activity':'Edit activity'):k==='visa'?'Visa requirements':'Passport requirements','',
     bodies[k]+travChips(o.pax,k==='passport'?'Applicant':k==='activity'?'Who takes part':'Who needs a visa')+`<div class="f"><label>Requirements <span class="opt">(optional)</span></label><textarea class="in" id="oReq">${esc(o.req)}</textarea></div>`,
     k==='activity'?'Save activity':'Save requirements',()=>{
-      o.name=$('#oName')?.value.trim()??o.name;o.city=$('#oCity')?.value.trim()??o.city;o.date=$('#oDate')?.value??o.date;o.country=$('#oCountry')?.value.trim()??o.country;o.vtype=$('#oVtype')?.value??o.vtype;o.atype=$('#oAtype')?.value??o.atype;o.req=$('#oReq').value;
+      o.name=$('#oName')?.value.trim()??o.name;o.city=$('#oCity')?.value.trim()??o.city;o.date=$('#oDate')?.value??o.date;o.country=$('#oCountry')?.value.trim()??o.country;o.vtype=$('#oVtype')?.value??o.vtype;o.fee=$('#oFee')?.value??o.fee;o.atype=$('#oAtype')?.value??o.atype;o.req=$('#oReq').value;
       const e=k==='activity'&&(!o.name||!o.city||!o.date)?'Add the activity, city and date.':k==='visa'&&(!o.country||!o.date)?'Add the country and the planned travel date.':k==='passport'&&!o.city?'Add the passport office city.':'';
       return e||save(o)},k==='activity'?'Activity saved.':'Requirements saved.',()=>bindChips(o.pax));
 }
@@ -1097,6 +1097,7 @@ window.addEventListener('keydown',e=>{if(!R())return;if(e.key==='Escape'){if($('
    registration, submit, the reported-payment send and the Bill To search.
    ===================================================================== */
 const STATES={};
+const SUBMITTED={}; // the last submitted draft per Deal: a returned booking reopens from it, so departments keep their tasks
 const nowHM=()=>{const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
 const meKey=()=>TN.me().key;
 const OPEN_STATES=['not_started','quotation_accepted','in_progress','ready_to_submit','returned'];
@@ -1121,6 +1122,11 @@ function bxFromDeal(d){
 function stateFor(id){
   if(STATES[id])return STATES[id];
   const d=TN.deal(id);
+  if(SUBMITTED[id]&&d.bookingState==='returned'){
+    const back=SUBMITTED[id];delete SUBMITTED[id];
+    back.version=(d.bookingVersion||back.version)+1;back.returned=d.returnReason||'';
+    return STATES[id]=back;
+  }
   S=freshState();S.dealId=id;S.bx=bxFromDeal(d);
   for(const k of ['name','phone','email']) if(S.bx[k]&&!S.cust[k]) S.cust[k]=S.bx[k];   // auto-fill, no "Use Bitrix value" clicks
   syncPaxSlots();
@@ -1250,20 +1256,25 @@ function flightBudget(f){
 function submitBooking(){
   const d=TN.deal(S.dealId),ps=priceState(),me=TN.me(),num3=d.id.slice(-3);
   const rows=[];
-  const add=(r,svc)=>rows.push({srcId:r.srcId,svc});
+  const add=(r,svc)=>rows.push({srcId:r.srcId,svc,r});
   S.svc.hotel.forEach(r=>add(r,{kind:'hotel',dept:'purchase',title:`${r.hotel}, ${r.city}`,detail:[plural(Number(r.nights),'night'),roomsText(r),r.room,r.meal].filter(Boolean).join(' · '),start:r.checkin,end:addDays(r.checkin,r.nights),goAhead:'waiting',budget:hotelCost(r)}));
   S.svc.car.forEach(r=>add(r,{kind:'transfer',dept:'purchase',title:`${CAR_KINDS[r.kind]}: ${r.kind==='full'?r.route:r.pickup+' to '+r.drop}`,detail:`${r.qty} × ${r.vehicle}${r.time?' · '+r.time:''}`,start:r.kind==='full'?r.start:r.date,end:r.kind==='full'?r.end:r.date,goAhead:null,budget:r.rate?Number(r.rate)*Number(r.qty):null}));
   const typedFare=['A','C','I'].reduce((s,k)=>s+(S.fare[k]?Number(S.fare[k])*flyersOf(k):0),0);
   S.svc.flight.forEach((r,i)=>add(r,{kind:'flight',dept:'flight',title:r.mode==='shot'?`Flight from screenshot${r.note?': '+r.note:''}`:`${r.from} to ${r.to}`,detail:[[r.airline,r.no].filter(Boolean).join(' '),plural(r.pax.length,'passenger')].filter(Boolean).join(' · '),start:r.date,end:r.adate||r.date,budget:flightBudget(r)??(i===0&&typedFare?typedFare:null)}));
   S.svc.activity.forEach(r=>add(r,{kind:'activity',dept:'purchase',title:r.name,detail:`${r.city} · ${plural(r.pax.length,'person','people')}`,start:r.date,end:r.date,goAhead:null,budget:null}));
-  S.svc.visa.forEach(r=>add(r,{kind:'visa',dept:'visa',title:`${r.country} ${r.vtype.toLowerCase()} visa`,detail:plural(r.pax.length,'traveller'),start:r.date,end:r.date,budget:null}));
+  S.svc.visa.forEach(r=>add(r,{kind:'visa',dept:'visa',title:`${r.country} ${r.vtype.toLowerCase()} visa`,detail:plural(r.pax.filter(id=>S.pax.some(p=>p.id===id)).length,'traveller'),start:r.date,end:r.date,budget:null}));
   S.svc.passport.forEach(r=>add(r,{kind:'passport',dept:'visa',title:`Passport, ${r.atype.toLowerCase()} application`,detail:`${r.city} passport office`,start:'',end:'',budget:null}));
   const ids=[];let n=0;
-  for(const {srcId,svc} of rows){
+  const nextId=kind=>{let id;do{n++;id=`s-${num3}-${kind[0]}${n}`}while(TN.DATA.services[id]);return id};
+  const VF=TN.visaFlow,who=VF.actor(),usedVisa=new Set();
+  for(const {srcId,svc,r} of rows){
+    /* Visa and passport tasks carry processing records: VF updates them, it never overwrites them. */
+    if(svc.dept==='visa'){ids.push(VF.applyBookingRow({deal:d,row:r,kind:svc.kind,svc,pax:S.pax,version:S.version,who,newId:()=>nextId(svc.kind),used:usedVisa}));continue}
     if(srcId&&TN.DATA.services[srcId]){Object.assign(TN.DATA.services[srcId],svc,{deal:d.id});ids.push(srcId);continue}
-    let id;do{n++;id=`s-${num3}-${svc.kind[0]}${n}`}while(TN.DATA.services[id]);
+    const id=nextId(svc.kind);r.srcId=id;
     TN.DATA.services[id]={deal:d.id,assignee:null,taskStatus:'new',...svc};ids.push(id);
   }
+  ids.push(...VF.flagDropped(d,ids,S.version,who));
   const cost=rows.reduce((s,r)=>s+(r.svc.budget||0),0);
   Object.assign(d,{bookingState:'waiting_for_accounts',accountsReview:'waiting',submittedAt:TN.TODAY,sellingPrice:ps.total,costEstimate:cost||null,services:ids,bookingVersion:S.version,billTo:{...S.bill},returnReason:null});
   TN.DATA.instalments=TN.DATA.instalments.filter(x=>x.deal!==d.id);
@@ -1271,7 +1282,7 @@ function submitBooking(){
   TN.DATA.notices.unshift({id:'n-bk-'+d.id+'-'+S.version,to:['accounts','checker'],kind:'notice',
     text:S.returned?`${me.name} fixed and sent again ${d.title} (version ${S.version}). Check the Bill To again.`:`New booking to check: ${d.title}, submitted by ${me.name}. ${plural(ids.length,'service')}, ${inr(ps.total)}.`,
     deal:d.id,at:TN.TODAY+' '+nowHM()});
-  delete STATES[d.id];
+  SUBMITTED[d.id]=S;delete STATES[d.id];
   TN.toast(S.returned?`Booking sent again (version ${S.version}). Departments keep their tasks. Accounts checks it next.`:`Booking submitted (version ${S.version}). ${plural(ids.length,'task')} created. Accounts checks it next.`);
   TN.go('/app/deals/'+d.id);
 }
@@ -1294,6 +1305,6 @@ TN.page('/app/deals/:id/book',{nav:'/app/deals',roles:['sales','manager'],title:
     R().addEventListener('click',e=>{if(e.target.closest('[data-gobill]'))go(3,'sec-bill')});
   }
 });
-TN.bookNow={stateFor:id=>STATES[id]||null};
+TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>{S=stateFor(id);submitBooking()}};
 
 })();
