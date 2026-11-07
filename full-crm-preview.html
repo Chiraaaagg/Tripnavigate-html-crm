@@ -5887,6 +5887,100 @@ body:has(.tn-print-root) {
   body.money-printing .money-print-root { display: block; }
 }
 
+/* Visa Work tab: step bar, same look as the Purchase progress steps. */
+.vw-steps-wrap { overflow-x: auto; scrollbar-width: thin; }
+.vw-steps.purchase-progress { grid-template-columns: repeat(6, minmax(112px, 1fr)); min-width: 672px; }
+.vw-step { display: flex; flex-direction: column; align-items: center; gap: inherit; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: center; cursor: pointer; }
+.vw-step:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 4px; border-radius: 8px; }
+.vw-steps .purchase-progress-line { overflow: hidden; }
+.vw-line-fill { display: block; height: 100%; background: #167665; }
+@media (prefers-reduced-motion: no-preference) { .vw-line-fill { transition: width 0.4s ease; } }
+.vw-when input { min-width: 126px; }
+.vw-when-read { display: flex; align-items: flex-start; gap: 6px; }
+.vw-when-read svg { flex: none; width: 16px; height: 16px; margin-top: 3px; color: var(--color-faint); }
+.vw-date { position: relative; }
+.vw-date svg { position: absolute; left: 8px; top: 50%; width: 16px; height: 16px; transform: translateY(-50%); pointer-events: none; color: var(--color-brand); }
+.vw-date input { padding-left: 29px; padding-right: 4px; }
+.vw-date input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; opacity: 0; cursor: pointer; }
+.vw-date input:disabled { cursor: not-allowed; opacity: 0.65; }
+.vw-date input:disabled + svg, .vw-date:has(input:disabled) svg { color: var(--color-faint); }
+.vw-pax select[id^="vtype-"] { min-width: 118px; }
+.vw-pax select[id^="emb-pick-"] { min-width: 136px; }
+.vw-pax select[id^="act-"] { min-width: 132px; }
+.vw-pax select[id^="vtype-"], .vw-pax select[id^="emb-pick-"], .vw-pax select[id^="act-"] { padding-left: 10px; padding-right: 26px; }
+@media (min-width: 640px) { .vw-appt-table th, .vw-appt-table td { padding-left: 0.4rem !important; padding-right: 0.4rem !important; } }
+.vw-up[aria-disabled="true"] { opacity: 0.6; cursor: not-allowed; }
+.vp-rows input[type="date"], .vp-rows input[type="text"], .vp-rows select { height: 32px; min-height: 0; padding-top: 2px; padding-bottom: 2px; font-size: 0.875rem; line-height: 1.25rem; }
+.vp-rows input[type="text"] { width: 100%; padding-left: 8px; padding-right: 8px; }
+.vp-rows .vw-when input { min-width: 0; width: 100%; }
+.vp-rows .vw-date input { padding-left: 28px; padding-right: 4px; }
+.vp-rows select { min-width: 0; width: 100%; padding-right: 28px; }
+.vp-tick { display: flex; align-items: flex-start; gap: 6px; margin: 0; cursor: pointer; }
+.vp-rows .vp-tick input { flex: none; width: 16px; height: 16px; min-height: 0; margin: 3px 0 0; accent-color: #167665; }
+.vp-links { display: flex; gap: 12px; margin-top: 6px; }
+.vp-link { padding: 0; border: 0; background: none; color: var(--color-brand); font: inherit; font-size: 0.875rem; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.vp-icons { display: flex; gap: 6px; }
+.vp-ico { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-card); color: var(--color-ink); cursor: pointer; }
+.vp-ico.vp-ok { border-color: #167665; background: #167665; color: #fff; }
+.vp-ico:focus-visible, .vp-link:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+@media (min-width: 640px) {
+  .vp-rows table, .vp-appt table { table-layout: fixed; }
+  .vp-rows th:nth-child(1) { width: 16%; }
+  .vp-rows th:nth-child(2) { width: 146px; }
+  .vp-rows th:nth-child(3), .vp-rows th:nth-child(4) { width: 18%; }
+  .vp-rows th:nth-child(6) { width: 48px; }
+  .vp-rows td:last-child .vp-icons { flex-direction: column; align-items: center; }
+  .vp-appt th:nth-child(1) { width: 56px; }
+  .vp-appt th:nth-child(2) { width: 27%; }
+  .vp-appt th:nth-child(3) { width: 19%; }
+  .vp-appt th:nth-child(4) { width: 19%; }
+  .vp-appt th:nth-child(5) { width: 140px; }
+}
+.vp-name-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
+.vp-pp { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.8125rem; letter-spacing: 0.02em; color: var(--color-copy); }
+.vp-sub { display: block; font-size: 0.8125rem; line-height: 1.35; color: var(--color-quiet); overflow-wrap: anywhere; }
+.vp-sub svg { display: inline; vertical-align: -2px; }
+.vp-chip { display: inline-flex; align-items: center; padding: 1px 9px; border: 1px solid; border-radius: 999px; font-size: 0.75rem; font-weight: 600; line-height: 1.25rem; white-space: nowrap; }
+.vp-chip-green { border-color: rgba(22, 118, 101, 0.3); background: rgba(22, 118, 101, 0.08); color: #167665; }
+.vp-chip-red { border-color: rgba(185, 28, 28, 0.3); background: rgba(185, 28, 28, 0.06); color: #b91c1c; }
+.vp-chip-amber { border-color: rgba(180, 83, 9, 0.3); background: rgba(180, 83, 9, 0.07); color: #92400e; }
+.vp-chip-grey { border-color: var(--color-line); background: rgba(0, 0, 0, 0.03); color: var(--color-quiet); }
+.vp-pax tbody tr:hover { background: rgba(22, 118, 101, 0.025); }
+.vp-bulk { background: rgba(22, 118, 101, 0.04); }
+.vp-empty { padding: 20px 18px; color: var(--color-quiet); }
+.vp-rows .vp-name-cell input[type="text"] { margin: 2px 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+@media (max-width: 639px) { .vp-ico { width: 44px; height: 44px; } }
+[data-when][hidden] { display: none !important; }
+.vp-sel, .vp-rows .vp-sel, .vp-bulk .vp-sel { flex: none; width: 18px; height: 18px; min-height: 0; margin: 2px 0 0; accent-color: #167665; cursor: pointer; }
+.vp-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 18px; border-bottom: 1px solid var(--color-line); }
+.vp-bulk .vp-tick { font-weight: 600; color: var(--color-ink); }
+.vp-bulk button { margin-left: auto; }
+.vp-bulk-row { display: grid; grid-template-columns: 1.1fr 1.1fr 1fr 0.85fr 0.85fr; gap: 8px; align-items: start; }
+.vp-bulk-head { margin: 4px 0 6px; font-size: 0.8125rem; font-weight: 600; color: var(--color-quiet); }
+@media (max-width: 639px) { .vp-bulk-row { grid-template-columns: 1fr 1fr; } .vp-bulk-row > span:first-child { grid-column: 1 / -1; } .vp-bulk-row > div:nth-child(2) { grid-column: 1 / -1; } .vp-bulk-head { display: none; } .vp-bulk button { width: 100%; margin-left: 0; } }
+.vp-popup { width: min(44rem, calc(100vw - 2rem)); max-width: 44rem; }
+.vp-wrap { overflow-x: auto; padding: 18px 12px 14px; scrollbar-width: thin; }
+.vp-steps { display: grid; grid-template-columns: repeat(5, minmax(104px, 1fr)); min-width: 540px; margin: 0; padding: 0; list-style: none; }
+.vp-step { position: relative; margin: 0; }
+.vp-line { position: absolute; top: 19px; left: calc(50% + 24px); right: calc(-50% + 24px); height: 3px; overflow: hidden; border-radius: 2px; background: var(--color-line); }
+.vp-fill { display: block; height: 100%; background: #167665; }
+@media (prefers-reduced-motion: no-preference) { .vp-fill { transition: width 0.4s ease; } .vp-dot { transition: background-color 0.3s ease, border-color 0.3s ease; } }
+.vp-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: center; }
+button.vp-btn { cursor: pointer; }
+button.vp-btn:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 4px; border-radius: 8px; }
+.vp-dot { display: grid; place-items: center; width: 40px; height: 40px; margin-bottom: 6px; border: 2px solid var(--color-line); border-radius: 50%; background: var(--color-card); color: var(--color-quiet); font-weight: 700; }
+.vp-step.is-done .vp-dot { border-color: #167665; background: #167665; color: #fff; }
+.vp-step.is-current .vp-dot { border-color: #167665; color: #167665; box-shadow: 0 0 0 4px rgba(22, 118, 101, 0.15); }
+.vp-name { font-weight: 600; color: var(--color-ink); line-height: 1.3; }
+.vp-step.is-pending .vp-name { color: var(--color-quiet); }
+.vp-state { font-size: 0.8125rem; color: var(--color-quiet); }
+.vp-step.is-done .vp-state, .vp-step.is-current .vp-state { color: #167665; font-weight: 600; }
+.vp-docs { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.vp-docs li { display: flex; align-items: flex-start; gap: 6px; margin: 0; }
+.vp-docs svg { margin-top: 3px; }
+.vp-pax select { padding-left: 10px; padding-right: 26px; min-width: 118px; }
+.vw-sec { scroll-margin-top: 16px; }
+.vw-sec:focus { outline: none; }
 </style>
 </head>
 <body>
@@ -9037,7 +9131,7 @@ function rowHtml(k,r,i){
     else{const a=airport(r.from),b=airport(r.to);t=`${r.from} – ${r.to}`;m=[`${a?.city||''} to ${b?.city||''}`,fmtD(r.date),[r.airline,r.no,r.cabin!=='No preference'?r.cabin:''].filter(Boolean).join(' · '),r.dep?`${r.dep} – ${r.arr||'?'} (local)`:'',travText(r.pax),reqText(r.prefs,r.prefsFor)];if(!r.no||!r.dep)flag=`<div class="flag">${ic('warn')}Add flight number and times</div>`}
     const fp=fareTypes().filter(([k])=>r['fare'+k]).map(([k,l])=>`${l} ${inr(Number(r['fare'+k]))}`);if(fp.length)m.push('Fare per person: '+fp.join(' · '))}
   if(k==='activity'){t=esc(r.name);m=[esc(r.city),fmtD(r.date),travText(r.pax)]}
-  if(k==='visa'){t=`${esc(r.country)} · ${esc(r.vtype)}`;m=['Planned travel '+fmtD(r.date),travText(r.pax)]}
+  if(k==='visa'){t=`${esc(r.country)} · ${esc(r.vtype)}`;m=['Planned travel '+fmtD(r.date),r.vkind&&r.vkind!=='Not decided yet'?esc(r.vkind):'',r.jur==='Yes'?'Jurisdiction: '+esc(r.jurPlace||''):'',r.docs&&r.docs.length?esc(r.docs.length+(r.docs.length===1?' document':' documents')+' needed'):'',travText(r.pax)]}
   if(k==='passport'){t=`${esc(r.atype)} · ${esc(r.city)}`;m=[travText(r.pax)]}
   return`<div class="row"><div><div class="row-t"><span class="idx">${L.one} ${i+1}</span>${t}</div><div class="row-m">${m.filter(Boolean).map(x=>`<span>${x}</span>`).join('')}</div>${flag}</div>
    <div class="row-a"><button class="btn ghost icon" type="button" data-edit="${k}:${r.id}" aria-label="Edit">${ic('pencil')}</button>
@@ -9354,9 +9448,9 @@ function openPaxDrawer(id){
     ${mselField('pdReqs','Special requests',reqs,'')}
     <div class="f"><label>Other requirements <span class="opt">(optional)</span></label><textarea class="in" rows="2"></textarea></div>
     <div class="grp"><h3>Private details</h3><div class="note lock">${ic('lock')}<div>Phone, email and date of marriage: only the deal owner, the branch Manager and the Flight or Visa &amp; Passport colleague who needs them. Date of birth is also shown to Purchase on its task, with the ID proof.</div></div>
-      <div class="g2"><div class="f"><label for="pdDob">Date of birth <span class="opt">(optional)</span></label><input class="in" id="pdDob" type="date" value="${esc(p.dob??'')}"></div><div class="f"><label>Date of marriage <span class="opt">(optional)</span></label><input class="in" type="date"></div>
+      <div class="g2"><div class="f"><label for="pdPassport">Passport number <span class="opt">(optional)</span></label><input class="in" id="pdPassport" autocomplete="off" value="${esc(p.passportNo??'')}"><span class="hint">Shown to the Visa &amp; Passport desk on its task.</span></div><div class="f"><label for="pdDob">Date of birth <span class="opt">(optional)</span></label><input class="in" id="pdDob" type="date" value="${esc(p.dob??'')}"></div><div class="f"><label>Date of marriage <span class="opt">(optional)</span></label><input class="in" type="date"></div>
       <div class="f"><label>Phone <span class="opt">(optional)</span></label><input class="in" type="tel"></div><div class="f"><label>Email <span class="opt">(optional)</span></label><input class="in" type="email"></div></div></div>`,
-   'Save passenger',()=>{p.name=$('#pdName').value;p.reqs=reqs;p.dob=$('#pdDob').value;const ag=$('#pdAge');if(ag)p.age=ag.value.replace(/\D/g,'');return true},'Passenger details saved. They are visible only to the people who need them.',()=>bindMsel('pdReqs',PAX_REQS,reqs));
+   'Save passenger',()=>{p.name=$('#pdName').value;p.reqs=reqs;p.dob=$('#pdDob').value;p.passportNo=($('#pdPassport').value||'').toUpperCase().replace(/\s+/g,'');const ag=$('#pdAge');if(ag)p.age=ag.value.replace(/\D/g,'');return true},'Passenger details saved. They are visible only to the people who need them.',()=>bindMsel('pdReqs',PAX_REQS,reqs));
 }
 function toast(t){$('#bf-toast').innerHTML=`<div class="toast" role="status">${esc(t)}</div>`;clearTimeout(timers.t);timers.t=setTimeout(()=>$('#bf-toast').innerHTML='',3200)}
 
@@ -9584,17 +9678,18 @@ function openEditor(k,existing,isCopy,banner){
   }
   /* Activity, visa, passport: same fields as live, traveller chips added. */
   const o=structuredClone(existing||{id:null,name:'',city:'',date:'',country:'',vtype:'Tourism',atype:'Fresh',fee:'Not decided yet',req:'',pax:k==='passport'?[]:everyone()});
+  const vdocs=[...(o.docs||[])];const VISA_DOCS=()=>(TN.visaFlow?TN.visaFlow.DOC_CATALOG.map(d=>d.label):[]);
   const bodies={
     activity:`<div class="g2"><div class="f"><label>Activity</label><input class="in" id="oName" value="${esc(o.name)}"></div><div class="f"><label>City / location</label><input class="in" id="oCity" value="${esc(o.city)}"></div><div class="f"><label>Required date</label><input class="in" type="date" id="oDate" value="${esc(o.date)}"></div></div>`,
-    visa:`<div class="g2"><div class="f"><label>Visa type</label><select class="in" id="oVtype">${['Tourism','Business','Visiting family','Transit'].map(v=>`<option ${o.vtype===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="f"><label>Country</label><input class="in" id="oCountry" value="${esc(o.country)}"></div><div class="f"><label>Planned travel date</label><input class="in" type="date" id="oDate" value="${esc(o.date||trip().start)}"></div><div class="f"><label for="oFee">Government fee paid by</label><select class="in" id="oFee">${['Not decided yet','Customer pays directly','Company pays (recorded for Accounts review)'].map(v=>`<option ${o.fee===v?'selected':''}>${v}</option>`).join('')}</select></div></div>`,
+    visa:`<div class="g2"><div class="f"><label>Visa type</label><select class="in" id="oVtype">${['Tourism','Business','Visiting family','Transit'].map(v=>`<option ${o.vtype===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="f"><label>Country</label><input class="in" id="oCountry" value="${esc(o.country)}"></div><div class="f"><label>Planned travel date</label><input class="in" type="date" id="oDate" value="${esc(o.date||trip().start)}"></div><div class="f"><label for="oFee">Government fee paid by</label><select class="in" id="oFee">${['Not decided yet','Customer pays directly','Company pays (recorded for Accounts review)'].map(v=>`<option ${o.fee===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="f"><label for="oVkind">E-visa or sticker visa</label><select class="in" id="oVkind">${['Not decided yet','E-visa','Sticker visa'].map(v=>`<option ${(o.vkind||'Not decided yet')===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="f"><label for="oJur">Jurisdiction passport</label><select class="in" id="oJur">${['Not decided yet','No','Yes'].map(v=>`<option ${(o.jur||'Not decided yet')===v?'selected':''}>${v}</option>`).join('')}</select><span class="hint">Yes when the passport must go to a set place, for example Gujarat to Mumbai.</span></div><div class="f"><label for="oJurPlace">Jurisdiction place <span class="opt">(when Yes)</span></label><input class="in" id="oJurPlace" value="${esc(o.jurPlace||'')}"></div></div>${k==='visa'?mselField('oDocs','Documents needed',vdocs,'Pick from the list or type your own. The Visa desk gets these on every passenger’s checklist.'):''}`,
     passport:`<div class="g2"><div class="f"><label>Application type</label><select class="in" id="oAtype">${['Fresh','Renewal','Tatkaal','Minor'].map(v=>`<option ${o.atype===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="f"><label>City / location</label><input class="in" id="oCity" value="${esc(o.city)}"><span class="hint">The passport office city.</span></div></div>`
   };
   drawer(k==='activity'?(isNew?'Add activity':'Edit activity'):k==='visa'?'Visa requirements':'Passport requirements','',
     bodies[k]+travChips(o.pax,k==='passport'?'Applicant':k==='activity'?'Who takes part':'Who needs a visa')+`<div class="f"><label>Requirements <span class="opt">(optional)</span></label><textarea class="in" id="oReq">${esc(o.req)}</textarea></div>`,
     k==='activity'?'Save activity':'Save requirements',()=>{
-      o.name=$('#oName')?.value.trim()??o.name;o.city=$('#oCity')?.value.trim()??o.city;o.date=$('#oDate')?.value??o.date;o.country=$('#oCountry')?.value.trim()??o.country;o.vtype=$('#oVtype')?.value??o.vtype;o.fee=$('#oFee')?.value??o.fee;o.atype=$('#oAtype')?.value??o.atype;o.req=$('#oReq').value;
-      const e=k==='activity'&&(!o.name||!o.city||!o.date)?'Add the activity, city and date.':k==='visa'&&(!o.country||!o.date)?'Add the country and the planned travel date.':k==='passport'&&!o.city?'Add the passport office city.':'';
-      return e||save(o)},k==='activity'?'Activity saved.':'Requirements saved.',()=>bindChips(o.pax));
+      o.name=$('#oName')?.value.trim()??o.name;o.city=$('#oCity')?.value.trim()??o.city;o.date=$('#oDate')?.value??o.date;o.country=$('#oCountry')?.value.trim()??o.country;o.vtype=$('#oVtype')?.value??o.vtype;o.fee=$('#oFee')?.value??o.fee;o.vkind=$('#oVkind')?.value??o.vkind;o.jur=$('#oJur')?.value??o.jur;o.jurPlace=$('#oJurPlace')?.value.trim()??o.jurPlace;if(k==='visa')o.docs=[...vdocs];o.atype=$('#oAtype')?.value??o.atype;o.req=$('#oReq').value;
+      const e=k==='activity'&&(!o.name||!o.city||!o.date)?'Add the activity, city and date.':k==='visa'&&(!o.country||!o.date)?'Add the country and the planned travel date.':k==='visa'&&o.jur==='Yes'&&!o.jurPlace?'Add the jurisdiction place.':k==='passport'&&!o.city?'Add the passport office city.':'';
+      return e||save(o)},k==='activity'?'Activity saved.':'Requirements saved.',()=>{bindChips(o.pax);if(k==='visa')bindMsel('oDocs',VISA_DOCS(),vdocs)});
 }
 function readCar(c){
   const v=id=>byId(id);
@@ -13131,6 +13226,11 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
     consent: doc('parent_consent', 'Parents’ consent letter'),
     onward: doc('onward_ticket', 'Onward flight ticket'),
   };
+  /* The standard documents the Visa desk and Sales pick from. Anything else can still be typed. */
+  const slug = (v) => String(v).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  const DOC_CATALOG = [...Object.values(D), ...['Original passport', 'Old passports', 'Passport-size photos (2)', 'Aadhaar card', 'PAN card', 'ITR (last 3 years)', 'Salary slips (3 months)', 'Employment letter or NOC', 'Leave letter', 'Cover letter', 'Return flight booking', 'Visa application form (signed)', 'Marriage certificate', 'Invitation letter', 'Business registration documents', 'School or college ID'].map((l) => doc(slug(l), l))];
+  const catalogDoc = (label) => DOC_CATALOG.find((d) => norm(d.label) === norm(label)) || doc(`sales-${slug(label)}`, String(label).trim());
+  const salesDocs = (s) => (s && s.visa && s.visa.documents ? String(s.visa.documents).split(' | ').map((x) => x.trim()).filter(Boolean) : []);
   const CONFIG = {
     label: 'Demo configuration: example rules for this prototype, not immigration advice.',
     timezones: [['Asia/Kolkata', 'India (Asia/Kolkata)'], ['Asia/Dubai', 'UAE (Asia/Dubai)'], ['Asia/Singapore', 'Singapore (Asia/Singapore)'], ['Asia/Bangkok', 'Thailand (Asia/Bangkok)'], ['Europe/Paris', 'France (Europe/Paris)']],
@@ -13162,11 +13262,14 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
     return CONFIG.routes.find((r) => norm(r.purpose) === p && (norm(r.country) === c || r.aliases.includes(c))) || null;
   }
   const routeOf = (s) => (s && s.visa ? routeFor(s.visa.country, s.visa.purpose) : null);
-  /** The checklist for one passenger type, or null when nobody configured it. */
+  /** The checklist for one passenger type: the configured route's list plus what Sales asked for.
+      Null when neither gives anything. */
   function checklistFor(s, type) {
     const r = routeOf(s);
-    const list = r && r.checklist[norm(type) || 'adult'];
-    return list && list.length ? list.map((d) => ({ ...d, status: 'missing', remark: '' })) : null;
+    const base = (r && r.checklist[norm(type) || 'adult']) || [];
+    const extra = salesDocs(s).filter((l) => !base.some((d) => norm(d.label) === norm(l))).map(catalogDoc);
+    const list = [...base, ...extra];
+    return list.length ? list.map((d) => ({ ...d, status: 'missing', remark: '' })) : null;
   }
 
   /* ------------------------------------------------------------------
@@ -13240,12 +13343,12 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
   }
 
   /** Staff can add a document to one passenger's list. Who added it is kept on the row. */
-  function addDocument(a, { label, received }, who) {
+  function addDocument(a, { label, received, code }, who) {
     const name = String(label || '').trim();
     if (!name) return { ok: false, error: 'Enter the document name.' };
     a.documents = docList(a);
     if (a.documents.some((d) => norm(d.label) === norm(name))) return { ok: false, error: 'This document is already on the list.' };
-    const row = { code: `custom-${Math.random().toString(36).slice(2, 8)}`, label: name, status: received ? 'received' : 'missing', remark: '', custom: true, added: who };
+    const row = { code: code && !a.documents.some((d) => d.code === code) ? code : `custom-${Math.random().toString(36).slice(2, 8)}`, label: name, status: received ? 'received' : 'missing', remark: '', custom: true, added: who };
     a.documents.push(row);
     return { ok: true, row };
   }
@@ -13276,18 +13379,19 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
   function appointmentOf(s, a) { const pa = passengerAppointment(s, a); return pa && LIVE_APPT.includes(pa.status) ? pa.record : null; }
   /** One row of the Appointment table. An unknown rule stays unconfirmed, never "not required". */
   function appointmentRow(s, a) {
+    const pa = passengerAppointment(s, a);
+    if (pa && LIVE_APPT.includes(pa.status)) return { status: pa.status, label: apptWord(pa.status), record: pa.record };
     const v = requirementFor(s).value;
     if (v === 'not_required') return { status: 'not_required', label: 'Not required' };
     if (v === 'not_configured') return { status: 'unconfirmed', label: 'Requirement unconfirmed' };
-    const pa = passengerAppointment(s, a);
     return pa ? { status: pa.status, label: apptWord(pa.status), record: pa.record } : { status: 'not_scheduled', label: 'Not scheduled' };
   }
   function appointmentStatus(s, a) {
+    const pa = passengerAppointment(s, a);
+    if (pa && LIVE_APPT.includes(pa.status)) return { key: 'scheduled', tone: 'success', label: `Appointment ${apptWord(pa.status).toLowerCase()}` };
     const v = requirementFor(s).value;
     if (v === 'not_configured') return { key: 'requirement_pending', tone: 'warning', label: 'Appointment requirement pending' };
     if (v === 'not_required') return { key: 'not_required', tone: 'neutral', label: 'Appointment not required' };
-    const pa = passengerAppointment(s, a);
-    if (pa && LIVE_APPT.includes(pa.status)) return { key: 'scheduled', tone: 'success', label: `Appointment ${apptWord(pa.status).toLowerCase()}` };
     return pa ? { key: 'pending', tone: 'warning', label: 'Appointment cancelled' } : { key: 'pending', tone: 'warning', label: 'Appointment pending' };
   }
   const notStarted = (a) => !a.state || a.state === 'docs_pending';
@@ -13311,18 +13415,23 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
     const errors = {};
     const pa = passengerAppointment(s, a);
     const live = pa && LIVE_APPT.includes(pa.status) ? pa : null;
-    if (requirementFor(s).value !== 'required') errors.form = 'An appointment is not needed on this application route.';
-    else if (!live && !canHaveAppointment(s, a).ok) errors.form = `${displayName(a)}: ${canHaveAppointment(s, a).why}.`;
+    if (!data.quick && !live) {
+      if (requirementFor(s).value !== 'required') errors.form = 'An appointment is not needed on this application route.';
+      else if (!canHaveAppointment(s, a).ok) errors.form = `${displayName(a)}: ${canHaveAppointment(s, a).why}.`;
+    }
     if (!validDate(data.date)) errors.date = 'Choose the appointment date.';
-    if (!/^\d{2}:\d{2}$/.test(String(data.time || ''))) errors.time = 'Choose the appointment time.';
+    /* From the table the date alone is enough; the drawer still asks for everything. */
+    const hasTime = /^\d{2}:\d{2}$/.test(String(data.time || ''));
+    if (!data.quick && !hasTime) errors.time = 'Choose the appointment time.';
     if (!CONFIG.timezones.some(([z]) => z === data.timezone)) errors.timezone = 'Choose the appointment timezone.';
-    if (!String(data.centre || '').trim()) errors.centre = 'Enter the embassy or visa centre name.';
-    if (!String(data.location || '').trim()) errors.location = 'Enter the location or address.';
+    if (!data.quick && !String(data.centre || '').trim()) errors.centre = 'Enter the embassy or visa centre name.';
+    if (!data.quick && !String(data.location || '').trim()) errors.location = 'Enter the location or address.';
     if (Object.keys(errors).length) return { ok: false, errors };
-    const at = `${data.date}T${data.time}`;
-    const changed = !!live && (live.record.at !== at || live.record.timezone !== data.timezone);
+    const at = `${data.date}T${hasTime ? data.time : '00:00'}`;
+    /* Adding the time to a date saved without one is not a reschedule. */
+    const changed = !!live && (live.record.at.slice(0, 10) !== data.date || (!live.record.noTime && live.record.at !== at) || live.record.timezone !== data.timezone);
     if (pa) pa.line.status = 'replaced';
-    const record = { id: `va-${Math.random().toString(36).slice(2, 8)}`, passengers: [{ paxId: a.paxId, status: changed ? 'rescheduled' : live ? live.status : 'scheduled' }], at, timezone: data.timezone, centre: data.centre.trim(), location: data.location.trim(), reference: String(data.reference || '').trim(), remarks: String(data.remarks || '').trim(), created: who };
+    const record = { id: `va-${Math.random().toString(36).slice(2, 8)}`, passengers: [{ paxId: a.paxId, status: changed ? 'rescheduled' : live ? live.status : 'scheduled' }], at, noTime: !hasTime, timezone: data.timezone, centre: String(data.centre || '').trim(), location: String(data.location || '').trim(), reference: String(data.reference || '').trim(), remarks: String(data.remarks || '').trim(), created: who };
     s.workflow.appointments.push(record);
     return { ok: true, record, changed };
   }
@@ -13417,13 +13526,14 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
     const a = { seq, paxId: p.id, name: String(p.name || '').trim(), type: norm(p.type) || 'adult', state: null };
     if (p.age !== '' && p.age != null && Number(p.age) >= 0) a.age = Number(p.age);
     if (p.dob) a.born = p.dob;
+    if (p.passportNo) a.passportNo = String(p.passportNo).trim().toUpperCase();
     if (Array.isArray(p.files) && p.files.length) a.idFiles = p.files.slice();
     return a;
   }
   const bookedPax = (row, pax) => (row.pax || []).map((id) => pax.find((p) => p.id === id)).filter(Boolean);
   function facts(kind, row) {
     return kind === 'visa'
-      ? { country: String(row.country || '').trim(), purpose: row.vtype || '', travelDate: row.date || '', feePaidBy: mapFee(row.fee), requirements: String(row.req || '').trim() }
+      ? { country: String(row.country || '').trim(), purpose: row.vtype || '', travelDate: row.date || '', feePaidBy: mapFee(row.fee), requirements: String(row.req || '').trim(), visaKind: ['E-visa', 'Sticker visa'].includes(row.vkind) ? row.vkind : '', jurisdiction: ['Yes', 'No'].includes(row.jur) ? row.jur : '', jurPlace: row.jur === 'Yes' ? String(row.jurPlace || '').trim() : '', documents: (Array.isArray(row.docs) ? row.docs : []).map((x) => String(x).trim()).filter(Boolean).join(' | ') }
       : { atype: row.atype || '', city: String(row.city || '').trim(), requirements: String(row.req || '').trim() };
   }
   const sameKey = (s, kind, f) => (kind === 'visa'
@@ -13453,7 +13563,7 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
       const name = String(p.name || '').trim();
       if (name && name !== a.name) { lines.push(`Passenger name changed: ${displayName(a)} to ${name}`); a.name = name; }
       const m = mapPassenger(p, a.seq);
-      ['age', 'born', 'idFiles'].forEach((k) => { if (m[k] != null) a[k] = m[k]; });
+      ['age', 'born', 'idFiles', 'passportNo'].forEach((k) => { if (m[k] != null) a[k] = m[k]; });
     });
     s.applicants.filter((a) => isActive(a) && !seen.has(a)).forEach((a) => {
       a.removedFromBooking = { version, ...who };
@@ -13483,7 +13593,7 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
     const lines = [];
     if (s.removedFromBooking) { delete s.removedFromBooking; lines.push('Service back on the booking'); }
     const old = s[kind] || {};
-    const label = { country: 'Country', purpose: 'Visa category', travelDate: 'Travel date', feePaidBy: 'Government fee paid by', atype: 'Application type', city: 'Office city', requirements: 'Requirements' };
+    const label = { country: 'Country', purpose: 'Visa category', travelDate: 'Travel date', feePaidBy: 'Government fee paid by', atype: 'Application type', city: 'Office city', requirements: 'Requirements', visaKind: 'E-visa or sticker visa', jurisdiction: 'Jurisdiction', jurPlace: 'Jurisdiction place', documents: 'Documents needed' };
     Object.keys(f).forEach((k) => { if (found && (old[k] ?? '') !== f[k]) { if (old[k] != null && old[k] !== '') lines.push(`${label[k]} changed: ${k === 'feePaidBy' ? FEE_WORD[old[k]] : old[k] || 'blank'} to ${k === 'feePaidBy' ? FEE_WORD[f[k]] : f[k] || 'blank'}`); } });
     s[kind] = { ...old, ...f };
     const { budget, ...rest } = svc;
@@ -13539,8 +13649,9 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
       hist[id] = history(id);
     });
     const files = (TN.DATA.departmentFiles || []).filter((f) => touched.has(f.task));
+    const costs = (TN.DATA.departmentCosts || []).filter((c) => touched.has(c.task));
     try {
-      window.localStorage.setItem(STORE_KEY, JSON.stringify({ version: STORE_VERSION, tasks, history: hist, files }));
+      window.localStorage.setItem(STORE_KEY, JSON.stringify({ version: STORE_VERSION, tasks, history: hist, files, costs }));
       store.problem = '';
       return true;
     } catch (e) {
@@ -13570,11 +13681,13 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
     });
     const files = (TN.DATA.departmentFiles = TN.DATA.departmentFiles || []);
     if (Array.isArray(saved.files)) saved.files.forEach((f) => { if (f && f.id && touched.has(f.task) && !files.some((x) => x.id === f.id)) files.push(f); });
+    const costs = (TN.DATA.departmentCosts = TN.DATA.departmentCosts || []);
+    if (Array.isArray(saved.costs)) saved.costs.forEach((c) => { if (!c || !c.id || !touched.has(c.task)) return; const had = costs.find((x) => x.id === c.id); if (had) Object.assign(had, c); else costs.push(c); });
     return n;
   }
 
   TN.visaFlow = {
-    CONFIG, RETURN_MODES, returnWord, STORE_KEY, store, routeFor, routeOf, checklistFor, nowIST, todayIST, actor, validDate, addHistory, emptyWorkflow,
+    CONFIG, DOC_CATALOG, catalogDoc, salesDocs, RETURN_MODES, returnWord, STORE_KEY, store, routeFor, routeOf, checklistFor, nowIST, todayIST, actor, validDate, addHistory, emptyWorkflow,
     applicants, activeApplicants, isActive, displayName, normalizeTask, docList, docSummary, docsVerified, docStatus, hydrateChecklist, applyChecklist, addDocument,
     requirementFor, APPT_STATUSES, appointmentOf, appointmentRow, setAppointmentStatus, appointmentStatus, notStarted, canHaveAppointment, canPlan, saveAppointment, applyByOf, planWarnings, savePlan, planOf, planStatus, resolveRequirement,
     progress, stageLabel, mapFee, FEE_WORD, mapPassenger, applyBookingRow, flagDropped, commit, persist, restore,
@@ -13722,7 +13835,7 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
   /* ------------------------------------------------------------------
      Small markup helpers (live components)
      ------------------------------------------------------------------ */
-  const inr = (n) => (n == null || n === '' ? '—' : TN.fmt.inr(n) + '.00'); // live shows paise (".00")
+  const inr = (n) => (n == null || n === '' ? '—' : TN.fmt.inr(n)); // TN.fmt.inr already shows paise (".00")
   const badge = (tone, text, { wrap = false, icon, sr } = {}) => {
     const base = wrap
       ? `inline-flex max-w-full gap-1.5 border py-0.5 pr-2.5 pl-2 font-sans text-sm leading-5 font-semibold [&amp;_svg]:size-3.5 [&amp;_svg]:shrink-0 ${TONE[tone]} items-start rounded-control whitespace-normal [&amp;_svg]:mt-0.75`
@@ -13809,21 +13922,21 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
   const DOCS_CHILD = [['passport_copy', 'Passport copy (front and back)'], ['photo', 'Photo, white background'], ['parent_passport', 'Parent’s passport copy']];
   const docs = (list, status) => list.map(([code, label]) => ({ code, label, status }));
   Object.assign(S['s-390-v'], {
-    visa: { country: 'United Arab Emirates', purpose: 'Tourism', travelDate: '2026-11-20', applyBy: '2026-11-06', feePaidBy: 'company' },
+    visa: { country: 'United Arab Emirates', purpose: 'Tourism', travelDate: '2026-11-20', applyBy: '2026-11-06', feePaidBy: 'company', visaKind: 'E-visa' },
     versionNo: 2, savedAt: '2026-10-14', createdAt: '2026-10-14 15:10', takenAt: '2026-10-15 10:40',
     applicants: [
-      { seq: 1, name: 'Suresh Bhandari', type: 'adult', age: 46, born: '1980-03-03', nationality: 'Indian', passport: '••••4821', state: 'issued', documents: docs(DOCS_ADULT, 'checked'), reference: 'VFS/AMD/2026/118402', submittedAt: '2026-10-20', outcomeAt: '2026-10-25', documentsReturnedAt: '2026-10-26', documentsReturnedBy: 'visa', govFee: 5500, serviceFee: 800 },
-      { seq: 2, name: 'Anita Bhandari', type: 'adult', age: 43, born: '1983-08-17', nationality: 'Indian', passport: '••••7390', state: 'issued', documents: docs(DOCS_ADULT, 'checked'), reference: 'VFS/AMD/2026/118403', submittedAt: '2026-10-20', outcomeAt: '2026-10-27', govFee: 5500, serviceFee: 800 },
-      { seq: 3, name: 'Kabir Bhandari', type: 'child', age: 12, born: '2014-01-09', nationality: 'Indian', passport: '••••1056', state: 'decision_pending', documents: docs(DOCS_CHILD, 'checked'), reference: 'VFS/AMD/2026/118491', submittedAt: '2026-10-22', govFee: 5500, serviceFee: 800 },
-      { seq: 4, name: 'Myra Bhandari', type: 'child', age: 8, born: '2018-06-21', nationality: 'Indian', passport: '••••6634', state: 'submitted', documents: docs(DOCS_CHILD, 'checked'), reference: 'VFS/AMD/2026/118492', submittedAt: '2026-10-22', govFee: 5500, serviceFee: 800 },
+      { seq: 1, name: 'Suresh Bhandari', type: 'adult', age: 46, born: '1980-03-03', nationality: 'Indian', passport: '••••4821', passportNo: 'S5194821', state: 'issued', documents: docs(DOCS_ADULT, 'checked'), reference: 'VFS/AMD/2026/118402', submittedAt: '2026-10-20', outcomeAt: '2026-10-25', documentsReturnedAt: '2026-10-26', documentsReturnedBy: 'visa', govFee: 5500, serviceFee: 800 },
+      { seq: 2, name: 'Anita Bhandari', type: 'adult', age: 43, born: '1983-08-17', nationality: 'Indian', passport: '••••7390', passportNo: 'S5197390', state: 'issued', documents: docs(DOCS_ADULT, 'checked'), reference: 'VFS/AMD/2026/118403', submittedAt: '2026-10-20', outcomeAt: '2026-10-27', govFee: 5500, serviceFee: 800 },
+      { seq: 3, name: 'Kabir Bhandari', type: 'child', age: 12, born: '2014-01-09', nationality: 'Indian', passport: '••••1056', passportNo: 'T2081056', state: 'decision_pending', documents: docs(DOCS_CHILD, 'checked'), reference: 'VFS/AMD/2026/118491', submittedAt: '2026-10-22', govFee: 5500, serviceFee: 800 },
+      { seq: 4, name: 'Myra Bhandari', type: 'child', age: 8, born: '2018-06-21', nationality: 'Indian', passport: '••••6634', passportNo: 'T2086634', state: 'submitted', documents: docs(DOCS_CHILD, 'checked'), reference: 'VFS/AMD/2026/118492', submittedAt: '2026-10-22', govFee: 5500, serviceFee: 800 },
     ],
   });
   if (!S['s-301-v']) {
     S['s-301-v'] = { deal: 'BX-38301', kind: 'visa', dept: 'visa', title: 'Singapore · Tourism', detail: '2 travellers', start: '2026-11-01', end: '2026-11-05', assignee: 'visa', taskStatus: 'done', budget: 5800, cost: 5400,
-      visa: { country: 'Singapore', purpose: 'Tourism', travelDate: '2026-11-01', applyBy: '2026-10-18', feePaidBy: 'company' }, versionNo: 1, savedAt: '2026-10-03', createdAt: '2026-10-03 16:05', takenAt: '2026-10-04 11:00', doneAt: '2026-10-18 15:20',
+      visa: { country: 'Singapore', purpose: 'Tourism', travelDate: '2026-11-01', applyBy: '2026-10-18', feePaidBy: 'company', visaKind: 'E-visa' }, versionNo: 1, savedAt: '2026-10-03', createdAt: '2026-10-03 16:05', takenAt: '2026-10-04 11:00', doneAt: '2026-10-18 15:20',
       applicants: [
-        { seq: 1, name: 'Nidhi Mathur', type: 'adult', age: 34, born: '1992-02-11', nationality: 'Indian', passport: '••••2207', state: 'issued', documents: docs(DOCS_ADULT, 'checked'), reference: 'SG-EV-26-3381904', submittedAt: '2026-10-08', outcomeAt: '2026-10-16', documentsReturnedAt: '2026-10-18', documentsReturnedBy: 'visa', govFee: 2700, serviceFee: 0 },
-        { seq: 2, name: 'Karan Mathur', type: 'adult', age: 36, born: '1990-09-27', nationality: 'Indian', passport: '••••5548', state: 'issued', documents: docs(DOCS_ADULT, 'checked'), reference: 'SG-EV-26-3381905', submittedAt: '2026-10-08', outcomeAt: '2026-10-16', documentsReturnedAt: '2026-10-18', documentsReturnedBy: 'visa', govFee: 2700, serviceFee: 0 },
+        { seq: 1, name: 'Nidhi Mathur', type: 'adult', age: 34, born: '1992-02-11', nationality: 'Indian', passport: '••••2207', passportNo: 'P8172207', state: 'issued', documents: docs(DOCS_ADULT, 'checked'), reference: 'SG-EV-26-3381904', submittedAt: '2026-10-08', outcomeAt: '2026-10-16', documentsReturnedAt: '2026-10-18', documentsReturnedBy: 'visa', govFee: 2700, serviceFee: 0 },
+        { seq: 2, name: 'Karan Mathur', type: 'adult', age: 36, born: '1990-09-27', nationality: 'Indian', passport: '••••5548', passportNo: 'P8175548', state: 'issued', documents: docs(DOCS_ADULT, 'checked'), reference: 'SG-EV-26-3381905', submittedAt: '2026-10-08', outcomeAt: '2026-10-16', documentsReturnedAt: '2026-10-18', documentsReturnedBy: 'visa', govFee: 2700, serviceFee: 0 },
       ] };
     const d301 = TN.deal('BX-38301'); if (d301 && !d301.services.includes('s-301-v')) d301.services.push('s-301-v');
   }
@@ -13941,11 +14054,11 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
       destination: 'Paris, Phuket', start: '2027-02-06', end: '2027-02-18', nights: 12, adults: 2, children: 1, infants: 1, tripType: 'International',
       bookingState: 'being_arranged', tripStatus: null, accountsReview: 'approved', submittedAt: '2026-10-26',
       sellingPrice: 842000, costEstimate: 711000, services: ['s-612-v1', 's-612-v2', 's-612-v3', 's-612-p1'] });
-    const family = (...seqs) => seqs.map((n) => { const p = TN.DATA.travellers['BX-38612'][n - 1]; return { seq: n, paxId: `pax-612-${n}`, name: p.name, type: p.type, born: p.dob, state: null }; });
+    const family = (...seqs) => seqs.map((n) => { const p = TN.DATA.travellers['BX-38612'][n - 1]; return { seq: n, paxId: `pax-612-${n}`, name: p.name, type: p.type, born: p.dob, passportNo: ['Z3417762', 'Z3417798', 'Z9120458', 'A1029384'][n - 1], state: null }; });
     const task = (o) => ({ deal: 'BX-38612', dept: 'visa', assignee: null, taskStatus: 'new', budget: null, versionNo: 1, savedAt: '2026-10-26', createdAt: '2026-10-26 15:20', ...o });
-    S['s-612-v1'] = task({ kind: 'visa', title: 'France tourism visa', detail: '4 travellers', start: '2027-02-06', end: '2027-02-12', visa: { country: 'France', purpose: 'Tourism', travelDate: '2027-02-06', feePaidBy: 'customer' }, applicants: family(1, 2, 3, 4) });
-    S['s-612-v2'] = task({ kind: 'visa', title: 'Thailand tourism visa', detail: '3 travellers', start: '2027-02-12', end: '2027-02-18', visa: { country: 'Thailand', purpose: 'Tourism', travelDate: '2027-02-12', feePaidBy: 'undecided' }, applicants: family(1, 2, 3) });
-    S['s-612-v3'] = task({ kind: 'visa', title: 'United Arab Emirates transit visa', detail: '3 travellers', start: '2027-02-18', end: '2027-02-18', visa: { country: 'United Arab Emirates', purpose: 'Transit', travelDate: '2027-02-18', feePaidBy: 'company' }, applicants: family(1, 2, 3) });
+    S['s-612-v1'] = task({ kind: 'visa', title: 'France tourism visa', detail: '4 travellers', start: '2027-02-06', end: '2027-02-12', visa: { country: 'France', purpose: 'Tourism', travelDate: '2027-02-06', feePaidBy: 'customer', visaKind: 'Sticker visa', jurisdiction: 'Yes', jurPlace: 'New Delhi', documents: 'ITR (last 3 years) | Cover letter' }, applicants: family(1, 2, 3, 4) });
+    S['s-612-v2'] = task({ kind: 'visa', title: 'Thailand tourism visa', detail: '3 travellers', start: '2027-02-12', end: '2027-02-18', visa: { country: 'Thailand', purpose: 'Tourism', travelDate: '2027-02-12', feePaidBy: 'undecided', visaKind: 'E-visa' }, applicants: family(1, 2, 3) });
+    S['s-612-v3'] = task({ kind: 'visa', title: 'United Arab Emirates transit visa', detail: '3 travellers', start: '2027-02-18', end: '2027-02-18', visa: { country: 'United Arab Emirates', purpose: 'Transit', travelDate: '2027-02-18', feePaidBy: 'company', visaKind: 'E-visa' }, applicants: family(1, 2, 3) });
     S['s-612-p1'] = task({ kind: 'passport', title: 'Passport, minor application', detail: 'Jodhpur passport office', start: '', end: '', passport: { atype: 'Minor', city: 'Jodhpur' }, applicants: family(4) });
     ['s-612-v1', 's-612-v2', 's-612-v3', 's-612-p1'].forEach((id) => seedH(id, [{ title: 'Task created from the submitted booking', at: '2026-10-26 15:20' }]));
   }
@@ -13953,7 +14066,7 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
   Object.entries(S).forEach(([id, s]) => VF.normalizeTask(id, s));
 
   /* In-page UI state: open forms, typed values, refusals, one-time success lines. */
-  const UI = { open: {}, vals: {}, err: {}, ferr: {}, flash: {}, docTab: {} };
+  const UI = { open: {}, vals: {}, err: {}, ferr: {}, flash: {}, docTab: {}, bulk: {} };
 
   /* ------------------------------------------------------------------
      Words (live contracts; pending words marked)
@@ -13963,7 +14076,7 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
   const MODE = { bank_transfer: 'Bank transfer', upi: 'UPI', card: 'Card', cash: 'Cash', other: 'Other' };
   const EXPENSE = { draft: ['neutral', 'Draft', 'clock'], submitted: ['info', 'Sent to Accounts', 'info'], accepted: ['success', 'Accepted (recorded only; not approved for payment)', 'circle-check'], returned: ['danger', 'Returned by Accounts', 'circle-x'] };
   const SP_STATUS = { requested: ['info', 'Waiting for Accounts'], waiting_manager: ['warning', 'Waiting for the branch Manager'], approved: ['info', 'Approved · not paid yet'], paid: ['info', 'Paid · waiting for a second check'], verified: ['success', 'Paid and checked'], returned: ['danger', 'Returned'], on_hold: ['warning', 'On hold'] };
-  const VISA_STATE = { docs_pending: ['warning', 'Documents pending'], submitted: ['info', 'Submitted (reference recorded)'], decision_pending: ['info', 'Waiting for decision'], issued: ['success', 'Issued'], refused: ['danger', 'Refused'], withdrawn: ['neutral', 'Withdrawn'] };
+  const VISA_STATE = { docs_pending: ['neutral', 'Not applied'], submitted: ['info', 'Applied'], decision_pending: ['info', 'Waiting for decision'], issued: ['success', 'Approved'], refused: ['danger', 'Rejected'], withdrawn: ['neutral', 'Withdrawn'] };
   const FILE_KIND = { applicant_document: 'Applicant document', fee_receipt: 'Fee receipt', authority_outcome: 'Authority outcome document', direct_payment_proof: 'Direct payment proof', e_ticket: 'E-ticket', appointment_confirmation: 'Appointment confirmation' };
   const MAX_FILE = 4 * 1024 * 1024;
   const sizeText = (file) => (file.size >= 1048576 ? `${(file.size / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(file.size / 1024))} KB`);
@@ -14430,7 +14543,7 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
   const typeWord = (a) => { const t = a.type || 'passenger'; return t.charAt(0).toUpperCase() + t.slice(1); };
   const typedChecks = (v) => Object.keys(v).filter((k) => k.startsWith('pax:')).map((k) => k.slice(4));
   const applyLine = (rec) => `${esc(rec.byName)} · Saved on ${esc(TN.fmt.dateTime(rec.at))}`;
-  const apptWhen = (r) => { const [d, t = '00:00'] = String(r.at).split('T'); return `${TN.fmt.dateTime(`${d} ${t.slice(0, 5)}`).replace(/ IST$/, '')} · ${esc(r.timezone)}`; };
+  const apptWhen = (r) => { const [d, t = '00:00'] = String(r.at).split('T'); if (r.noTime) return esc(TN.fmt.date(d)); return `${TN.fmt.dateTime(`${d} ${t.slice(0, 5)}`).replace(/ IST$/, '')} · ${esc(r.timezone)}`; };
   const STATUS_ICON = { success: 'circle-check', warning: 'triangle-alert', neutral: 'info', info: 'info', danger: 'circle-x' };
   const statusBadge = (o, sr) => badge(o.tone, esc(o.label), { wrap: true, sr, icon: STATUS_ICON[o.tone] }).replace('min-w-0 wrap-anywhere', 'min-w-0'); // break between words, never inside one
   const fileShown = (f) => (f.title ? `${f.title} (${f.name})` : f.name);
@@ -14451,7 +14564,7 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
     const list = show === 'mine' ? mine : show === 'not_taken' ? notTaken : all;
     const tabs = (taker ? ['not_taken', 'mine', 'all'] : ['not_taken', 'all']).map((k) => ({ label: { not_taken: 'Not taken', mine: 'Mine', all: 'All' }[k], href: '#/app/visa' + (k === (taker ? 'not_taken' : 'all') ? '' : '?show=' + k), current: k === show, count: { not_taken: notTaken.length, mine: mine.length, all: all.length }[k] }));
     const items = list.map(({ id, s }) => {
-      const stage = VF.stageLabel(s);
+      const stage = visaStageWord(id);
       return `<li class="m-0 flex flex-col gap-1.5 px-4.5 py-3.5 sm:flex-row sm:items-center sm:justify-between"><div class="min-w-0"><p class="m-0 font-semibold text-ink"><a class="rounded-chip text-brand-strong underline underline-offset-4 hover:text-brand-deep ${FOCUS}" href="#/app/visa/${id}">${esc(taskLabel(s))}</a></p><p class="m-0 text-sm text-copy">${esc(visaFactsLine(s))}</p><p class="${C.small}">${esc(s.deal)} · ${esc(branchOf(s))} · ${TN.fmt.plural(VF.activeApplicants(s).length, 'applicant')} · Taken by: ${esc(takenBy(s))}${stage ? ` · ${esc(stage)}` : ''}</p></div>${s.removedFromBooking ? badge('warning', 'Removed from the booking', { wrap: true, sr: 'Task status: ' }) : visaStatus(s)}</li>`;
     }).join('');
     const empty = all.length === 0 ? emptyState('stamp', 'No tasks here yet', 'Tasks appear after Sales submits a booking with a visa or passport service.') : emptyState('stamp', show === 'mine' ? 'No tasks taken by you' : 'Nothing waiting to be taken', show === 'mine' ? 'Open the Not taken tab to pick one up.' : 'Open the All tab to see who has each task.');
@@ -14500,26 +14613,69 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
     return out.length ? `<div class="mb-4 flex flex-col gap-3">${out.join('')}</div>` : '';
   }
 
-  /* Section 1: one row per passenger; the full checklist opens in a drawer. */
+  /* ------------------------------------------------------------------
+     Visa Work tab (7 Nov 2026)
+     Passengers and documents: documents, appointment date, passport number and remark.
+     A passenger is ready once they have an appointment date and every document received.
+     Ready passengers are copied into Appointment, where Applied, the decision and the handover are done.
+     ------------------------------------------------------------------ */
+  const isApplied = (a) => !VF.notStarted(a);
+  const allReceived = (a) => { const x = VF.docSummary(a); return x.total > 0 && x.received === x.total; };
+  const liveDate = (s, a) => { const r = VF.appointmentRow(s, a); return r.record && r.status !== 'cancelled' ? String(r.record.at).slice(0, 10) : ''; };
+  const liveTime = (s, a) => { const r = VF.appointmentRow(s, a); return r.record && r.status !== 'cancelled' && !r.record.noTime ? String(r.record.at).split('T')[1].slice(0, 5) : ''; };
+  const whenText = (d, tm) => (tm ? TN.fmt.dateTime(`${d} ${tm}`).replace(/ IST$/, '') : TN.fmt.date(d));
+  const isReady = (s, a) => isApplied(a) || (allReceived(a) && !!liveDate(s, a));
+  /* What Sales chose on the visa service. The desk's own record wins once the passenger has applied. */
+  const KIND_WORD = { e_visa: 'E-visa', sticker: 'Sticker visa' };
+  const kindKey = (word) => (word === 'E-visa' ? 'e_visa' : word === 'Sticker visa' ? 'sticker' : '');
+  const salesKind = (s) => kindKey((s.visa || {}).visaKind);
+  const kindOf = (s, a) => kindKey(a.visaType) || salesKind(s);
+  const salesJur = (s) => { const v = s.visa || {}; return v.jurisdiction === 'Yes' ? { required: true, place: v.jurPlace || '' } : v.jurisdiction === 'No' ? { required: false, place: '' } : null; };
+  const cleanPassport = (v) => String(v || '').toUpperCase().replace(/\s+/g, '');
+  const paxName = (a, extra = '') => `<span class="vp-name-cell"><span class="font-semibold text-ink wrap-anywhere">${esc(VF.displayName(a))}</span><span class="vp-pp">${a.passportNo ? `Passport ${esc(a.passportNo)}` : 'Passport no. not recorded'}</span>${extra}</span>`;
+  const chip = (tone, text) => `<span class="vp-chip vp-chip-${tone}">${esc(text)}</span>`;
+  const docNames = (list, icon, cls, empty) => (list.length ? `<ul class="vp-docs">${list.map((l) => `<li>${TN.ic(icon, `size-4 shrink-0 ${cls}`)}<span>${esc(l)}</span></li>`).join('')}</ul>` : `<span class="text-quiet">${empty}</span>`);
+  function rowDraft(id, a) {
+    const k = `row-${id}-${a.seq}`;
+    if (!UI.vals[k]) UI.vals[k] = { date: liveDate(S[id], a), time: liveTime(S[id], a), remark: a.remark || '', passportNo: a.passportNo || '', docs: Object.fromEntries(VF.docList(a).map((d) => [d.code, d.status !== 'missing'])) };
+    return UI.vals[k];
+  }
+  const rowState = (s, a) => (!VF.isActive(a) ? badge('warning', 'Removed from the booking', { wrap: true }) : isApplied(a) ? chip('green', 'Applied') : isReady(s, a) ? chip('green', 'Ready · in Appointment') : '');
+  function passengerRead(id, a) {
+    const s = S[id]; const docs = VF.docList(a); const date = liveDate(s, a);
+    return [
+      { html: paxName(a, `<span class="text-sm text-quiet">${esc(typeWord(a))}</span>${rowState(s, a)}`) },
+      { html: `<div class="vw-when-read">${TN.ic('calendar', 'size-4')}<span>${date ? esc(whenText(date, liveTime(s, a))) : 'Not set'}</span></div>` },
+      { html: docNames(docs.filter((d) => d.status !== 'missing').map((d) => d.label), 'circle-check', 'text-status-success', docs.length ? 'None yet' : 'No document list set') },
+      { html: docNames(docs.filter((d) => d.status === 'missing').map((d) => d.label), 'circle-x', 'text-status-warning', docs.length ? 'None' : 'Use Edit to add documents') },
+      { html: a.remark ? `<span class="wrap-anywhere">${esc(a.remark)}</span>` : '—' },
+      { html: canEditApplicant(id, a) ? `<div class="vp-icons"><button type="button" class="vp-ico" data-act="vw-row-edit" data-id="${id}" data-seq="${a.seq}" aria-label="Edit ${esc(VF.displayName(a))}" title="Edit">${TN.ic('pencil-line', 'size-4')}</button></div>` : '—' },
+    ];
+  }
+  /* Edit in place: the row keeps its shape. Each value becomes a small field where it already sits. */
+  function passengerEdit(id, a) {
+    const aid = `${id}-${a.seq}`; const fid = `row-form-${aid}`;
+    const d = rowDraft(id, a); const who = esc(VF.displayName(a));
+    const hook = (act) => `<input form="${fid}" data-change="${act}" data-id="${id}" data-seq="${a.seq}" `;
+    const tick = (doc) => `<li><label class="vp-tick"><input type="checkbox" form="${fid}" id="rowtick-${aid}-${doc.code}" name="doc-${doc.code}" value="1"${d.docs[doc.code] ? ' checked' : ''} data-change="vw-row-tick" data-id="${id}" data-seq="${a.seq}"><span>${esc(doc.label)}</span></label></li>`;
+    const docs = VF.docList(a);
+    const got = docs.filter((x) => d.docs[x.code]); const missing = docs.filter((x) => !d.docs[x.code]);
+    const list = (rows, empty) => (rows.length ? `<ul class="vp-docs">${rows.map(tick).join('')}</ul>` : `<span class="text-quiet">${empty}</span>`);
+    return [
+      { html: `<form id="${fid}" novalidate data-act="vw-row-save"><input type="hidden" name="task" value="${id}"><input type="hidden" name="seq" value="${a.seq}"></form><span class="vp-name-cell"><span class="font-semibold text-ink wrap-anywhere">${who}</span>${textInput(`rowpp-${aid}`, 'passportNo', d.passportNo, { max: 12 }).replace('<input ', `${hook('vw-row-field')}aria-label="Passport number for ${who}" placeholder="Passport number" `)}<span class="text-sm text-quiet">${esc(typeWord(a))}</span></span>` },
+      { html: `<div class="vw-when"><div class="vw-date">${TN.ic('calendar', 'size-4')}${textInput(`rowdate-${aid}`, 'date', d.date, { type: 'date' }).replace('<input ', `${hook('vw-row-field')}aria-label="Appointment date for ${who}" onclick="try{this.showPicker()}catch(e){}" `)}</div><div class="vw-date">${TN.ic('clock', 'size-4')}${textInput(`rowtime-${aid}`, 'time', d.time, { type: 'time' }).replace('<input ', `${hook('vw-row-field')}aria-label="Appointment time for ${who}" onclick="try{this.showPicker()}catch(e){}" `)}</div></div>` },
+      { html: list(got, docs.length ? 'None yet' : 'No document list set') },
+      { html: `${list(missing, docs.length ? 'None' : 'Add the documents')}<div class="vp-links"><button type="button" class="vp-link" data-act="vw-doc-upload-open" data-id="${id}" data-seq="${a.seq}" data-code="">Upload<span class="sr-only"> a document for ${who}</span></button><button type="button" class="vp-link" data-act="vw-row-doc-open" data-id="${id}" data-seq="${a.seq}">Add<span class="sr-only"> a document for ${who}</span></button></div>` },
+      { html: textInput(`rowrem-${aid}`, 'remark', d.remark, { max: 300 }).replace('<input ', `${hook('vw-row-field')}aria-label="Remark for ${who}" `) },
+      { html: `<div class="vp-icons"><button type="submit" form="${fid}" class="vp-ico vp-ok" aria-label="Save ${who}" title="Save">${TN.ic('check', 'size-4')}</button><button type="button" class="vp-ico" data-act="vw-row-cancel" data-id="${id}" data-seq="${a.seq}" aria-label="Cancel editing ${who}" title="Cancel">${TN.ic('x', 'size-4')}</button></div>` },
+    ];
+  }
   function passengerTable(id) {
-    const s = S[id];
-    const list = VF.applicants(s);
+    const s = S[id]; const list = VF.applicants(s);
     if (!list.length) return notice('warning', 'No passengers came with this task. Ask Sales to check the booking.');
-    const rows = list.map((a) => {
-      const sum = VF.docSummary(a);
-      const removed = !VF.isActive(a);
-      const plan = VF.planOf(s, a);
-      return [
-        { html: `<span class="font-semibold text-ink">${esc(VF.displayName(a))}</span><span class="block text-sm text-quiet">${esc(typeWord(a))}</span>${removed ? badge('warning', 'Removed from the booking', { wrap: true }) : ''}` },
-        { cls: 'tabular-nums', html: sum.total ? `${sum.verified} of ${sum.total}` : 'Not set' },
-        { html: statusBadge(VF.docStatus(a), 'Documents: ') },
-        { html: statusBadge(VF.appointmentStatus(s, a), 'Appointment: ') },
-        { html: plan ? esc(TN.fmt.date(plan.plannedDate)) : '—' },
-        { html: a.submittedAt ? `<span class="font-medium text-ink">${esc(TN.fmt.date(a.submittedAt))}</span><span class="block text-sm text-quiet">${esc(VF.returnWord(a))}</span>` : 'Not applied yet' },
-        { html: `<button type="button" class="${B.secondaryMd}" data-act="vw-checklist" data-id="${id}" data-seq="${a.seq}" data-slot="button">View checklist<span class="sr-only"> for ${esc(VF.displayName(a))}</span></button>` },
-      ];
-    });
-    return `<div class="vw-pax">${table({ label: 'Passengers and documents', caption: TN.fmt.plural(VF.activeApplicants(s).length, 'passenger'), heads: ['Passenger', 'Documents verified', 'Document status', 'Appointment status', 'Planned apply date', 'Applied date', 'Action'], rows })}</div>`;
+    const rows = list.map((a) => (UI.rowEdit === `${id}-${a.seq}` && canEditApplicant(id, a) ? passengerEdit(id, a) : passengerRead(id, a)));
+    const ready = VF.activeApplicants(s).filter((a) => isReady(s, a)).length;
+    return `<div class="vw-pax vw-appt-table vp-pax vp-rows">${table({ label: 'Passengers and documents', caption: `${TN.fmt.plural(list.length, 'passenger')} · ${ready} ready for Appointment`, heads: ['Passenger', 'Appointment date', 'Received documents', 'Not received documents', 'Remark', 'Edit'], rows })}</div>`;
   }
 
   /* The checklist drawer. A draft survives closing it; it clears on save or discard. */
@@ -14553,7 +14709,7 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
   const checklistLock = (id, a) => (!TN.is('visa') ? 'View only. The assigned Visa executive edits this checklist.' : !VF.isActive(a) ? 'This passenger was removed from the booking, so the checklist is locked.' : !VF.notStarted(a) ? 'The application is already submitted, so the checklist is locked.' : 'Only the executive who took this task can change the checklist.');
   /* Upload a document for one passenger, with the name to keep for it. Typed values stay after a refusal.
      While the checklist is open, uploading a not-received document marks it received. */
-  const canUploadDoc = (id, a) => canEditVisa(id) && !!a && VF.isActive(a) && !isClosed(a);
+  const canUploadDoc = (id, a) => { const s = S[id]; return !!s && s.dept === 'visa' && TN.is('visa') && s.assignee === me() && !s.removedFromBooking && !!a && VF.isActive(a); };
   function docUploadDrawer(id, seq, code, typed, errors = {}) {
     const s = S[id]; const a = applicantBySeq(id, seq);
     if (!s || !a) return;
@@ -14574,7 +14730,7 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
       <div class="flex flex-col gap-1.5" data-slot="field"><label class="${C.label}" for="${k}-file">File</label><input type="file" id="${k}-file" name="file" class="block w-full text-sm text-copy" accept=".pdf,.jpg,.jpeg,.png"${errors.file ? ` aria-invalid="true" aria-describedby="${k}-file-error"` : ` aria-describedby="${k}-file-hint"`}><p class="${C.hint}" id="${k}-file-hint">PDF, JPG or PNG, up to 4 MB.</p>${errors.file ? fieldError(`${k}-file`, errors.file) : ''}</div>
       <p class="${C.small}">${tick} ${META_NOTE}</p></form>`;
     const footer = `<button type="button" class="${B.secondaryMd}" data-close data-slot="button">Cancel</button><button type="submit" form="docup-form" class="${B.primaryMd}" data-slot="button">Upload and save</button>`;
-    TN.drawer({ title: 'Upload document', description: esc(VF.displayName(a)), body, footer, wide: true });
+    TN.dialog({ title: 'Upload document', description: esc(VF.displayName(a)), body, footer, cls: 'vp-popup' });
   }
   function checklistDrawer(id, seq, flash) {
     const s = S[id]; const a = applicantBySeq(id, seq);
@@ -14610,21 +14766,40 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
   /* Appointment: one row per passenger, saved against that passenger's stable id.
      This section is the only place an appointment is edited. */
   const NP = 'Not provided';
+  const VISA_TYPES = ['Tourism', 'E-visa', 'Sticker visa'];
+  const visaTypeOf = (s, a) => a.visaType || VISA_TYPES.find((x) => x.toLowerCase() === String((s.visa || {}).purpose || '').toLowerCase()) || '';
+  const visaTypeWord = (s, a) => visaTypeOf(s, a) || (s.visa || {}).purpose || NP;
+  function visaTypeCell(id, a) {
+    const s = S[id]; const now = visaTypeOf(s, a);
+    if (!canEditVisa(id) || !VF.isActive(a)) return esc(visaTypeWord(s, a));
+    const first = now ? [] : [['', (s.visa || {}).purpose || 'Choose']];
+    return select(`vtype-${id}-${a.seq}`, 'visaType', [...first, ...VISA_TYPES.map((x) => [x, x])], now, ` aria-label="Visa type for ${esc(a.name || `passenger ${a.seq}`)}" data-change="vw-vtype-pick" data-id="${id}" data-seq="${a.seq}"`);
+  }
+  /* Date and time in the table. Choosing a date saves it and the row becomes Scheduled. */
+  function apptDateCell(id, a, row) {
+    const s = S[id];
+    const live = !!row.record && row.status !== 'cancelled';
+    const shown = row.record ? esc(TN.fmt.date(String(row.record.at).slice(0, 10))) : row.status === 'not_required' ? 'Not required' : 'Not set';
+    const who = esc(a.name || `passenger ${a.seq}`);
+    const icon = TN.ic('calendar', 'size-4');
+    /* Anyone who cannot change it reads the saved value beside the same icon. */
+    if (!canUploadDoc(id, a)) return `<div class="vw-when-read">${icon}<span>${shown}</span></div>`;
+    const d = live ? String(row.record.at).slice(0, 10) : '';
+    const pick = (kind, name, label, value, act, extra = '') => textInput(`appt-${kind}-${id}-${a.seq}`, name, value, { type: kind }).replace('<input ', `<input aria-label="${label} for ${who}" data-change="${act}" data-id="${id}" data-seq="${a.seq}"${extra} onclick="try{this.showPicker()}catch(e){}" `);
+    return `<div class="vw-when flex flex-col gap-1.5"><div class="vw-date">${icon}${pick('date', 'date', 'Appointment date', d, 'vw-appt-date')}</div></div>`;
+  }
   const APPT_TONE = { scheduled: 'success', attended: 'success', rescheduled: 'info', cancelled: 'danger', not_scheduled: 'neutral', not_required: 'neutral', unconfirmed: 'warning' };
   const apptBadge = (row) => statusBadge({ tone: APPT_TONE[row.status], label: row.label }, 'Appointment status: ');
   const canSetAppt = (id, a) => canEditVisa(id) && VF.canHaveAppointment(S[id], a).ok;
+  /* Action column: one dropdown per passenger with what this person can do. */
   function apptAction(id, a, row) {
-    const btn = (act, label) => `<button type="button" class="${B.openSm}" data-act="${act}" data-id="${id}" data-seq="${a.seq}" data-slot="button">${label}<span class="sr-only"> for ${esc(a.name || `passenger ${a.seq}`)}</span></button>`;
-    const embBtn = btn('vw-emb-open', canEditVisa(id) ? 'Edit embassy status' : 'View embassy status');
-    if (row.status === 'not_required' || row.status === 'unconfirmed') return `<div class="flex flex-wrap gap-2">${embBtn}</div>`;
-    const out = [];
+    const items = [];
     const live = !!row.record && row.status !== 'cancelled';
-    if (row.record) out.push(btn('vw-appt-details', 'Embassy / Centre details'));
-    if (live && canEditVisa(id)) out.push(btn('vw-appt-open', 'Edit appointment'), btn('vw-appt-status-open', 'Update status'));
-    if (!live && canSetAppt(id, a)) out.push(btn('vw-appt-open', 'Set appointment'));
-    if (!live && canEditVisa(id) && !canSetAppt(id, a)) out.push(`<span class="text-sm text-quiet">${esc(VF.canHaveAppointment(S[id], a).why)}</span>`);
-    out.push(embBtn);
-    return `<div class="flex flex-wrap gap-2">${out.join('')}</div>`;
+    if (row.record) items.push(['details', 'Embassy / Centre details']);
+    if (live && canEditVisa(id)) items.push(['open', 'Edit appointment'], ['status', 'Update status']);
+    if (!live && canSetAppt(id, a) && row.status !== 'not_required' && row.status !== 'unconfirmed') items.push(['open', 'Set appointment']);
+    items.push(['emb', canEditVisa(id) ? 'Edit embassy status' : 'View embassy status']);
+    return select(`act-${id}-${a.seq}`, 'action', [['', 'Select action'], ...items], '', ` aria-label="Action for ${esc(a.name || `passenger ${a.seq}`)}" data-change="vw-action-pick" data-id="${id}" data-seq="${a.seq}"`);
   }
   function appointmentSection(id) {
     const s = S[id]; const req = VF.requirementFor(s); const v = s.visa || {};
@@ -14637,37 +14812,39 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
     const list = VF.activeApplicants(s);
     const rows = list.map((a) => {
       const row = VF.appointmentRow(s, a);
-      const date = row.status === 'not_required' ? 'Not required' : row.record ? apptWhen(row.record) : 'Not set';
       return [
         { html: `<span class="font-semibold text-ink">${esc(a.name || NP)}</span>` },
         { html: esc(v.country || NP) },
-        { html: esc(v.purpose || NP) },
-        { html: date },
+        { html: visaTypeCell(id, a) },
+        { html: apptDateCell(id, a, row) },
         { html: apptBadge(row) },
-        { html: embassyCell(embassyOf(s, a)) },
+        { html: embassyPick(id, a, embassyOf(s, a)) },
         { html: apptAction(id, a, row) },
       ];
     });
-    const sent = list.filter((a) => embassyOf(s, a).status === 'submitted').length;
-    const people = rows.length ? `<div class="vw-pax">${table({ label: 'Appointments and embassy submission', caption: `${TN.fmt.plural(rows.length, 'passenger')} · Embassy: ${sent} submitted, ${rows.length - sent} not submitted`, heads: ['Passenger name', 'Country', 'Visa type', 'Appointment date &amp; time', 'Status', 'Embassy submission', 'Action'], rows })}</div>` : `<p class="m-0 px-4.5 py-4 text-quiet">No passengers on this task.</p>`;
+    const sent = list.filter((a) => embassyOf(s, a).status !== 'not_submitted').length;
+    const people = rows.length ? `<div class="vw-pax vw-appt-table">${table({ label: 'Appointments and embassy submission', caption: `${TN.fmt.plural(rows.length, 'passenger')} · Embassy: ${sent} submitted, ${rows.length - sent} not submitted`, heads: ['Passenger name', 'Country', 'Visa type', 'Appointment date', 'Status', 'Embassy submission', 'Action'], rows })}</div>` : `<p class="m-0 px-4.5 py-4 text-quiet">No passengers on this task.</p>`;
     return card({ id: `visa-appt-${id}`, title: 'Appointment', desc: 'Separate from the visa result. Attended does not issue a visa or finish the task. Record each passenger’s embassy submission from the Action column.', bodyCls: null, body: `<div class="${C.bodyCol3}">${notes.join('')}</div>${people}` });
   }
   /* Embassy submission: one record per passenger, saved against the passenger's stable id.
      Separate from the appointment and from the visa result. Until someone records it here,
      a passenger whose application was already submitted shows that submission. */
-  const EMB_STATUSES = [['submitted', 'Submitted'], ['not_submitted', 'Not submitted']];
-  const EMB_WORD = { submitted: 'Submitted', not_submitted: 'Not submitted' };
+  const EMB_STATUSES = [['not_submitted', 'Not submitted'], ['submitted', 'Submitted'], ['approved', 'Approved']];
+  const EMB_WORD = { submitted: 'Submitted', approved: 'Approved', not_submitted: 'Not submitted' };
   function embassyOf(s, a) {
     const rec = ((s.workflow || {}).embassy || {})[a.paxId];
     if (rec) return { status: rec.status, date: rec.date || '', reference: rec.reference || '', remarks: rec.remarks || '', set: rec.set || null, source: 'recorded' };
     if (a.submittedAt) return { status: 'submitted', date: String(a.submittedAt).slice(0, 10), reference: a.reference || '', remarks: '', set: null, source: 'application' };
     return { status: 'not_submitted', date: '', reference: '', remarks: '', set: null, source: 'none' };
   }
-  const embBadge = (e) => statusBadge({ tone: e.status === 'submitted' ? 'success' : 'warning', label: EMB_WORD[e.status] || e.status }, 'Embassy submission: ');
+  const embBadge = (e) => statusBadge({ tone: e.status !== 'not_submitted' ? 'success' : 'warning', label: EMB_WORD[e.status] || e.status }, 'Embassy submission: ');
   const embUpdated = (e) => (e.set ? applyLine(e.set) : e.source === 'application' ? 'From the application record' : 'Not recorded yet');
   const embLock = (id) => { const s = S[id]; return !TN.is('visa') ? 'View only. The assigned Visa executive records the embassy submission.' : s.removedFromBooking ? 'This service was removed from the booking, so editing is closed.' : s.taskStatus === 'done' ? 'This task is complete, so the embassy status is locked.' : 'Only the executive who took this task can change the embassy status.'; };
+  const embassyNote = (e) => (e.status !== 'not_submitted' && e.reference ? `<span class="text-sm text-quiet wrap-anywhere">Ref: ${esc(e.reference)}</span>` : '');
   /* Embassy column of the Appointment table: status, then date and reference when submitted. */
-  const embassyCell = (e) => `<div class="flex flex-col gap-1">${embBadge(e)}${e.status === 'submitted' && e.date ? `<span class="text-sm text-copy">${esc(TN.fmt.date(e.date))}</span>` : ''}${e.status === 'submitted' && e.reference ? `<span class="text-sm text-quiet wrap-anywhere">Ref: ${esc(e.reference)}</span>` : ''}</div>`;
+  const embassyCell = (e) => `<div class="flex flex-col gap-1">${embBadge(e)}${e.status !== 'not_submitted' && e.date ? `<span class="text-sm text-copy">${esc(TN.fmt.date(e.date))}</span>` : ''}${embassyNote(e)}</div>`;
+  /* The dropdown shown to the executive who can change it; others see the badge. */
+  const embassyPick = (id, a, e) => (canEditVisa(id) && VF.isActive(a) ? `<div class="flex flex-col gap-1">${select(`emb-pick-${id}-${a.seq}`, 'embassy', EMB_STATUSES, e.status, ` aria-label="Embassy submission for ${esc(a.name || `passenger ${a.seq}`)}" data-change="vw-emb-pick" data-id="${id}" data-seq="${a.seq}"`)}${e.status !== 'not_submitted' && e.date ? `<span class="text-sm text-copy">${esc(TN.fmt.date(e.date))}</span>` : ''}${embassyNote(e)}</div>` : embassyCell(e));
   /* Record one passenger's embassy submission. Typed values stay after a refusal. */
   function embassyDrawer(id, seq, typed, errors = {}) {
     const s = S[id]; const a = applicantBySeq(id, seq);
@@ -14677,14 +14854,14 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
     const k = `emb-${id}-${a.seq}`;
     const v = typed || { status: e.status, date: e.date, reference: e.reference, remarks: e.remarks };
     const note = `<p class="${C.small}">This records the embassy submission only. It does not change the appointment, the visa result or the task.</p>`;
-    const current = readOnlyFacts([['Embassy submission', embBadge(e)], ['Submission date', e.status === 'submitted' && e.date ? esc(TN.fmt.date(e.date)) : '—'], ['Reference', esc(e.reference || NP)], ['Remarks', esc(e.remarks || NP)], ['Last updated', embUpdated(e)]]);
+    const current = readOnlyFacts([['Embassy submission', embBadge(e)], ['Submission date', e.status !== 'not_submitted' && e.date ? esc(TN.fmt.date(e.date)) : '—'], ['Reference', esc(e.reference || NP)], ['Remarks', esc(e.remarks || NP)], ['Last updated', embUpdated(e)]]);
     const body = editable
       ? `<form novalidate id="emb-form" class="flex flex-col gap-4" data-act="vw-emb-save"><input type="hidden" name="task" value="${id}"><input type="hidden" name="seq" value="${a.seq}">
       ${Object.keys(errors).length ? errorSummary(esc(errors.form || 'Some details are missing or wrong.')) : ''}
       ${readOnlyFacts(apptWho(s, a))}
       <div class="grid gap-3 sm:grid-cols-2">
-      ${field(`${k}-status`, 'Submitted to the embassy?', select(`${k}-status`, 'status', EMB_STATUSES, v.status), { error: errors.status })}
-      ${field(`${k}-date`, 'Submission date', textInput(`${k}-date`, 'date', v.date, { type: 'date', invalid: !!errors.date }), { error: errors.date, hint: 'Needed when the status is Submitted.' })}
+      ${field(`${k}-status`, 'Embassy submission', select(`${k}-status`, 'status', EMB_STATUSES, v.status), { error: errors.status })}
+      ${field(`${k}-date`, 'Submission date', textInput(`${k}-date`, 'date', v.date, { type: 'date', invalid: !!errors.date }), { error: errors.date, hint: 'Needed when the status is Submitted or Approved.' })}
       ${field(`${k}-ref`, 'Embassy / application reference', textInput(`${k}-ref`, 'reference', v.reference, { max: 120 }), { optional: true })}
       ${field(`${k}-rem`, 'Remarks', textInput(`${k}-rem`, 'remarks', v.remarks, { max: 300 }), { optional: true })}
       </div>${note}</form>`
@@ -14695,7 +14872,7 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
     TN.drawer({ title: 'Embassy status', description: esc(a.name || NP), body, footer, wide: true });
   }
   const readOnlyFacts = (rows) => `<dl class="m-0 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 max-sm:grid-cols-1">${rows.map(([k, val]) => `<dt class="text-sm font-semibold text-quiet">${k}</dt><dd class="m-0 text-ink wrap-anywhere">${val}</dd>`).join('')}</dl>`;
-  const apptWho = (s, a) => [['Passenger name', esc(a.name || NP)], ['Country', esc((s.visa || {}).country || NP)], ['Visa type', esc((s.visa || {}).purpose || NP)]];
+  const apptWho = (s, a) => [['Passenger name', esc(a.name || NP)], ['Country', esc((s.visa || {}).country || NP)], ['Visa type', esc(visaTypeWord(s, a))]];
   /* Set or edit one passenger's appointment. Typed values stay after a refusal. */
   function appointmentDrawer(id, seq, typed, errors = {}) {
     const s = S[id]; const a = applicantBySeq(id, seq);
@@ -14703,7 +14880,7 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
     const row = VF.appointmentRow(s, a);
     const old = row.record && row.status !== 'cancelled' ? row.record : null;
     const [oldDate = '', oldTime = ''] = old ? String(old.at).split('T') : [];
-    const v = typed || (old ? { date: oldDate, time: oldTime.slice(0, 5), timezone: old.timezone, centre: old.centre, location: old.location, reference: old.reference, remarks: old.remarks } : {});
+    const v = typed || (old ? { date: oldDate, time: old.noTime ? '' : oldTime.slice(0, 5), timezone: old.timezone, centre: old.centre, location: old.location, reference: old.reference, remarks: old.remarks } : {});
     const route = VF.routeOf(s) || {};
     const k = `appt-${id}-${a.seq}`;
     const body = `<form novalidate id="appt-form" class="flex flex-col gap-4" data-act="vw-appt-save"><input type="hidden" name="task" value="${id}"><input type="hidden" name="seq" value="${a.seq}">
@@ -14769,7 +14946,7 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
     return card({ id: `visa-plan-${id}`, title: 'Planned application date', desc: 'Separate from the actual submission date.', bodyCls: C.bodyCol3, body: `${body}${list}${!body && !list ? '<p class="m-0 text-quiet">No plan saved yet.</p>' : ''}` });
   }
 
-  const isClosed = (a) => (a.state === 'issued' && a.documentsReturnedAt) || ((a.state === 'refused' || a.state === 'withdrawn') && a.customerInformedAt);
+  const isClosed = (a) => !!a.closedAt || (a.state === 'issued' && a.documentsReturnedAt) || ((a.state === 'refused' || a.state === 'withdrawn') && a.customerInformedAt);
   function applicantTimeline(a) {
     const order = ['docs_pending', 'submitted', 'decision_pending'];
     const final = ['issued', 'refused', 'withdrawn'].includes(a.state);
@@ -14804,18 +14981,19 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
     const docTab = UI.docTab[aid] || (sum.received < sum.total ? 'missing' : 'received');
     const shownDocs = VF.docList(a).filter((d) => (docTab === 'received' ? d.status !== 'missing' : d.status === 'missing'));
     const tabBtn = (k, label, n) => `<button type="button" class="${docTab === k ? B.primaryMd : B.secondaryMd}" aria-pressed="${docTab === k}" data-act="vw-doc-tab" data-id="${aid}" data-tab="${k}" data-slot="button">${label} (${n})</button>`;
+    const upBtn = (code, cls, sr) => `<button type="button" class="vw-up ${cls}"${canUploadDoc(id, a) ? '' : ' aria-disabled="true"'} data-act="vw-doc-upload-open" data-id="${id}" data-seq="${a.seq}" data-code="${code}" data-slot="button">Upload document<span class="sr-only">${sr}</span></button>`;
     const docRows = shownDocs.map((d) => {
       const name = { html: `<span class="font-medium text-ink">${esc(d.label)}</span>${d.remark ? `<span class="block text-sm text-quiet">${esc(d.remark)}</span>` : ''}` };
-      if (docTab === 'received') return [name, { html: TN.ui.checkbox({ id: `doc-${aid}-${d.code}`, label: `<span class="sr-only">Received: ${esc(d.label)}</span>`, checked: true, disabled: true }) }];
-      const row = [name, { html: badge('warning', 'Not received') }];
-      if (canEditDocs) row.push({ html: `<div class="flex flex-wrap gap-2"><button type="button" class="${B.openSm}" data-act="vw-doc-received" data-id="${id}" data-seq="${a.seq}" data-code="${d.code}" data-slot="button">Mark received<span class="sr-only">: ${esc(d.label)}</span></button><button type="button" class="${B.openSm}" data-act="vw-doc-upload-open" data-id="${id}" data-seq="${a.seq}" data-code="${d.code}" data-slot="button">Upload document<span class="sr-only">: ${esc(d.label)}</span></button></div>` });
+      if (docTab === 'received') return [name, { html: `<div class="flex flex-wrap items-center gap-2">${TN.ui.checkbox({ id: `doc-${aid}-${d.code}`, label: `<span class="sr-only">Received: ${esc(d.label)}</span>`, checked: true, disabled: true })}${upBtn(d.code, B.openSm, `: ${esc(d.label)}`)}</div>` }];
+      const row = [name, { html: `<div class="flex flex-wrap items-center gap-2">${badge('warning', 'Not received')}${upBtn(d.code, B.openSm, `: ${esc(d.label)}`)}</div>` }];
+      if (canEditDocs) row.push({ html: `<div class="flex flex-wrap gap-2"><button type="button" class="${B.openSm}" data-act="vw-doc-received" data-id="${id}" data-seq="${a.seq}" data-code="${d.code}" data-slot="button">Mark received<span class="sr-only">: ${esc(d.label)}</span></button></div>` });
       return row;
     });
     const docHeads = docTab === 'received' ? ['Document', 'Received'] : canEditDocs ? ['Document', 'Not received', 'Action'] : ['Document', 'Not received'];
     const docTable = docRows.length ? table({ label: `Documents for ${esc(VF.displayName(a))}`, caption: `${sum.received} of ${sum.total} received`, heads: docHeads, rows: docRows }) : `<p class="m-0 px-4.5 py-4 text-quiet">${docTab === 'received' ? 'No document received yet.' : 'Every document has been received.'}</p>`;
     const addKey = `add-${aid}`;
     const addForm = canEditDocs && UI.open[addKey] ? `<form novalidate aria-label="Add a document for ${esc(VF.displayName(a))}" class="flex flex-col gap-3 rounded-control border border-line bg-canvas px-3.5 py-3" data-act="vw-doc-add"><input type="hidden" name="task" value="${id}"><input type="hidden" name="seq" value="${a.seq}">${field(`${addKey}-name`, 'Document name', textInput(`${addKey}-name`, 'label', (UI.vals[addKey] || {}).label, { max: 120, invalid: !!UI.err[addKey] }), { error: UI.err[addKey] ? esc(UI.err[addKey]) : '' })}${TN.ui.checkbox({ id: `${addKey}-rec`, name: 'received', value: '1', label: 'Already received', checked: !!(UI.vals[addKey] || {}).received })}<div class="flex flex-wrap gap-2"><button type="submit" class="${B.primaryMd}" data-slot="button">Save document</button><button type="button" class="${B.ghostMd}" data-act="vw-doc-add-open" data-id="${aid}" data-slot="button">Cancel</button></div></form>` : '';
-    const docHead = `<div class="flex flex-wrap items-center justify-between gap-2"><h3 id="app-${aid}-docs" class="m-0 text-base font-semibold text-ink">Documents <span class="font-normal text-quiet">(${sum.verified} of ${sum.total} checked)</span></h3><div class="flex flex-wrap items-center gap-2">${sum.total ? `<div role="group" aria-label="Show documents" class="flex flex-wrap gap-2">${tabBtn('received', 'Received', sum.received)}${tabBtn('missing', 'Not received', sum.total - sum.received)}</div>` : ''}${work ? `<button type="button" class="${B.primaryMd}" data-act="vw-doc-upload-open" data-id="${id}" data-seq="${a.seq}" data-code="" data-slot="button">Upload document<span class="sr-only"> for ${esc(VF.displayName(a))}</span></button>` : ''}${canEditDocs ? `<button type="button" class="${B.secondaryMd}" data-act="vw-doc-add-open" data-id="${aid}" data-slot="button">Add document</button>` : ''}${canEditDocs && sum.total ? `<button type="button" class="${B.ghostSm}" data-act="vw-checklist" data-id="${id}" data-seq="${a.seq}" data-slot="button">View checklist<span class="sr-only"> for ${esc(VF.displayName(a))}</span></button>` : ''}</div></div>`;
+    const docHead = `<div class="flex flex-wrap items-center justify-between gap-2"><h3 id="app-${aid}-docs" class="m-0 text-base font-semibold text-ink">Documents <span class="font-normal text-quiet">(${sum.verified} of ${sum.total} checked)</span></h3><div class="flex flex-wrap items-center gap-2">${sum.total ? `<div role="group" aria-label="Show documents" class="flex flex-wrap gap-2">${tabBtn('received', 'Received', sum.received)}${tabBtn('missing', 'Not received', sum.total - sum.received)}</div>` : ''}${upBtn('', B.primaryMd, ` for ${esc(VF.displayName(a))}`)}${canEditDocs ? `<button type="button" class="${B.secondaryMd}" data-act="vw-doc-add-open" data-id="${aid}" data-slot="button">Add document</button>` : ''}${canEditDocs && sum.total ? `<button type="button" class="${B.ghostSm}" data-act="vw-checklist" data-id="${id}" data-seq="${a.seq}" data-slot="button">View checklist<span class="sr-only"> for ${esc(VF.displayName(a))}</span></button>` : ''}</div></div>`;
     const docLine = `${docHead}${addForm}${sum.total ? `<div class="overflow-hidden rounded-control border border-line">${docTable}</div>` : notice('warning', 'Document requirements need confirmation')}`;
     const upload = work ? `<details class="${C.details}"${UI.open[`up-${aid}`] ? ' open' : ''}><summary class="${C.summaryF}">Upload a document for ${esc(VF.displayName(a))}</summary><div class="${C.detailsBody}">${fileUpload(`up-${aid}`, `Upload a document for ${VF.displayName(a)}`, `<input type="hidden" name="task" value="${id}"><input type="hidden" name="seq" value="${a.seq}">`, [['applicant_document', 'Applicant document'], ['authority_outcome', 'Authority outcome document']])}</div></details>` : '';
     const evList = ev.length ? `<ul class="m-0 flex list-none flex-col gap-1.5 p-0" aria-label="Stored files">${ev.map((f) => `<li class="m-0 flex flex-wrap items-center gap-2 text-sm">${ic('file-check', 'size-4 text-status-success')}${fileLabel(f)}<span class="text-quiet">${FILE_KIND[f.kind]} · ${f.size}</span></li>`).join('')}</ul>` : '';
@@ -14880,7 +15058,226 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
     if (!s.assignee) return canClaim ? 'take this task' : 'the Visa and passport desk takes this task';
     if (!mine) return `${(TN.person(s.assignee) || {}).name || 'Another staff member'} works on this task`;
     if (isPassport(s)) return 'finish the steps on the Work tab';
-    return { 'Documents pending': 'check and save each passenger’s documents', 'Document requirements need confirmation': 'confirm the document requirements', 'Appointment requirement pending': 'the branch Manager confirms the appointment requirement', 'Appointment pending': 'schedule the appointment', 'Appointment scheduled': 'save the planned application date', 'Appointment not required': 'save the planned application date', 'Application planned': 'record the actual submission' }[VF.stageLabel(s)] || 'finish the steps on the Work tab';
+    const c = currentStep(id);
+    return (c && { ready: 'receive each passenger’s documents and set the appointment date', applied: 'record each passenger’s application', decision: 'record the decision from the visa department', handover: 'finish the handover' }[c.key]) || 'finish the steps on the Work tab';
+  }
+
+  /* Progress bar: the five stages, worked out from the saved records on every render.
+     A stage is complete when every active passenger has met it and every stage before it is complete. */
+  const decided = (a) => ['issued', 'refused', 'withdrawn'].includes(a.state);
+  function visaSteps(id) {
+    const s = S[id]; const list = VF.activeApplicants(s);
+    const count = (fn) => ({ met: list.filter(fn).length, of: list.length });
+    const raw = [
+      { key: 'take', sec: '', label: 'Task taken', met: s.assignee ? 1 : 0, of: 1 },
+      { key: 'ready', sec: 'pax', label: 'Documents and date', ...count((a) => isReady(s, a)) },
+      { key: 'applied', sec: 'appt', label: 'Applied', ...count(isApplied) },
+      { key: 'decision', sec: 'appt', label: 'Decision', ...count(decided) },
+      { key: 'handover', sec: 'appt', label: 'Handover', ...count(isClosed) },
+    ];
+    let chain = true;
+    return raw.map((x) => { chain = chain && x.of > 0 && x.met === x.of; return { ...x, done: chain }; });
+  }
+  function visaStepper(id) {
+    const steps = visaSteps(id);
+    const current = steps.findIndex((x) => !x.done);
+    return `<div class="${C.card}" data-slot="card"><div class="vp-wrap" tabindex="0" role="group" aria-label="Visa progress, scrolls sideways on small screens"><ol aria-label="Visa progress" class="vp-steps">${steps.map((x, i) => {
+      const state = x.done ? 'is-done' : i === current ? 'is-current' : 'is-pending';
+      const word = x.done ? 'Completed' : i === current ? (x.of > 1 ? `${x.met} of ${x.of}` : 'Now') : 'Pending';
+      const after = steps[i + 1];
+      const fill = after && x.done && after.of ? (after.done ? 100 : Math.round((after.met / after.of) * 100)) : 0;
+      const face = `<span aria-hidden="true" class="vp-dot">${x.done ? TN.ic('check', 'size-5') : i + 1}</span><span class="vp-name">${x.label}</span><span class="vp-state">${word}</span>`;
+      return `<li${i === current ? ' aria-current="step"' : ''} class="vp-step ${state}">${i < steps.length - 1 ? `<span aria-hidden="true" class="vp-line"><span class="vp-fill" style="width:${fill}%"></span></span>` : ''}${x.sec ? `<button type="button" class="vp-btn" data-act="vw-jump" data-target="sec-${id}-${x.sec}">${face}</button>` : `<div class="vp-btn">${face}</div>`}</li>`;
+    }).join('')}</ol></div></div>`;
+  }
+  const currentStep = (id) => visaSteps(id).find((x) => !x.done);
+  const visaStageWord = (id) => { const s = S[id]; if (isPassport(s) || !s.assignee || s.taskStatus === 'done') return ''; const c = currentStep(id); return c ? { ready: 'Documents and date pending', applied: 'Not applied yet', decision: 'Waiting for decision', handover: 'Handover pending' }[c.key] || '' : ''; };
+
+  /* Shared popup parts */
+  const HAND = { office: 'Customer collects from the office', executive: 'Our executive delivers', courier: 'By courier', not_with_us: 'Passport is not with us' };
+  const closesNow = (h) => !!h && (h.mode === 'not_with_us' || (h.mode === 'courier' && !!h.courierNo));
+  const hideUnless = (name, value, now) => `data-when="${name}=${value}"${now === value ? '' : ' hidden'}`;
+  const fileProblem = (file, need) => (!file ? (need ? 'Choose the file.' : '') : !/\.(pdf|jpe?g|png)$/i.test(file.name) ? 'Choose a PDF, JPG or PNG file.' : file.size > MAX_FILE ? 'This file is larger than 4 MB. Choose a smaller file.' : '');
+  const fileField = (id, label, error, opts = {}) => `<div class="flex flex-col gap-1.5" data-slot="field"><label class="${C.label}" for="${id}">${label}${opts.optional ? '<span class="font-normal text-quiet"> (optional)</span>' : ''}</label><input type="file" id="${id}" name="${opts.name || 'file'}" class="block w-full text-sm text-copy" accept=".pdf,.jpg,.jpeg,.png"${error ? ` aria-invalid="true" aria-describedby="${id}-error"` : ` aria-describedby="${id}-hint"`}><p class="${C.hint}" id="${id}-hint">PDF, JPG or PNG, up to 4 MB.</p>${error ? fieldError(id, error) : ''}</div>`;
+  const moneyField = (id, name, label, value, error, optional) => field(id, label, `<div class="relative" data-slot="money-input"><span aria-hidden="true" class="pointer-events-none absolute inset-y-0 left-3 flex items-center font-sans text-base text-quiet">₹</span><input type="text" class="${C.input} pl-7 tabular-nums" data-slot="input" inputmode="decimal" autocomplete="off" id="${id}" name="${name}" value="${esc(value || '')}"${error ? ` aria-invalid="true" aria-describedby="${id}-error"` : ''}></div>`, { error, optional });
+  const rupees = (v) => Number(String(v || '').replace(/[,\s₹]/g, ''));
+  const drawerErrors = (errors, hasFile) => (Object.keys(errors).length ? errorSummary('Some details are missing or wrong.', hasFile ? 'Your typed details are still here. Choose the file again.' : undefined) : '');
+  const drawerFooter = (form, label) => `<button type="button" class="${B.secondaryMd}" data-close data-slot="button">Cancel</button><button type="submit" form="${form}" class="${B.primaryMd}" data-slot="button">${label}</button>`;
+  const hiddenIds = (id, a) => `<input type="hidden" name="task" value="${id}"><input type="hidden" name="seq" value="${a.seq}">`;
+  const outcomeFile = (id, a) => filesOf(id).find((f) => f.kind === 'authority_outcome' && f.applicant === a.seq);
+  const popup = (o) => TN.dialog({ ...o, cls: 'vp-popup' });
+  const handFields = (k, v, errors) => `${field(`${k}-hand`, 'How the passport goes back', select(`${k}-hand`, 'handover', [['', 'Not decided yet'], ...Object.entries(HAND)], v.handover, ' data-change="vw-when"'), { optional: true, error: errors.handover, hint: 'Leave it for later if you do not know yet.' })}<div ${hideUnless('handover', 'courier', v.handover)}>${field(`${k}-courier`, 'Courier number', textInput(`${k}-courier`, 'courierNo', v.courierNo, { max: 80, invalid: !!errors.courierNo }), { error: errors.courierNo })}</div>`;
+
+  function addDocDrawer(id, seq, typed = {}, error) {
+    const a = applicantBySeq(id, seq); if (!a) return;
+    const k = `rowdoc-${id}-${a.seq}`;
+    const have = VF.docList(a);
+    const choices = VF.DOC_CATALOG.filter((d) => !have.some((x) => x.code === d.code || x.label.toLowerCase() === d.label.toLowerCase()));
+    const pick = typed.pick || (choices[0] ? choices[0].code : '__other');
+    const body = `<form novalidate id="rowdoc-form" class="flex flex-col gap-4" data-act="vw-row-doc-add">${hiddenIds(id, a)}${error ? errorSummary(esc(error)) : ''}${field(`${k}-pick`, 'Document', select(`${k}-pick`, 'pick', [...choices.map((d) => [d.code, d.label]), ['__other', 'Other (type the name)']], pick, ' data-change="vw-when"'), { hint: have.length ? `${TN.fmt.plural(have.length, 'document')} already on the list are left out.` : '' })}<div ${hideUnless('pick', '__other', pick)}>${field(`${k}-name`, 'Document name', textInput(`${k}-name`, 'label', typed.label, { max: 120, invalid: !!error }), { error: error ? esc(error) : '' })}</div>${TN.ui.checkbox({ id: `${k}-rec`, name: 'received', value: '1', label: 'Already received', checked: !!typed.received })}${field(`${k}-rem`, 'Remark', textInput(`${k}-rem`, 'remark', typed.remark, { max: 300 }), { optional: true })}</form>`;
+    popup({ title: 'Add document', description: esc(VF.displayName(a)), body, footer: drawerFooter('rowdoc-form', 'Save document') });
+  }
+
+  /* Visa type and jurisdiction come from Sales. The desk chooses only when Sales did not. */
+  function visaFields(k, s, v, errors, many) {
+    const kind = salesKind(s); const jur = salesJur(s); const now = kind || v.kind;
+    const kindCtl = kind ? `<input type="hidden" name="kind" value="${kind}">` : field(`${k}-kind`, 'Visa type', select(`${k}-kind`, 'kind', [['', 'Choose'], ['e_visa', 'E-visa'], ['sticker', 'Sticker visa']], v.kind, ' data-change="vw-when"'), { error: errors.kind, hint: 'Sales did not set this on the booking.' });
+    const jurCtl = jur ? `<input type="hidden" name="jurisdiction" value="${jur.required ? 'yes' : 'no'}"><input type="hidden" name="place" value="${esc(jur.place)}">`
+      : `${field(`${k}-jur`, 'Jurisdiction passport?', select(`${k}-jur`, 'jurisdiction', [['', 'Choose'], ['no', 'No, it can be sent from here'], ['yes', 'Yes, it must go to a set place']], v.jurisdiction, ' data-change="vw-when"'), { error: errors.jurisdiction, hint: 'Sales did not set this on the booking.' })}<div ${hideUnless('jurisdiction', 'yes', v.jurisdiction)}>${field(`${k}-place`, 'Where the passport must be sent', textInput(`${k}-place`, 'place', v.place, { max: 120, invalid: !!errors.place }), { error: errors.place })}</div>`;
+    const taken = TN.ui.checkbox({ id: `${k}-taken`, name: 'passportTaken', value: '1', label: many ? 'Passports taken from the customers (optional)' : 'Passport taken from the customer (optional)', checked: !!v.passportTaken });
+    return `${kindCtl}<div class="sm:col-span-2" ${hideUnless('kind', 'e_visa', now)}><p class="${C.small}">E-visa: the passport is not collected. Only a photo of the passport is needed.</p></div><div class="sm:col-span-2" ${hideUnless('kind', 'sticker', now)}><div class="grid gap-3 sm:grid-cols-2"><div class="sm:col-span-2">${taken}</div>${jurCtl}</div></div>`;
+  }
+  const salesFacts = (s) => { const kind = salesKind(s); const jur = salesJur(s); return [kind ? ['Visa type', `${KIND_WORD[kind]} <span class="text-quiet">· from Sales</span>`] : null, jur && kind !== 'e_visa' ? ['Jurisdiction', `${jur.required ? `Yes, ${esc(jur.place)}` : 'No'} <span class="text-quiet">· from Sales</span>`] : null].filter(Boolean); };
+  const feeFields = (k, v, errors, perPax) => `<fieldset class="m-0 min-w-0 rounded-card border border-line bg-card px-4 pt-1 pb-4 font-sans" data-slot="fieldset"><legend class="px-1 text-base font-semibold text-ink">Fee details</legend><div class="grid gap-3 sm:grid-cols-2">
+      ${perPax ? '' : `${moneyField(`${k}-gov`, 'govFee', 'Government fee', v.govFee, errors.govFee)}${moneyField(`${k}-svc`, 'serviceFee', 'Service fee', v.serviceFee, errors.serviceFee, true)}`}
+      ${field(`${k}-paid`, 'Paid by', select(`${k}-paid`, 'paidBy', [['company', 'Company'], ['customer_direct', 'Customer directly']], v.paidBy, ' data-change="vw-when"'))}
+      <div ${hideUnless('paidBy', 'company', v.paidBy)}>${field(`${k}-mode`, 'How it was paid', select(`${k}-mode`, 'mode', [['', 'Choose'], ...Object.entries(MODE)], v.mode), { error: errors.mode })}</div>
+      ${fileField(`${k}-file`, 'Fee receipt', errors.file, { optional: true })}
+      </div></fieldset>`;
+  const applyDefaults = (s) => ({ appliedOn: VF.todayIST(), paidBy: (s.visa || {}).feePaidBy === 'customer' ? 'customer_direct' : 'company' });
+
+  /* Mark as applied, one passenger. Cancelling leaves them Not applied. */
+  function applyDrawer(id, seq, typed, errors = {}) {
+    const s = S[id]; const a = applicantBySeq(id, seq); if (!a) return;
+    const k = `apply-${id}-${a.seq}`;
+    const v = typed || { ...applyDefaults(s), appliedOn: liveDate(s, a) || VF.todayIST() };
+    const date = liveDate(s, a);
+    const body = `<form novalidate id="apply-form" class="flex flex-col gap-4" data-act="vw-apply-save">${hiddenIds(id, a)}${drawerErrors(errors, !!(typed && typed.hadFile))}${readOnlyFacts([['Passenger', esc(VF.displayName(a))], ['Passport', esc(a.passportNo || 'Not recorded')], ['Appointment', date ? esc(whenText(date, liveTime(s, a))) : 'Not set'], ...salesFacts(s)])}
+      <div class="grid gap-3 sm:grid-cols-2">
+      ${field(`${k}-ref`, 'Reference number', textInput(`${k}-ref`, 'reference', v.reference, { max: 120, invalid: !!errors.reference }), { error: errors.reference })}
+      ${field(`${k}-date`, 'Applied date', textInput(`${k}-date`, 'appliedOn', v.appliedOn, { type: 'date', invalid: !!errors.appliedOn }), { error: errors.appliedOn, hint: 'Filled from the appointment date. Change it if needed.' })}
+      ${visaFields(k, s, v, errors, false)}
+      </div>
+      ${feeFields(k, v, errors, false)}
+      ${field(`${k}-rem`, 'Remark', textInput(`${k}-rem`, 'remark', v.remark, { max: 300 }), { optional: true })}
+      <p class="${C.small}">Company-paid fees go to Accounts for review. ${META_NOTE}</p></form>`;
+    popup({ title: 'Mark as applied', description: esc(VF.displayName(a)), body, footer: drawerFooter('apply-form', 'Save as applied') });
+  }
+
+  /* Clubbed applications: tick several passengers in Appointment, then one Confirm applied. */
+  const canSelect = (id, a) => canEditVisa(id) && !!a && VF.isActive(a) && VF.notStarted(a) && isReady(S[id], a);
+  const picked = (id) => { const on = UI.bulk[id] || {}; return VF.activeApplicants(S[id]).filter((a) => on[a.seq] && canSelect(id, a)); };
+  const selectCell = (id, a) => ({ html: canSelect(id, a) ? `<input type="checkbox" class="vp-sel" id="sel-${id}-${a.seq}" aria-label="Select ${esc(VF.displayName(a))}"${(UI.bulk[id] || {})[a.seq] ? ' checked' : ''} data-change="vw-bulk-check" data-id="${id}" data-seq="${a.seq}">` : '' });
+  function bulkBar(id) {
+    const ready = VF.activeApplicants(S[id]).filter((a) => canSelect(id, a));
+    if (!ready.length) return '';
+    const n = picked(id).length;
+    return `<div class="vp-bulk"><label class="vp-tick"><input type="checkbox" class="vp-sel" id="sel-all-${id}"${n === ready.length ? ' checked' : ''} data-change="vw-bulk-all" data-id="${id}"><span>Select all</span></label><span class="text-sm text-quiet" role="status">${n} of ${ready.length} selected</span><button type="button" class="${n ? B.primaryMd : B.secondaryMd}" data-act="vw-bulk-open" data-id="${id}"${n ? '' : ' disabled'} data-slot="button">Confirm applied</button></div>`;
+  }
+  function bulkDrawer(id, typed, errors = {}) {
+    const s = S[id]; const list = picked(id); if (!list.length) return;
+    const k = `bulk-${id}`;
+    const v = typed || applyDefaults(s);
+    const ph = { ref: 'Reference number', gov: 'Government fee', svc: 'Service fee' };
+    const cell = (name, seq, label, cls = '') => { const n = `${name}-${seq}`; const err = errors[n]; return `<div class="min-w-0">${textInput(`${k}-${n}`, n, v[n], { max: 120, invalid: !!err }).replace('<input ', `<input aria-label="${esc(label)}" placeholder="${ph[name]}" ${cls}`)}${err ? fieldError(`${k}-${n}`, err) : ''}</div>`; };
+    const rows = list.map((a, i) => { const who = VF.displayName(a); const copy = i === 0 ? 'data-change="vw-bulk-copy" ' : ''; return `<div class="vp-bulk-row"><span class="vp-name-cell"><span class="font-semibold text-ink wrap-anywhere">${esc(who)}</span><span class="vp-pp">${esc(a.passportNo || 'Passport no. not recorded')}</span></span>${cell('ref', a.seq, `Reference number for ${who}`)}<div class="min-w-0">${textInput(`${k}-on-${a.seq}`, `on-${a.seq}`, typed ? v[`on-${a.seq}`] : liveDate(s, a) || VF.todayIST(), { type: 'date', invalid: !!errors[`on-${a.seq}`] }).replace('<input ', `<input aria-label="Applied date for ${esc(who)}" `)}${errors[`on-${a.seq}`] ? fieldError(`${k}-on-${a.seq}`, errors[`on-${a.seq}`]) : ''}</div>${cell('gov', a.seq, `Government fee for ${who}`, copy)}${cell('svc', a.seq, `Service fee for ${who}`, copy)}</div>`; }).join('');
+    const body = `<form novalidate id="bulk-form" class="flex flex-col gap-4" data-act="vw-bulk-save"><input type="hidden" name="task" value="${id}">${drawerErrors(errors, !!(typed && typed.hadFile))}${salesFacts(s).length ? readOnlyFacts(salesFacts(s)) : ''}
+      <div class="grid gap-3 sm:grid-cols-2">
+      ${visaFields(k, s, v, errors, true)}
+      </div>
+      <fieldset class="m-0 min-w-0 rounded-card border border-line bg-card px-4 pt-1 pb-4 font-sans" data-slot="fieldset"><legend class="px-1 text-base font-semibold text-ink">Passengers (${list.length})</legend><div class="vp-bulk-row vp-bulk-head" aria-hidden="true"><span>Passenger</span><span>Reference number</span><span>Applied date</span><span>Government fee ₹</span><span>Service fee ₹ (optional)</span></div><div class="flex flex-col gap-2.5">${rows}</div><p class="${C.hint} mt-2">Applied dates are filled from each passenger’s appointment date. Fees typed for the first passenger fill the empty fee boxes below it. Change any of them.</p></fieldset>
+      ${feeFields(k, v, errors, true)}
+      ${field(`${k}-rem`, 'Remark', textInput(`${k}-rem`, 'remark', v.remark, { max: 300 }), { optional: true })}
+      <p class="${C.small}">Company-paid fees go to Accounts for review. ${META_NOTE}</p></form>`;
+    popup({ title: 'Confirm applied', description: `${TN.fmt.plural(list.length, 'passenger')} applied together`, body, footer: drawerFooter('bulk-form', 'Confirm applied') });
+  }
+
+  /* Approval: the visa document and the way the passport goes back are both optional. */
+  function approveDrawer(id, seq, typed, errors = {}) {
+    const s = S[id]; const a = applicantBySeq(id, seq); if (!a) return;
+    const k = `appr-${id}-${a.seq}`;
+    const cust = TN.customer((TN.deal(s.deal) || {}).customer) || {};
+    const kind = kindOf(s, a);
+    const v = typed || { kind, email: cust.email || '', handover: kind === 'sticker' && !a.passportTakenAt ? 'not_with_us' : '' };
+    const has = outcomeFile(id, a);
+    const body = `<form novalidate id="appr-form" class="flex flex-col gap-4" data-act="vw-approve-save">${hiddenIds(id, a)}${drawerErrors(errors, !!(typed && typed.hadFile))}${readOnlyFacts([['Passenger', esc(VF.displayName(a))], ['Passport', esc(a.passportNo || 'Not recorded')], ['Reference', esc(a.reference || NP)], ...(kind ? [['Visa type', esc(KIND_WORD[kind])]] : [])])}
+      ${kind ? `<input type="hidden" name="kind" value="${kind}">` : field(`${k}-kind`, 'Which visa is it?', select(`${k}-kind`, 'kind', [['', 'Choose'], ['e_visa', 'E-visa'], ['sticker', 'Sticker visa']], v.kind, ' data-change="vw-when"'), { error: errors.kind })}
+      ${has ? `<p class="${C.small}">Visa document on file: ${esc(has.name)}</p>` : fileField(`${k}-file`, 'Proof of visa', errors.file, { optional: true })}
+      <div ${hideUnless('kind', 'e_visa', v.kind)}>${field(`${k}-mail`, 'Customer e-mail', textInput(`${k}-mail`, 'email', v.email, { type: 'email', max: 200, invalid: !!errors.email }), { error: errors.email, hint: 'The e-visa goes to this address when you save.' })}</div>
+      <div class="flex flex-col gap-4" ${hideUnless('kind', 'sticker', v.kind)}>${handFields(k, v, errors)}</div>
+      ${field(`${k}-rem`, 'Remark', textInput(`${k}-rem`, 'remark', v.remark, { max: 300 }), { optional: true })}</form>`;
+    popup({ title: 'Approve visa', description: esc(VF.displayName(a)), body, footer: drawerFooter('appr-form', 'Save approval') });
+  }
+  function rejectDrawer(id, seq, typed, errors = {}) {
+    const s = S[id]; const a = applicantBySeq(id, seq); if (!a) return;
+    const k = `rej-${id}-${a.seq}`;
+    const sticker = kindOf(s, a) === 'sticker';
+    const v = typed || { handover: sticker && !a.passportTakenAt ? 'not_with_us' : '' };
+    const has = outcomeFile(id, a);
+    const body = `<form novalidate id="rej-form" class="flex flex-col gap-4" data-act="vw-reject-save">${hiddenIds(id, a)}${drawerErrors(errors, !!(typed && typed.hadFile))}${readOnlyFacts([['Passenger', esc(VF.displayName(a))], ['Passport', esc(a.passportNo || 'Not recorded')], ['Reference', esc(a.reference || NP)]])}${field(`${k}-rem`, 'Reason / remark', textInput(`${k}-rem`, 'remark', v.remark, { max: 300, invalid: !!errors.remark }), { error: errors.remark })}${has ? `<p class="${C.small}">Document on file: ${esc(has.name)}</p>` : fileField(`${k}-file`, 'Refusal letter', errors.file, { optional: true })}${sticker ? handFields(k, v, errors) : ''}</form>`;
+    popup({ title: 'Reject visa', description: esc(VF.displayName(a)), body, footer: drawerFooter('rej-form', 'Save rejection') });
+  }
+  /* Set how a sticker-visa passport goes back, when it was left for later. */
+  function handoverDrawer(id, seq, typed = {}, errors = {}) {
+    const a = applicantBySeq(id, seq); if (!a) return;
+    const k = `hand-${id}-${a.seq}`;
+    const body = `<form novalidate id="hand-form" class="flex flex-col gap-4" data-act="vw-hand-save">${hiddenIds(id, a)}${drawerErrors(errors)}${readOnlyFacts([['Passenger', esc(VF.displayName(a))], ['Passport', esc(a.passportNo || 'Not recorded')]])}${handFields(k, typed, errors)}${field(`${k}-rem`, 'Remark', textInput(`${k}-rem`, 'remark', typed.remark, { max: 300 }), { optional: true })}</form>`;
+    popup({ title: 'How the passport goes back', description: esc(VF.displayName(a)), body, footer: drawerFooter('hand-form', 'Save') });
+  }
+  function deliveredDrawer(id, seq, typed, errors = {}) {
+    const a = applicantBySeq(id, seq); if (!a) return;
+    const k = `dlv-${id}-${a.seq}`;
+    const v = typed || { deliveredOn: VF.todayIST() };
+    const body = `<form novalidate id="dlv-form" class="flex flex-col gap-4" data-act="vw-delivered-save">${hiddenIds(id, a)}${drawerErrors(errors)}${readOnlyFacts([['Passenger', esc(VF.displayName(a))], ['How it goes back', esc(HAND[((a.decision || {}).handover || {}).mode] || NP)]])}${field(`${k}-date`, 'Delivered on', textInput(`${k}-date`, 'deliveredOn', v.deliveredOn, { type: 'date', invalid: !!errors.deliveredOn }), { error: errors.deliveredOn })}${field(`${k}-rem`, 'Remark', textInput(`${k}-rem`, 'remark', v.remark, { max: 300 }), { optional: true })}</form>`;
+    popup({ title: 'Mark delivered', description: esc(VF.displayName(a)), body, footer: drawerFooter('dlv-form', 'Save delivery') });
+  }
+  function feeFixDrawer(id, costId, typed, errors = {}) {
+    const c = COSTS.find((x) => x.id === costId); if (!c) return;
+    const k = `fix-${c.id}`;
+    const v = typed || { amount: String(c.amount) };
+    const body = `<form novalidate id="fix-form" class="flex flex-col gap-4" data-act="vw-fee-fix-save"><input type="hidden" name="task" value="${id}"><input type="hidden" name="cost" value="${c.id}">${drawerErrors(errors, true)}${notice('danger', `Accounts returned it: ${esc(c.returnReason || 'No reason given')}`)}${readOnlyFacts([['Fee', `${COST_KIND[c.kind]}${c.note ? ` (${esc(c.note)})` : ''}`], ['Current receipt', esc(fileName(c.proof) || NP)]])}${moneyField(`${k}-amt`, 'amount', 'Amount', v.amount, errors.amount)}${fileField(`${k}-file`, 'New fee receipt', errors.file, { optional: true })}${field(`${k}-rem`, 'Remark', textInput(`${k}-rem`, 'remark', v.remark, { max: 300 }), { optional: true })}</form>`;
+    popup({ title: 'Fix fee', description: 'Corrects this fee and sends it back to Accounts.', body, footer: drawerFooter('fix-form', 'Send to Accounts') });
+  }
+
+  /* Appointment table cells */
+  function applicationCell(id, a) {
+    if (!isApplied(a)) {
+      if (!canEditVisa(id) || !VF.isActive(a)) return chip('grey', 'Not applied');
+      return select(`appst-${id}-${a.seq}`, 'status', [['not_applied', 'Not applied'], ['applied', 'Applied']], 'not_applied', ` aria-label="Application status for ${esc(VF.displayName(a))}" data-change="vw-apply-pick" data-id="${id}" data-seq="${a.seq}"`);
+    }
+    const fee = a.govFee != null || a.serviceFee != null ? `<span class="vp-sub">Fee ${inr((a.govFee || 0) + (a.serviceFee || 0))}</span>` : '';
+    return `<span class="vp-name-cell">${chip('green', 'Applied')}<span class="vp-sub">Ref ${esc(a.reference || NP)}</span><span class="vp-sub">${a.submittedAt ? esc(TN.fmt.date(a.submittedAt)) : ''}</span>${fee}</span>`;
+  }
+  function decisionCell(id, a) {
+    if (!isApplied(a)) return '<span class="text-quiet">—</span>';
+    if (a.state === 'issued') return chip('green', 'Approved');
+    if (a.state === 'refused') return chip('red', 'Rejected');
+    if (a.state === 'withdrawn') return chip('grey', 'Withdrawn');
+    if (!canEditVisa(id)) return chip('amber', 'Pending');
+    return select(`dec-${id}-${a.seq}`, 'decision', [['pending', 'Pending'], ['approved', 'Approved'], ['rejected', 'Rejected']], 'pending', ` aria-label="Decision for ${esc(VF.displayName(a))}" data-change="vw-decision" data-id="${id}" data-seq="${a.seq}"`);
+  }
+  function handoverCell(id, a) {
+    const line = (t) => `<span class="vp-sub">${t}</span>`;
+    const btn = (act, label) => (canEditVisa(id) ? `<button type="button" class="vp-link mt-1" data-act="${act}" data-id="${id}" data-seq="${a.seq}">${label}<span class="sr-only"> for ${esc(VF.displayName(a))}</span></button>` : '');
+    const dec = a.decision || {};
+    const rem = dec.remark ? line(esc(dec.remark)) : '';
+    if (a.state !== 'issued' && a.state !== 'refused') return '<span class="text-quiet">—</span>';
+    if (a.state === 'issued' && !dec.kind) return a.documentsReturnedAt ? line(`Returned ${esc(TN.fmt.date(a.documentsReturnedAt))}`) : `${line('Not recorded')}${btn('vw-handover-open', 'Record handover')}`;
+    if (dec.kind === 'e_visa') return `<span class="vp-name-cell"><span class="font-medium text-ink">E-visa e-mailed</span>${line(esc(dec.mail.to))}${line(esc(TN.fmt.dateTime(dec.mail.at)))}${rem}</span>`;
+    if (!dec.sticker) return `<span class="vp-name-cell">${dec.kind ? '' : line('Refusal recorded')}${rem}</span>`;
+    const h = dec.handover || {};
+    const title = `<span class="font-medium text-ink">${a.state === 'refused' ? 'Passport return' : 'Sticker visa'}</span>`;
+    if (!h.mode) return `<span class="vp-name-cell">${title}${line('Not decided yet')}${btn('vw-hand-open', 'Set handover')}${rem}</span>`;
+    const end = h.deliveredAt ? line(`Delivered ${esc(TN.fmt.date(h.deliveredAt))}${h.remark ? ` · ${esc(h.remark)}` : ''}`) : closesNow(h) ? '' : btn('vw-delivered-open', 'Mark delivered');
+    return `<span class="vp-name-cell">${title}${line(esc(HAND[h.mode]))}${h.courierNo ? line(`Courier number ${esc(h.courierNo)}`) : ''}${end}${rem}</span>`;
+  }
+  /* Appointment: every passenger with an appointment date and all documents received. */
+  function appointmentTable(id) {
+    const s = S[id];
+    const returned = costsOf(id).filter((c) => c.status === 'returned');
+    const notes = returned.map((c) => notice('danger', `<p>${esc(c.returnReason || 'No reason given')}</p>${canEditVisa(id) ? `<div><button type="button" class="${B.openSm}" data-act="vw-fee-fix" data-id="${id}" data-cost="${c.id}" data-slot="button">Fix fee</button></div>` : ''}`, { title: `Accounts returned ${COST_KIND[c.kind]}${c.note ? ` (${esc(c.note)})` : ''} · ${inr(c.amount)}` })).join('');
+    const list = VF.activeApplicants(s).filter((a) => isReady(s, a));
+    const visaLine = (a) => { const kind = kindOf(s, a); if (!kind) return ''; const jur = a.jurisdiction || (kind === 'sticker' ? salesJur(s) : null); const passport = kind === 'e_visa' ? 'Passport photo only' : isApplied(a) ? (a.documentsReturnedAt ? 'Passport returned' : a.passportTakenAt ? 'Passport with us' : 'Passport not with us') : ''; return `<span class="vp-sub">${esc([KIND_WORD[kind], passport, kind === 'sticker' && jur ? (jur.required ? `Jurisdiction ${jur.place}` : 'No jurisdiction') : ''].filter(Boolean).join(' · '))}</span>`; };
+    const rows = list.map((a) => [
+      selectCell(id, a),
+      { html: paxName(a, `${visaLine(a)}${a.clubbedWith ? `<span class="vp-sub">Applied with ${esc(a.clubbedWith.join(', '))}</span>` : ''}${a.applyRemark ? `<span class="vp-sub">${esc(a.applyRemark)}</span>` : ''}`) },
+      { html: `<span class="vp-name-cell"><span class="vw-when-read">${TN.ic('calendar', 'size-4')}<span>${liveDate(s, a) ? esc(whenText(liveDate(s, a), liveTime(s, a))) : 'Not set'}</span></span><span class="vp-sub">${TN.ic('circle-check', 'size-3.5 text-status-success')} ${TN.fmt.plural(VF.docSummary(a).total, 'document')} received</span></span>` },
+      { html: applicationCell(id, a) },
+      { html: decisionCell(id, a) },
+      { html: handoverCell(id, a) },
+    ]);
+    const people = rows.length ? `${bulkBar(id)}<div class="vw-pax vw-appt-table vp-pax vp-appt">${table({ label: 'Appointment', caption: `${TN.fmt.plural(rows.length, 'passenger')} · ${list.filter(isApplied).length} applied`, heads: ['Select', 'Passenger', 'Appointment', 'Application', 'Decision', 'Handover'], rows })}</div>` : '<div class="vp-empty">Nobody here yet. A passenger appears here once they have an appointment date and every document received.</div>';
+    return card({ id: `visa-appt-${id}`, title: 'Appointment', desc: 'Mark passengers applied, one at a time or together, then record the decision and the handover.', bodyCls: null, body: `${notes ? `<div class="${C.bodyCol3}">${notes}</div>` : ''}${people}` });
   }
 
   function visaTask(params, q) {
@@ -14909,11 +15306,9 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
     const taken = !!s.assignee;
     let work;
     if (isPassport(s)) work = passportWork(id, canWork, taken);
-    else if (!taken) work = `<div class="flex flex-col gap-5">${notice('info', 'Applicants appear when the task is taken.')}${costCard(id, 'visa', canWork)}</div>`;
+    else if (!taken) work = `<div class="flex flex-col gap-5">${visaStepper(id)}${notice('info', 'Applicants appear when the task is taken.')}</div>`;
     else {
-      const later = VF.applicants(s).map((a) => applicantCard(id, a, canWork)).join('');
-      const fee = canWork ? card({ id: `fee-${id}-heading`, title: 'Fee receipt', body: `${fileUpload(`up-${id}-fee`, 'Upload the fee receipt', `<input type="hidden" name="task" value="${id}">`, [['fee_receipt', 'Fee receipt']])}<p class="m-0 mt-2.5 text-sm text-quiet">${OUTCOME_NEEDS_DOC}</p>` }) : '';
-      work = `<div class="flex flex-col gap-5">${visaProgress(id)}${card({ id: `visa-pax-${id}`, title: 'Passengers and documents', desc: 'One passenger’s missing documents do not hold up the others.', body: passengerTable(id), bodyCls: VF.applicants(s).length ? null : C.body })}${planCard(id, canWork)}<section aria-labelledby="visa-later-${id}" class="flex flex-col gap-3"><h2 class="${C.cardTitle}" id="visa-later-${id}">Application, decision and handover</h2>${later || notice('info', 'No passengers on this task.')}</section>${appointmentSection(id)}${costCard(id, 'visa', canWork)}${canWork ? card({ id: `fee-${id}-heading`, title: 'Fee receipt', body: `${fileUpload(`up-${id}-fee`, 'Upload the fee receipt', `<input type="hidden" name="task" value="${id}">`, [['fee_receipt', 'Fee receipt']])}<p class="m-0 mt-2.5 text-sm text-quiet">${OUTCOME_NEEDS_DOC}</p>` }) : ''}${list.length ? visaInvoiceLines(id) : ''}</div>`;
+      work = `<div class="flex flex-col gap-5">${visaStepper(id)}<div class="vw-sec" id="sec-${id}-pax" tabindex="-1">${card({ id: `visa-pax-${id}`, title: 'Passengers and documents', desc: 'Documents, appointment date and passport number for each passenger. Use the pencil to edit. Ready passengers are copied to Appointment.', body: passengerTable(id), bodyCls: null })}</div><div class="vw-sec" id="sec-${id}-appt" tabindex="-1">${appointmentTable(id)}</div>${list.length ? visaInvoiceLines(id) : ''}</div>`;
     }
     let content = details;
     if (tab === 'work') content = work;
@@ -15157,11 +15552,19 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
     saved(id);
     TN.refresh();
   });
+  const guardUpload = (id, a) => {
+    if (canUploadDoc(id, a)) return true;
+    const s = S[id];
+    if (!s || s.dept !== 'visa') return refuse('This task is not available.');
+    if (s.removedFromBooking) return refuse('This service was removed from the booking. Its records are kept and editing is closed.');
+    if (!TN.is('visa')) return refuse('View only. Only the assigned Visa executive can make this change.');
+    if (s.assignee !== me()) return refuse('Only the executive who took this task can make this change.');
+    return refuse('This passenger is not on the booking.');
+  };
   TN.act('vw-doc-upload-open', (el) => {
     const { id, seq, code } = el.dataset;
-    if (!guardVisa(id)) return;
     const a = applicantBySeq(id, seq);
-    if (!canUploadDoc(id, a)) { refuse('Documents can no longer be uploaded for this passenger.'); return; }
+    if (!guardUpload(id, a)) return;
     docUploadDrawer(id, Number(seq), code || '');
   });
   /* Choosing a document fills its name, unless something was typed. */
@@ -15174,9 +15577,8 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
   document.addEventListener('input', (ev) => { if (ev.target && ev.target.matches && ev.target.matches('#docup-form [name="title"]')) ev.target.dataset.auto = '0'; });
   TN.act('vw-doc-upload', (f) => {
     const v = fd(f); const id = v.task;
-    if (!guardVisa(id)) return;
     const a = applicantBySeq(id, v.seq);
-    if (!canUploadDoc(id, a)) { refuse('Documents can no longer be uploaded for this passenger.'); return; }
+    if (!guardUpload(id, a)) return;
     const isNew = v.code === '__new';
     const d = isNew ? null : VF.docList(a).find((x) => x.code === v.code);
     const inp = f.querySelector('input[type="file"]'); const file = inp && inp.files && inp.files[0];
@@ -15200,6 +15602,7 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
     }
     const rec = metaFile(id, 'applicant_document', file, { applicant: a.seq, ...(doc ? { doc: doc.code } : {}), title: title.slice(0, 120) });
     if (changes.length) { delete UI.vals[`chk-${id}-${a.seq}`]; a.checklistUpdated = who; UI.docTab[`${id}-${a.seq}`] = 'received'; }
+    if (doc && UI.vals[`row-${id}-${a.seq}`]) UI.vals[`row-${id}-${a.seq}`].docs[doc.code] = true;
     addVH(id, `Document uploaded: ${VF.displayName(a)}`, { detail: [`${doc ? doc.label : 'Other document'}: ${rec.title} (${rec.name}, ${rec.size})`, ...changes].join(' · ') });
     saved(id);
     TN.closeOverlay();
@@ -15228,6 +15631,73 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
     return true;
   };
   TN.act('vw-appt-open', (el) => { const { id, seq } = el.dataset; if (apptEditor(id, applicantBySeq(id, seq))) appointmentDrawer(id, Number(seq)); });
+  TN.act('vw-jump', (el) => { const box = document.getElementById(el.dataset.target); if (!box) return; box.scrollIntoView({ block: 'start' }); box.focus({ preventScroll: true }); });
+  const backTo = (elId) => setTimeout(() => { const n = document.getElementById(elId); if (n) n.focus(); }, 0);
+  /* Saves the date or time from the table, keeping the centre details already saved. */
+  function quickAppt(el, date, time) {
+    const { id, seq } = el.dataset; const s = S[id]; const a = s ? applicantBySeq(id, seq) : null;
+    if (!guardUpload(id, a)) return;
+    const before = VF.appointmentRow(s, a);
+    const old = before.record && before.status !== 'cancelled' ? before.record : null;
+    const route = VF.routeOf(s) || {};
+    const res = VF.saveAppointment(s, a, { quick: true, date, time, timezone: old ? old.timezone : route.timezone || 'Asia/Kolkata', centre: old ? old.centre : '', location: old ? old.location : '', reference: old ? old.reference : '', remarks: old ? old.remarks : '' }, VF.actor());
+    if (!res.ok) { TN.toast('Not saved', 'danger', Object.values(res.errors)[0]); TN.refresh(); return; }
+    addVH(id, `${res.changed ? 'Appointment rescheduled' : old ? 'Appointment updated' : 'Appointment scheduled'}: ${VF.displayName(a)}`, { detail: apptWhen(res.record).replace(/<[^>]+>/g, '') });
+    saved(id);
+    TN.toast(`Appointment saved for ${VF.displayName(a)}.`, 'success');
+    TN.refresh();
+    backTo(el.id);
+  }
+  TN.act('vw-appt-date', (el) => {
+    const date = el.value;
+    if (!date) { TN.toast('Not changed', 'danger', 'To remove an appointment, use Update status and choose Cancelled.'); TN.refresh(); return; }
+    if (date.slice(0, 4) < '2000') return; /* The year is still being typed. */
+    const a = applicantBySeq(el.dataset.id, el.dataset.seq);
+    const row = a && VF.appointmentRow(S[el.dataset.id], a);
+    const live = row && row.record && row.status !== 'cancelled';
+    quickAppt(el, date, live && !row.record.noTime ? String(row.record.at).split('T')[1].slice(0, 5) : '');
+  });
+  TN.act('vw-appt-time', (el) => {
+    const a = applicantBySeq(el.dataset.id, el.dataset.seq);
+    const row = a && VF.appointmentRow(S[el.dataset.id], a);
+    if (!row || !row.record || row.status === 'cancelled') { TN.toast('Choose the date first', 'danger', 'The appointment date comes first, then the time.'); TN.refresh(); return; }
+    quickAppt(el, String(row.record.at).slice(0, 10), el.value);
+  });
+  TN.act('vw-emb-pick', (el) => {
+    const { id, seq } = el.dataset; const s = S[id]; const a = s ? applicantBySeq(id, seq) : null;
+    if (!apptEditor(id, a)) return;
+    const status = EMB_WORD[el.value] ? el.value : '';
+    if (!status) return;
+    const e = embassyOf(s, a);
+    const rec = { status, date: status === 'not_submitted' ? '' : e.date || VF.todayIST(), reference: e.reference, remarks: e.remarks, set: VF.actor() };
+    s.workflow = s.workflow || {};
+    s.workflow.embassy = { ...(s.workflow.embassy || {}), [a.paxId]: rec };
+    addVH(id, `Embassy submission: ${VF.displayName(a)}: ${EMB_WORD[status]}`, { detail: rec.date ? TN.fmt.date(rec.date) : '' });
+    saved(id);
+    TN.toast(`Embassy status saved for ${VF.displayName(a)}.`, 'success');
+    TN.refresh();
+    backTo(el.id);
+  });
+  TN.act('vw-vtype-pick', (el) => {
+    const { id, seq } = el.dataset; const s = S[id]; const a = s ? applicantBySeq(id, seq) : null;
+    if (!apptEditor(id, a)) return;
+    if (!VISA_TYPES.includes(el.value)) return;
+    a.visaType = el.value;
+    addVH(id, `Visa type: ${VF.displayName(a)}: ${el.value}`);
+    saved(id);
+    TN.toast(`Visa type saved for ${VF.displayName(a)}.`, 'success');
+    TN.refresh();
+    backTo(el.id);
+  });
+  TN.act('vw-action-pick', (el) => {
+    const pick = el.value; el.value = '';
+    const { id } = el.dataset; const a = S[id] ? applicantBySeq(id, el.dataset.seq) : null;
+    if (!a) { refuse('This passenger is not on the booking.'); return; }
+    if (pick === 'details') appointmentDetails(id, a.seq);
+    else if (pick === 'emb') embassyDrawer(id, a.seq);
+    else if (pick === 'open' && apptEditor(id, a)) appointmentDrawer(id, a.seq);
+    else if (pick === 'status' && apptEditor(id, a)) appointmentStatusDrawer(id, a.seq);
+  });
   TN.act('vw-appt-details', (el) => appointmentDetails(el.dataset.id, Number(el.dataset.seq)));
   TN.act('vw-appt-status-open', (el) => { const { id, seq } = el.dataset; if (apptEditor(id, applicantBySeq(id, seq))) appointmentStatusDrawer(id, Number(seq)); });
   TN.act('vw-appt-save', (f) => {
@@ -15261,16 +15731,16 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
     const v = fd(f); const id = v.task; const s = S[id];
     const a = s ? applicantBySeq(id, v.seq) : null;
     if (!apptEditor(id, a)) return;
-    const status = v.status === 'submitted' ? 'submitted' : v.status === 'not_submitted' ? 'not_submitted' : '';
+    const status = EMB_WORD[v.status] ? v.status : '';
     const date = String(v.date || '').trim();
     const errors = {};
-    if (!status) errors.status = 'Choose Submitted or Not submitted.';
-    if (status === 'submitted') {
+    if (!status) errors.status = 'Choose the embassy status.';
+    if (status === 'submitted' || status === 'approved') {
       if (!VF.validDate(date)) errors.date = 'Enter the date the application was submitted to the embassy.';
       else if (date > VF.todayIST()) errors.date = 'The submission date cannot be in the future.';
     }
     if (Object.keys(errors).length) { TN.refresh(); embassyDrawer(id, a.seq, v, errors); return; }
-    const rec = { status, date: status === 'submitted' ? date : '', reference: String(v.reference || '').trim().slice(0, 120), remarks: String(v.remarks || '').trim().slice(0, 300), set: VF.actor() };
+    const rec = { status, date: status !== 'not_submitted' ? date : '', reference: String(v.reference || '').trim().slice(0, 120), remarks: String(v.remarks || '').trim().slice(0, 300), set: VF.actor() };
     s.workflow = s.workflow || {};
     s.workflow.embassy = { ...(s.workflow.embassy || {}), [a.paxId]: rec };
     addVH(id, `Embassy submission: ${VF.displayName(a)}: ${EMB_WORD[status]}`, { detail: [rec.date ? TN.fmt.date(rec.date) : '', rec.reference ? `Reference ${rec.reference}` : '', rec.remarks].filter(Boolean).join(' · ') });
@@ -15308,6 +15778,316 @@ TN.bookNow={stateFor:id=>STATES[id]||null,draft:id=>(S=stateFor(id)),submit:id=>
     saved(id);
     UI.flash[id] = 'Application plan saved. Nothing has been submitted.';
     if (res.warnings.length) TN.toast('Check this date', 'warning', res.warnings.join(' '));
+    TN.refresh();
+  });
+
+  /* Work tab actions. Every save writes History with what changed. */
+  const rowKey = (id, a) => `row-${id}-${a.seq}`;
+  const openRow = (id, seq) => { const a = applicantBySeq(id, seq); if (!guardVisa(id)) return null; if (!canEditApplicant(id, a)) { refuse('This passenger can no longer be changed here.'); return null; } return a; };
+  const readRow = (id, a) => {
+    const f = document.getElementById(`row-form-${id}-${a.seq}`);
+    if (!f) return null;
+    const v = fd(f);
+    return { date: v.date || '', time: v.time || '', remark: String(v.remark || ''), passportNo: String(v.passportNo || ''), docs: Object.fromEntries(VF.docList(a).map((d) => [d.code, !!v[`doc-${d.code}`]])) };
+  };
+  const keepRow = (id, a) => { const d = readRow(id, a); if (d) UI.vals[rowKey(id, a)] = d; };
+  /** Applies one row. Returns the History lines, or null when something was refused. */
+  function commitRow(id, a, d) {
+    const s = S[id]; const lines = []; const who = VF.actor();
+    const pp = cleanPassport(d.passportNo);
+    if (pp && !/^[A-Z0-9]{6,12}$/.test(pp)) { TN.toast('Not saved', 'danger', 'Enter the passport number as letters and numbers, 6 to 12 characters.'); return null; }
+    const oldDate = liveDate(s, a); const oldTime = liveTime(s, a); const time = d.time || '';
+    if (time && !d.date) { TN.toast('Not saved', 'danger', 'Choose the appointment date first, then the time.'); return null; }
+    if (d.date !== oldDate || (!!d.date && time !== oldTime)) {
+      if (d.date) {
+        const row = VF.appointmentRow(s, a); const old = row.record && row.status !== 'cancelled' ? row.record : null;
+        const res = VF.saveAppointment(s, a, { quick: true, date: d.date, time, timezone: old ? old.timezone : (VF.routeOf(s) || {}).timezone || 'Asia/Kolkata', centre: old ? old.centre : '', location: old ? old.location : '', reference: old ? old.reference : '', remarks: old ? old.remarks : '' }, who);
+        if (!res.ok) { TN.toast('Not saved', 'danger', Object.values(res.errors)[0]); return null; }
+      } else VF.setAppointmentStatus(s, a, 'cancelled', who);
+      lines.push(`Appointment: ${oldDate ? whenText(oldDate, oldTime) : 'not set'} to ${d.date ? whenText(d.date, time) : 'not set'}`);
+    }
+    if (pp !== (a.passportNo || '')) { lines.push(`Passport number: ${a.passportNo || 'not recorded'} to ${pp || 'not recorded'}`); a.passportNo = pp; }
+    lines.push(...VF.applyChecklist(a, Object.fromEntries(VF.docList(a).map((x) => [x.code, { received: !!d.docs[x.code], verified: !!d.docs[x.code] && x.status === 'checked', remark: x.remark }]))));
+    const remark = d.remark.trim().slice(0, 300);
+    if (remark !== (a.remark || '')) { lines.push(`Remark: ${a.remark || 'none'} to ${remark || 'none'}`); a.remark = remark; }
+    if (lines.length) { a.checklistUpdated = who; VF.addHistory(id, `Passenger updated: ${VF.displayName(a)}`, who, { detail: lines.join(' · ') }); }
+    return lines;
+  }
+  const clearRow = (id, a) => { delete UI.vals[rowKey(id, a)]; if (UI.rowEdit === `${id}-${a.seq}`) UI.rowEdit = null; };
+  TN.act('vw-row-edit', (el) => {
+    const a = openRow(el.dataset.id, el.dataset.seq); if (!a) return;
+    delete UI.vals[rowKey(el.dataset.id, a)];
+    UI.rowEdit = `${el.dataset.id}-${a.seq}`;
+    TN.refresh();
+    backTo(`rowdate-${el.dataset.id}-${a.seq}`);
+  });
+  TN.act('vw-row-cancel', (el) => { const a = applicantBySeq(el.dataset.id, el.dataset.seq); if (a) clearRow(el.dataset.id, a); TN.refresh(); });
+  TN.act('vw-row-field', (el) => { const a = applicantBySeq(el.dataset.id, el.dataset.seq); if (a) keepRow(el.dataset.id, a); });
+  /* A ticked document moves to the other column straight away; nothing is saved until Save. */
+  TN.act('vw-row-tick', (el) => { const a = applicantBySeq(el.dataset.id, el.dataset.seq); if (!a) return; const focus = el.id; keepRow(el.dataset.id, a); TN.refresh(); backTo(focus); });
+  TN.act('vw-row-save', (f) => {
+    const v = fd(f); const a = openRow(v.task, v.seq); if (!a) return;
+    const was = isReady(S[v.task], a);
+    const lines = commitRow(v.task, a, readRow(v.task, a));
+    if (!lines) return;
+    clearRow(v.task, a);
+    saved(v.task);
+    UI.flash[v.task] = !was && isReady(S[v.task], a) ? `${VF.displayName(a)} is ready and now shows in Appointment.` : lines.length ? `Saved for ${VF.displayName(a)}.` : 'No changes to save.';
+    TN.refresh();
+  });
+  TN.act('vw-row-doc-open', (el) => { const a = openRow(el.dataset.id, el.dataset.seq); if (a) { keepRow(el.dataset.id, a); addDocDrawer(el.dataset.id, a.seq); } });
+  TN.act('vw-row-doc-add', (f) => {
+    const v = fd(f); const a = openRow(v.task, v.seq); if (!a) return;
+    const who = VF.actor();
+    const fromList = v.pick && v.pick !== '__other' ? VF.DOC_CATALOG.find((d) => d.code === v.pick) : null;
+    const res = VF.addDocument(a, { label: fromList ? fromList.label : v.label, code: fromList ? fromList.code : undefined, received: !!v.received }, who);
+    if (!res.ok) { addDocDrawer(v.task, a.seq, v, res.error); return; }
+    res.row.remark = String(v.remark || '').trim().slice(0, 300);
+    const d = UI.vals[rowKey(v.task, a)]; if (d) d.docs[res.row.code] = !!v.received;
+    VF.addHistory(v.task, `Document added for ${VF.displayName(a)}`, who, { detail: [`${res.row.label}: ${v.received ? 'received' : 'not received'}`, res.row.remark].filter(Boolean).join(' · ') });
+    saved(v.task); TN.closeOverlay(); TN.refresh();
+  });
+  /* Shows or hides the parts of a popup that depend on a choice. Typed values stay. */
+  TN.act('vw-when', (el) => { const f = el.closest('form'); f.querySelectorAll('[data-when]').forEach((w) => { const [n, val] = w.dataset.when.split('='); w.hidden = f.elements[n].value !== val; }); });
+
+  /* Applied: one passenger from the Status dropdown, or several with Confirm applied. */
+  function checkVisa(s, v, errors) {
+    const kind = salesKind(s) || v.kind; const jur = salesJur(s);
+    if (!KIND_WORD[kind]) errors.kind = 'Choose E-visa or Sticker visa.';
+    const sticker = kind === 'sticker';
+    if (sticker && !jur && !['yes', 'no'].includes(v.jurisdiction)) errors.jurisdiction = 'Choose whether the passport must go to a set place.';
+    if (sticker && !jur && v.jurisdiction === 'yes' && !String(v.place || '').trim()) errors.place = 'Enter where the passport must be sent.';
+    if (v.paidBy === 'company' && !v.mode) errors.mode = 'Choose how it was paid.';
+    const place = !sticker ? '' : jur ? (jur.required ? jur.place : '') : v.jurisdiction === 'yes' ? String(v.place || '').trim() : '';
+    return { sticker, place, taken: sticker && !!v.passportTaken };
+  }
+  /** Records one passenger as Applied: their details, their fees for Accounts and History. */
+  function recordApplied(id, a, o, who) {
+    const s = S[id]; const { sticker, place, taken, gov, svc, paidBy, mode, receipt, remark } = o;
+    Object.assign(a, { state: 'submitted', reference: o.reference, submittedAt: o.appliedOn, visaType: sticker ? 'Sticker visa' : 'E-visa', passportTakenAt: taken ? who.at : null, jurisdiction: sticker ? { required: !!place, place } : null, applyRemark: remark, govFee: gov, serviceFee: svc });
+    if (o.clubbedWith) a.clubbedWith = o.clubbedWith;
+    const company = paidBy === 'company';
+    [['government_fee', gov], ['service_fee', svc]].filter(([, n]) => n > 0).forEach(([kind, amount]) => COSTS.push({ id: uid('dc-'), task: id, dept: 'visa', deal: s.deal, applicant: a.seq, kind, note: VF.displayName(a), amount, paidBy, mode: company ? mode : null, paidOn: company ? o.appliedOn : null, reference: a.reference, proof: company && receipt ? receipt.id : null, status: company ? 'submitted' : null, submittedAt: company ? who.at : null, submittedBy: company ? who.by : null }));
+    VF.addHistory(id, `Status: ${VF.displayName(a)}: Not applied to Applied`, who, { detail: [o.clubbedWith ? `Applied together with ${o.clubbedWith.join(', ')}` : '', `Reference ${a.reference}`, `Applied ${TN.fmt.date(a.submittedAt)}`, a.visaType, sticker ? (taken ? 'Passport taken from the customer' : 'Passport not with us') : 'Passport photo only', sticker ? `Jurisdiction: ${place ? `Yes, ${place}` : 'No'}` : '', `Government fee ${TN.fmt.inr(gov)}`, svc ? `Service fee ${TN.fmt.inr(svc)}` : '', `Paid by ${PAID_BY[paidBy]}${company ? ` (${MODE[mode]})` : ''}`, receipt ? `Fee receipt ${receipt.name}` : 'No fee receipt attached', remark].filter(Boolean).join(' · ') });
+    if (company) VF.addHistory(id, 'Cost sent to Accounts', who, { detail: `${VF.displayName(a)}: ${TN.fmt.inr(gov + svc)}` });
+  }
+  TN.act('vw-apply-pick', (el) => {
+    const { id, seq } = el.dataset; const pick = el.value; el.value = 'not_applied';
+    if (pick !== 'applied' || !guardVisa(id)) return;
+    const a = applicantBySeq(id, seq);
+    if (!canSelect(id, a)) { refuse('This passenger is not ready to apply.'); return; }
+    applyDrawer(id, a.seq);
+  });
+  TN.act('vw-apply-save', (f) => {
+    const v = fd(f); const id = v.task; const s = S[id];
+    if (!guardVisa(id)) return;
+    const a = applicantBySeq(id, v.seq);
+    if (!canSelect(id, a)) { refuse('This passenger has already applied or is not ready.'); return; }
+    const file = f.querySelector('input[type="file"]').files[0];
+    const gov = rupees(v.govFee); const svc = v.serviceFee ? rupees(v.serviceFee) : 0;
+    const errors = {};
+    if (!String(v.reference || '').trim()) errors.reference = 'Enter the reference number.';
+    if (!VF.validDate(v.appliedOn)) errors.appliedOn = 'Enter the applied date.';
+    const vis = checkVisa(s, v, errors);
+    if (!(gov > 0)) errors.govFee = 'Enter the government fee, more than ₹0.';
+    if (Number.isNaN(svc) || svc < 0) errors.serviceFee = 'Enter the service fee in rupees, or leave it empty.';
+    const fp = fileProblem(file, false); if (fp) errors.file = fp;
+    if (Object.keys(errors).length) { applyDrawer(id, a.seq, { ...v, hadFile: !!file }, errors); return; }
+    const who = VF.actor();
+    const receipt = file ? metaFile(id, 'fee_receipt', file, { applicant: a.seq, title: `Fee receipt, ${VF.displayName(a)}` }) : null;
+    recordApplied(id, a, { ...vis, reference: v.reference.trim(), appliedOn: v.appliedOn, remark: String(v.remark || '').trim().slice(0, 300), gov, svc, paidBy: v.paidBy, mode: v.mode, receipt }, who);
+    if (UI.bulk[id]) delete UI.bulk[id][a.seq];
+    clearRow(id, a);
+    saved(id); TN.closeOverlay();
+    UI.flash[id] = `${VF.displayName(a)} is marked Applied.`;
+    TN.refresh();
+  });
+  TN.act('vw-bulk-check', (el) => { const { id, seq } = el.dataset; const on = (UI.bulk[id] = UI.bulk[id] || {}); on[seq] = el.checked; TN.refresh(); backTo(el.id); });
+  TN.act('vw-bulk-all', (el) => { const { id } = el.dataset; UI.bulk[id] = {}; if (el.checked) VF.activeApplicants(S[id]).filter((a) => canSelect(id, a)).forEach((a) => { UI.bulk[id][a.seq] = true; }); TN.refresh(); backTo(el.id); });
+  TN.act('vw-bulk-open', (el) => {
+    const { id } = el.dataset;
+    if (!guardVisa(id)) return;
+    if (!picked(id).length) { TN.toast('Select at least one passenger', 'danger'); return; }
+    bulkDrawer(id);
+  });
+  /* The first passenger's fees fill the empty boxes below; anything typed there stays. */
+  TN.act('vw-bulk-copy', (el) => { const f = el.closest('form'); const kind = el.name.split('-')[0]; f.querySelectorAll(`input[name^="${kind}-"]`).forEach((x) => { if (x !== el && !x.value) x.value = el.value; }); });
+  TN.act('vw-bulk-save', (f) => {
+    const v = fd(f); const id = v.task; const s = S[id];
+    if (!guardVisa(id)) return;
+    const list = picked(id);
+    if (!list.length) { refuse('These passengers have already applied.'); return; }
+    const file = f.querySelector('input[type="file"]').files[0];
+    const errors = {};
+    const vis = checkVisa(s, v, errors);
+    const seen = {};
+    list.forEach((a) => {
+      const ref = String(v[`ref-${a.seq}`] || '').trim();
+      if (!VF.validDate(v[`on-${a.seq}`])) errors[`on-${a.seq}`] = 'Enter the date.';
+      if (!ref) errors[`ref-${a.seq}`] = 'Enter the reference.';
+      else if (seen[ref.toLowerCase()]) errors[`ref-${a.seq}`] = 'This reference is already used above.';
+      seen[ref.toLowerCase()] = true;
+      if (!(rupees(v[`gov-${a.seq}`]) > 0)) errors[`gov-${a.seq}`] = 'Enter the fee.';
+      const svc = v[`svc-${a.seq}`] ? rupees(v[`svc-${a.seq}`]) : 0;
+      if (Number.isNaN(svc) || svc < 0) errors[`svc-${a.seq}`] = 'Check the fee.';
+    });
+    const fp = fileProblem(file, false); if (fp) errors.file = fp;
+    if (Object.keys(errors).length) { bulkDrawer(id, { ...v, hadFile: !!file }, errors); return; }
+    const who = VF.actor();
+    const receipt = file ? metaFile(id, 'fee_receipt', file, { title: `Fee receipt, ${TN.fmt.plural(list.length, 'passenger')} applied together` }) : null;
+    const remark = String(v.remark || '').trim().slice(0, 300);
+    const names = list.map(VF.displayName);
+    list.forEach((a) => {
+      recordApplied(id, a, { ...vis, reference: v[`ref-${a.seq}`].trim(), appliedOn: v[`on-${a.seq}`], remark, gov: rupees(v[`gov-${a.seq}`]), svc: v[`svc-${a.seq}`] ? rupees(v[`svc-${a.seq}`]) : 0, paidBy: v.paidBy, mode: v.mode, receipt, clubbedWith: list.length > 1 ? names.filter((n) => n !== VF.displayName(a)) : null }, who);
+      clearRow(id, a);
+    });
+    delete UI.bulk[id];
+    saved(id); TN.closeOverlay();
+    UI.flash[id] = `${TN.fmt.plural(list.length, 'passenger')} marked Applied together.`;
+    TN.refresh();
+  });
+
+  /* Decision and handover */
+  TN.act('vw-decision', (el) => {
+    const { id, seq } = el.dataset; const pick = el.value; el.value = 'pending';
+    if (pick === 'pending' || !guardVisa(id)) return;
+    const a = applicantBySeq(id, seq);
+    if (!a || !['submitted', 'decision_pending'].includes(a.state)) { refuse('The decision is already recorded.'); return; }
+    if (pick === 'approved') approveDrawer(id, a.seq); else rejectDrawer(id, a.seq);
+  });
+  TN.act('vw-handover-open', (el) => { if (guardVisa(el.dataset.id)) approveDrawer(el.dataset.id, Number(el.dataset.seq)); });
+  TN.act('vw-hand-open', (el) => { if (guardVisa(el.dataset.id)) handoverDrawer(el.dataset.id, Number(el.dataset.seq)); });
+  const resultNotice = (id, a, word) => {
+    const s = S[id]; const list = VF.activeApplicants(s);
+    const issued = list.filter((x) => x.state === 'issued').length;
+    const waiting = list.filter((x) => x.state === 'submitted' || x.state === 'decision_pending').length;
+    const text = `Visa result: ${s.visa.country === 'United Arab Emirates' ? 'UAE' : s.visa.country} visa ${word} for ${a.name}. ${issued} of ${list.length} approved${waiting ? `, ${waiting} still with the authority` : ''}.`;
+    pushNotice(['sales'], text, s.deal);
+    addVH(id, `Visa result sent to ${ownerName(s.deal)} (Sales)`, { by: null, detail: text.replace('Visa result: ', '') });
+  };
+  const closePassenger = (id, a) => { a.closedAt = VF.nowIST(); closeIfAllDone(id); };
+  /** Checks the optional handover fields. Returns the handover, or null when none was chosen. */
+  const readHandover = (v, errors) => {
+    if (!v.handover) return null;
+    if (!HAND[v.handover]) { errors.handover = 'Choose how the passport goes back.'; return null; }
+    const courierNo = v.handover === 'courier' ? String(v.courierNo || '').trim() : '';
+    if (v.handover === 'courier' && !courierNo) errors.courierNo = 'Enter the courier number.';
+    return { mode: v.handover, courierNo };
+  };
+  const applyHandover = (id, a, h, who) => {
+    a.decision.handover = h;
+    VF.addHistory(id, `Handover set: ${VF.displayName(a)}`, who, { detail: [HAND[h.mode], h.courierNo ? `Courier number ${h.courierNo}` : ''].filter(Boolean).join(' · ') });
+    if (closesNow(h)) { if (h.mode === 'courier') { a.documentsReturnedAt = VF.todayIST(); a.documentsReturnedBy = me(); } closePassenger(id, a); }
+  };
+  TN.act('vw-approve-save', (f) => {
+    const v = fd(f); const id = v.task; const s = S[id];
+    if (!guardVisa(id)) return;
+    const a = applicantBySeq(id, v.seq);
+    const fresh = a && ['submitted', 'decision_pending'].includes(a.state);
+    if (!a || (!fresh && !(a.state === 'issued' && !(a.decision || {}).kind && !a.documentsReturnedAt))) { refuse('The decision is already recorded.'); return; }
+    const inp = f.querySelector('input[type="file"]'); const file = inp && inp.files[0];
+    const errors = {};
+    const kind = kindOf(s, a) || v.kind;
+    if (!KIND_WORD[kind]) errors.kind = 'Choose E-visa or Sticker visa.';
+    const fp = fileProblem(file, false); if (fp) errors.file = fp;
+    if (kind === 'e_visa' && !/^\S+@\S+\.\S+$/.test(String(v.email || '').trim())) errors.email = 'Enter the customer’s e-mail address.';
+    const h = kind === 'sticker' ? readHandover(v, errors) : null;
+    if (Object.keys(errors).length) { approveDrawer(id, a.seq, { ...v, hadFile: !!file }, errors); return; }
+    const who = VF.actor(); const remark = String(v.remark || '').trim().slice(0, 300);
+    const rec = file ? metaFile(id, 'authority_outcome', file, { applicant: a.seq }) : null;
+    a.state = 'issued'; a.outcomeAt = a.outcomeAt || VF.todayIST();
+    a.visaType = KIND_WORD[kind];
+    a.decision = { kind, sticker: kind === 'sticker', remark, set: who };
+    VF.addHistory(id, `Decision: ${VF.displayName(a)}: Approved`, who, { detail: [a.visaType, rec ? `Proof of visa ${rec.name}` : 'No proof of visa attached', remark].filter(Boolean).join(' · ') });
+    if (fresh) resultNotice(id, a, 'approved');
+    if (kind === 'e_visa') {
+      const to = v.email.trim();
+      a.decision.mail = { to, at: who.at, byName: who.byName };
+      VF.addHistory(id, `E-visa e-mailed: ${VF.displayName(a)}`, who, { detail: `To ${to}` });
+      closePassenger(id, a);
+      UI.flash[id] = UI.flash[id] || `Approved. E-visa e-mailed to ${to}.`;
+    } else {
+      if (h) applyHandover(id, a, h, who);
+      UI.flash[id] = UI.flash[id] || `Approved for ${VF.displayName(a)}.${h ? '' : ' Set how the passport goes back when you know.'}`;
+    }
+    saved(id); TN.closeOverlay(); TN.refresh();
+  });
+  TN.act('vw-reject-save', (f) => {
+    const v = fd(f); const id = v.task; const s = S[id];
+    if (!guardVisa(id)) return;
+    const a = applicantBySeq(id, v.seq);
+    if (!a || !['submitted', 'decision_pending'].includes(a.state)) { refuse('The decision is already recorded.'); return; }
+    const inp = f.querySelector('input[type="file"]'); const file = inp && inp.files[0];
+    const remark = String(v.remark || '').trim().slice(0, 300);
+    const sticker = kindOf(s, a) === 'sticker';
+    const errors = {};
+    if (!remark) errors.remark = 'Enter the reason.';
+    const fp = fileProblem(file, false); if (fp) errors.file = fp;
+    const h = sticker ? readHandover(v, errors) : null;
+    if (Object.keys(errors).length) { rejectDrawer(id, a.seq, { ...v, hadFile: !!file }, errors); return; }
+    const who = VF.actor();
+    const rec = file ? metaFile(id, 'authority_outcome', file, { applicant: a.seq }) : null;
+    a.state = 'refused'; a.outcomeAt = VF.todayIST();
+    a.decision = { kind: 'rejected', sticker, remark, set: who };
+    VF.addHistory(id, `Decision: ${VF.displayName(a)}: Rejected`, who, { detail: [`Reason: ${remark}`, rec ? `Document ${rec.name}` : 'No refusal letter attached'].filter(Boolean).join(' · ') });
+    resultNotice(id, a, 'rejected');
+    if (!sticker) closePassenger(id, a); else if (h) applyHandover(id, a, h, who);
+    UI.flash[id] = UI.flash[id] || `Rejection recorded for ${VF.displayName(a)}.`;
+    saved(id); TN.closeOverlay(); TN.refresh();
+  });
+  TN.act('vw-hand-save', (f) => {
+    const v = fd(f); const id = v.task;
+    if (!guardVisa(id)) return;
+    const a = applicantBySeq(id, v.seq); const dec = a && a.decision;
+    if (!dec || !dec.sticker || (dec.handover && dec.handover.mode)) { refuse('This handover is already recorded.'); return; }
+    const errors = {};
+    const h = readHandover(v, errors);
+    if (!h && !errors.handover) errors.handover = 'Choose how the passport goes back.';
+    if (Object.keys(errors).length) { handoverDrawer(id, a.seq, v, errors); return; }
+    const who = VF.actor(); const remark = String(v.remark || '').trim().slice(0, 300);
+    if (remark) h.setRemark = remark;
+    applyHandover(id, a, h, who);
+    if (remark) VF.addHistory(id, `Handover remark: ${VF.displayName(a)}`, who, { detail: remark });
+    saved(id); TN.closeOverlay();
+    UI.flash[id] = `Handover saved for ${VF.displayName(a)}.`;
+    TN.refresh();
+  });
+  TN.act('vw-delivered-open', (el) => { if (guardVisa(el.dataset.id)) deliveredDrawer(el.dataset.id, Number(el.dataset.seq)); });
+  TN.act('vw-delivered-save', (f) => {
+    const v = fd(f); const id = v.task;
+    if (!guardVisa(id)) return;
+    const a = applicantBySeq(id, v.seq); const h = a && (a.decision || {}).handover;
+    if (!h || h.deliveredAt) { refuse('This handover is already recorded.'); return; }
+    if (!VF.validDate(v.deliveredOn) || v.deliveredOn > VF.todayIST()) { deliveredDrawer(id, a.seq, v, { deliveredOn: 'Enter the delivery date (today or earlier).' }); return; }
+    const remark = String(v.remark || '').trim().slice(0, 300);
+    Object.assign(h, { deliveredAt: v.deliveredOn, remark, set: VF.actor() });
+    a.documentsReturnedAt = v.deliveredOn; a.documentsReturnedBy = me();
+    addVH(id, `Passport delivered: ${VF.displayName(a)}`, { detail: [HAND[h.mode], TN.fmt.date(v.deliveredOn), remark].filter(Boolean).join(' · ') });
+    closePassenger(id, a);
+    UI.flash[id] = UI.flash[id] || `Delivery recorded for ${VF.displayName(a)}.`;
+    saved(id); TN.closeOverlay(); TN.refresh();
+  });
+  TN.act('vw-fee-fix', (el) => { if (guardVisa(el.dataset.id)) feeFixDrawer(el.dataset.id, el.dataset.cost); });
+  TN.act('vw-fee-fix-save', (f) => {
+    const v = fd(f); const id = v.task;
+    if (!guardVisa(id)) return;
+    const c = COSTS.find((x) => x.id === v.cost);
+    if (!c || c.task !== id || c.status !== 'returned') { refuse('This fee is not waiting to be fixed.'); return; }
+    const file = f.querySelector('input[type="file"]').files[0];
+    const amount = rupees(v.amount); const errors = {};
+    if (!(amount > 0)) errors.amount = 'Enter the amount in rupees, more than ₹0.';
+    const fp = fileProblem(file, false); if (fp) errors.file = fp;
+    if (Object.keys(errors).length) { feeFixDrawer(id, c.id, v, errors); return; }
+    const who = VF.actor(); const remark = String(v.remark || '').trim().slice(0, 300); const was = c.amount;
+    const rec = file ? metaFile(id, 'fee_receipt', file, c.applicant ? { applicant: c.applicant } : {}) : null;
+    if (rec) c.proof = rec.id;
+    c.amount = amount; c.status = 'submitted'; c.submittedAt = who.at; c.submittedBy = who.by; c.returnReason = null;
+    const a = c.applicant ? applicantBySeq(id, c.applicant) : null;
+    if (a && c.kind === 'government_fee') a.govFee = amount;
+    if (a && c.kind === 'service_fee') a.serviceFee = amount;
+    VF.addHistory(id, `Fee fixed and sent to Accounts: ${COST_KIND[c.kind]}`, who, { detail: [was !== amount ? `${TN.fmt.inr(was)} to ${TN.fmt.inr(amount)}` : '', rec ? `New receipt ${rec.name}` : '', remark].filter(Boolean).join(' · ') });
+    saved(id); TN.closeOverlay();
+    UI.flash[id] = 'Fee sent back to Accounts.';
     TN.refresh();
   });
 
