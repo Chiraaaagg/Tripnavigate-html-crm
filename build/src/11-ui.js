@@ -278,9 +278,12 @@ const ICONS = {"activity":["lucide-activity","<path d=\"M22 12h-2.48a2 2 0 0 0-1
   const pager = (o = {}) => `<nav aria-label="${esc(o.label || 'Pages')}" class="${cx('flex flex-wrap items-center justify-between gap-3 border-t border-line px-4.5 py-3 font-sans', o.cls)}" data-slot="list-pager">${o.prev ? button(o.prev.label, { href: o.prev.href, size: 'sm', icon: 'chevron-left' }) : '<span aria-hidden="true"></span>'}<span class="text-sm text-quiet tabular-nums">${o.text || ''}</span>${o.next ? button(o.next.label, { href: o.next.href, size: 'sm', iconRight: 'chevron-right' }) : '<span aria-hidden="true"></span>'}</nav>`;
 
   /* ---------- Tabs and filter chips ---------- */
-  const TAB = '-mb-px inline-flex min-h-10 items-center gap-2 rounded-t-control border-b-2 border-transparent px-3 py-2 text-base font-medium text-quiet no-underline transition-[color,background-color,border-color] duration-(--ui-duration-quick) motion-reduce:transition-none hover:bg-wash hover:text-ink aria-[current=page]:border-brand-strong aria-[current=page]:font-semibold aria-[current=page]:text-brand-deep outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-brand-strong focus-visible:shadow-none focus-visible:-outline-offset-3';
-  /** TN.ui.tabs({ label, items: [{ href, label, current, count }], cls }) -> live link tabs (?tab=). Record pages pass cls 'mb-4'. */
-  const tabs = (o = {}) => `<nav aria-label="${esc(o.label || 'Sections')}" class="${cx('font-sans', o.cls)}" data-slot="tabs"><ul class="m-0 flex list-none flex-wrap gap-1 border-b border-line p-0 sm:flex-nowrap sm:overflow-x-auto">${(o.items || []).map((t) => `<li class="m-0 shrink-0"><a${t.current ? ' aria-current="page"' : ''} class="${TAB}" href="${esc(hrefOf(t.href))}">${t.label}${typeof t.count === 'number' ? `<span class="rounded-full bg-wash px-1.5 text-xs leading-5 font-medium text-quiet tabular-nums">${t.count}</span>` : ''}</a></li>`).join('')}</ul></nav>`;
+  /* C5 (16 Nov 2026 redesign): coss.com Tabs "with badge" look: pill tabs on a wash track, optional count badge.
+     Same signature as before; still links (?tab=) with aria-current. Styles: src/12-shell.css (.tn-tabs, .tn-tab).
+     count: a number shows a badge; 'unknown' shows a dash read out as "count not known"; anything else shows nothing. */
+  const tabCount = (n) => (typeof n === 'number' ? `<span class="tn-tab-count"><span class="sr-only">, </span>${esc(n)}</span>` : n === 'unknown' ? '<span class="tn-tab-count"><span aria-hidden="true">–</span><span class="sr-only">, count not known</span></span>' : '');
+  /** TN.ui.tabs({ label, items: [{ href, label, current, count }], cls }) -> link tabs (?tab=). Record pages pass cls 'mb-4'. */
+  const tabs = (o = {}) => `<nav aria-label="${esc(o.label || 'Sections')}" class="${cx('max-w-full font-sans', o.cls)}" data-slot="tabs"><ul class="tn-tabs">${(o.items || []).map((t) => `<li class="m-0 shrink-0"><a${t.current ? ' aria-current="page"' : ''} class="tn-tab" href="${esc(hrefOf(t.href))}">${t.label}${tabCount(t.count)}</a></li>`).join('')}</ul></nav>`;
   const CHIP = 'inline-flex min-h-9 items-center gap-1.5 rounded-control border px-3 py-1 text-sm font-medium no-underline transition-[color,background-color,border-color] duration-(--ui-duration-quick) motion-reduce:transition-none';
   /**
    * TN.ui.filterChips({ label, chips: [{ href, label, count, current, srSuffix }], scope, cls })
@@ -420,4 +423,354 @@ const ICONS = {"activity":["lucide-activity","<path d=\"M22 12h-2.48a2 2 0 0 0-1
     field, input, money, select, textarea, checkbox, radio, choices, chipCheck, fieldset,
     drawer, dialog, toast, toastRegion, notAllowed, page, sectionTitle, meta, waiting,
   });
+})();
+
+/* =====================================================================
+   Usability redesign helpers (16 Nov 2026, build/REDESIGN-BRIEF.md section 5).
+   C3 statusTone/status, C4 recordHeader, C2 queueToolbar/approvalRowActions,
+   Accounts sections (TN.ACC_SECTIONS, sectionTabs), C6 switchRow,
+   C7 TN.confirmChange, C8 state, C11 fold, jumpLinks.
+   Same rule as above: text/HTML parameters are inserted AS HTML; escape data
+   with TN.esc first. Styles that live.css lacks are in src/12-shell.css.
+   Signatures and examples: build/notes/redesign-shell.md
+   ===================================================================== */
+(function () {
+  const TN = window.TN;
+  const U = TN.ui;
+  const { cx, FOCUS, button, badge, hrefOf } = U;
+  const esc = TN.esc;
+  const plain = (html) => String(html ?? '').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
+
+  /* ---------- C3 one status-to-tone table ---------- */
+  const S = (tone, icon) => ({ tone, icon });
+  const TONES = {
+    // live booking and task words first (modules/deals/workspace.ts, task pages)
+    'not started': S('neutral', 'clock'), 'quotation accepted': S('brand', 'send'), 'booking in progress': S('info', 'circle-dot'),
+    'in progress': S('info', 'circle-dot'), 'ready to submit': S('info', 'info'), 'waiting for accounts': S('neutral', 'hourglass'),
+    'booking submitted': S('neutral', 'hourglass'), 'returned by accounts': S('warning', 'undo-2'), 'returned': S('warning', 'undo-2'),
+    'being arranged': S('info', 'circle-dot'), 'all services confirmed': S('success', 'circle-check'), 'lost in bitrix': S('danger', 'circle-x'),
+    'lost': S('danger', 'circle-x'), 'waiting to be taken': S('neutral', 'hourglass'), 'not taken': S('neutral', 'hourglass'),
+    'confirmed by supplier': S('success', 'circle-check'), 'confirmed': S('success', 'circle-check'), 'done': S('success', 'circle-check'),
+    'completed': S('success', 'circle-check'), 'cancelled': S('neutral', 'circle-x'), 'draft': S('neutral', 'file-pen'),
+    'new': S('neutral', 'clock'), 'ready for final pdf': S('info', 'info'), 'final pdf made': S('success', 'circle-check'),
+    'sent to accounts': S('info', 'send'), 'sent': S('info', 'send'), 'submitted': S('info', 'send'),
+    // money and approvals
+    'recorded': S('info', 'info'), 'verified': S('success', 'circle-check'), 'approved': S('success', 'circle-check'),
+    'paid': S('success', 'circle-check'), 'requested': S('info', 'send'), 'waiting for the manager': S('warning', 'hourglass'),
+    'waiting for accounts approval': S('neutral', 'hourglass'), 'on hold': S('warning', 'triangle-alert'), 'refused': S('danger', 'circle-x'),
+    'rejected': S('danger', 'circle-x'), 'overdue': S('danger', 'circle-x'), 'due today': S('warning', 'triangle-alert'),
+    'due': S('neutral', 'clock'), 'released': S('success', 'circle-check'), 'go-ahead given': S('success', 'circle-check'),
+    'go-ahead waiting': S('warning', 'hourglass'), 'accepted': S('success', 'circle-check'), 'declined': S('neutral', 'circle-x'),
+    // trip status
+    'booked': S('success', 'circle-check'), 'travelled': S('info', 'info'), 'closed': S('neutral', 'circle-check'),
+    // settings and screen states
+    'on': S('success', 'circle-check'), 'off': S('neutral', 'circle-off'), 'not known': S('warning', 'circle-help'),
+    'needs attention': S('warning', 'triangle-alert'), 'switched off': S('neutral', 'circle-off'),
+    // notices
+    'unread': S('brand', 'circle-dot'), 'read': S('neutral', 'check'),
+  };
+  const RULES = [
+    [/refus|reject|fail|lost|cancel|overdue|not saved|could not|does not|error/, S('danger', 'circle-x')],
+    [/returned|on hold|above budget|missing|needs |due today|waiting for (the )?(manager|owner)|not known/, S('warning', 'triangle-alert')],
+    [/^waiting|^not taken|^not started|^queued/, S('neutral', 'hourglass')],
+    [/confirm|verified|approved|paid|done|complete|accepted|released|given|made|saved|matches|attached|^ready to (share|travel)/, S('success', 'circle-check')],
+    [/progress|arranged|sent|submitted|recorded|requested|travelled|checking|ready/, S('info', 'info')],
+  ];
+  /** TN.ui.statusTone(word) -> { tone, icon } for a status word (escaped or plain); unknown words -> neutral clock. */
+  function statusTone(word) {
+    const w = plain(word).toLowerCase().replace(/\s+/g, ' ').replace(/[.:]$/, '');
+    if (TONES[w]) return { ...TONES[w] };
+    for (const [rx, v] of RULES) if (rx.test(w)) return { ...v };
+    return S('neutral', 'clock');
+  }
+  /** Add or change a word in the shared table (keep it rare: one word, one tone everywhere). */
+  statusTone.add = (word, tone, icon) => { TONES[plain(word).toLowerCase()] = S(tone, icon || { success: 'circle-check', warning: 'triangle-alert', danger: 'circle-x', info: 'info', neutral: 'clock', brand: 'send' }[tone] || 'clock'); };
+  /**
+   * TN.ui.status(wordHtml, { second, sr, cls, wrap }) -> one badge (tone from statusTone) + an optional plain second fact beside it.
+   * TN.ui.status('Waiting for the Manager', { second: 'Raised 26 Oct 2026' })
+   */
+  function status(word, o = {}) {
+    const t = statusTone(word);
+    const b = badge(word, t.tone, { icon: o.icon || t.icon, sr: o.sr, wrap: o.wrap });
+    if (!o.second) return o.cls ? `<span class="${cx('inline-flex max-w-full', o.cls)}">${b}</span>` : b;
+    return `<span class="${cx('inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-1', o.cls)}" data-slot="status">${b}<span class="text-sm text-quiet">${o.second}</span></span>`;
+  }
+
+  /* ---------- C11 fold and in-page jumps ---------- */
+  /**
+   * TN.ui.fold({ id, summary, body, open, cls, flat, meta }) -> plain <details> fold-out (no height animation).
+   * flat = no card frame (inside a card). meta = small text at the right of the summary line (e.g. "3 paid").
+   */
+  function fold(o = {}) {
+    const frame = o.flat ? 'border-t border-line' : 'rounded-card border border-line bg-card shadow-card';
+    return `<details${o.id ? ` id="${esc(o.id)}"` : ''} class="${cx('tn-fold font-sans', frame, o.cls)}"${o.open ? ' open=""' : ''} data-slot="fold"><summary class="flex min-h-11 cursor-pointer items-center gap-2.5 px-4.5 py-2.5 text-base font-medium text-ink hover:bg-wash ${o.flat ? '' : 'rounded-card'} ${FOCUS}">${TN.ic('chevron-right', 'tn-chev size-4 shrink-0 text-quiet')}<span class="min-w-0 flex-1">${o.summary ?? ''}</span>${o.meta ? `<span class="text-sm font-normal text-quiet">${o.meta}</span>` : ''}</summary><div class="${cx('border-t border-line px-4.5 py-3', o.bodyCls)}">${o.body ?? ''}</div></details>`;
+  }
+  /** TN.ui.jumpLinks([{ href: '#rates', label: 'Rates' }], { label }) -> "Jump to" links that scroll to and focus the target id. */
+  function jumpLinks(items = [], o = {}) {
+    if (!items.length) return '';
+    return `<nav aria-label="${esc(o.label || 'On this page')}" class="${cx('mb-4 flex flex-wrap items-center gap-x-1 gap-y-1 font-sans text-sm', o.cls)}" data-slot="jump-links"><span class="mr-1 text-quiet">Jump to:</span>${items.map((i, n) => `${n ? '<span aria-hidden="true" class="text-faint">·</span>' : ''}<a href="${esc(i.href)}" data-act="tn-jump" data-target="${esc(String(i.href).replace(/^#/, ''))}" class="rounded-chip px-1 py-0.5 font-medium text-brand-strong underline decoration-1 underline-offset-4 hover:text-brand-deep ${FOCUS}">${i.label}</a>`).join('')}</nav>`;
+  }
+  /** Move to an element on the page and focus it (opens a closed <details> around it). TN.jumpTo('rates') */
+  TN.jumpTo = (id) => {
+    const el = document.getElementById(String(id || '').replace(/^#/, ''));
+    if (!el) return false;
+    let p = el.parentElement;
+    while (p) { if (p.tagName === 'DETAILS' && !p.open) p.open = true; p = p.parentElement; }
+    if (el.tagName === 'DETAILS' && !el.open) el.open = true;
+    const focusable = el.matches('a[href], button, input, select, textarea, summary, [tabindex]');
+    if (!focusable) { el.setAttribute('tabindex', '-1'); el.classList.add('tn-jump-target'); }
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el.scrollIntoView({ block: 'start', behavior: 'auto' }); void reduce;
+    el.focus({ preventScroll: true });
+    return true;
+  };
+  TN.act('tn-jump', (el) => { TN.jumpTo(el.dataset.target); });
+
+  /* ---------- C4 record header ---------- */
+  /**
+   * TN.ui.recordHeader({ back: { href, label }, recordId, title, status, owner,
+   *   next: { text, button: { label, href | act | jump: '#element-id', data, icon } } | null,
+   *   nextWho, readOnly, details, actions })
+   * status: a status word (badge via statusTone) or ready HTML (starts with '<'). owner: a name (escaped) or ready HTML.
+   * next.button is the page's ONE primary button. jump: moves to the control lower on the page and focuses it.
+   * nextWho: shown instead of a button when the viewer cannot act ("Purchase confirms the hotel.").
+   * readOnly: "You can view this. Accounts can change it." details: folded system facts.
+   * actions: extra quiet buttons at the right of the title line (rare; keep to one or two).
+   */
+  function recordHeader(o = {}) {
+    const st = o.status ? (/^\s*</.test(o.status) ? o.status : status(o.status)) : '';
+    const ow = o.owner ? (/^\s*</.test(o.owner) ? o.owner : U.owner(o.owner)) : '';
+    const line1 = (o.back || o.recordId) ? `<p class="m-0 mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">${o.back ? `<a class="inline-flex items-center gap-1 rounded-chip font-medium text-brand-strong no-underline hover:text-brand-deep hover:underline ${FOCUS}" href="${esc(hrefOf(o.back.href))}">${TN.ic('chevron-left', 'size-4')}${o.back.label}</a>` : ''}${o.back && o.recordId ? '<span aria-hidden="true" class="text-faint">·</span>' : ''}${o.recordId ? `<span class="font-medium text-quiet tabular-nums">${o.recordId}</span>` : ''}</p>` : '';
+    const line2 = `<div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div class="min-w-0"><h1 class="m-0 text-2xl leading-tight font-display tracking-heading text-ink max-sm:text-xl">${o.title ?? ''}</h1>${st || ow ? `<div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-quiet">${st}${ow}</div>` : ''}</div>${o.actions ? `<div class="flex shrink-0 flex-wrap items-center gap-2">${o.actions}</div>` : ''}</div>`;
+    let line3 = '';
+    if (o.next && (o.next.text || o.next.button)) {
+      const b = o.next.button;
+      let btn = '';
+      if (b) {
+        const jump = b.jump ? String(b.jump).replace(/^#/, '') : '';
+        btn = jump
+          ? button(b.label, { variant: 'primary', act: 'tn-jump', data: { target: jump, ...(b.data || {}) }, icon: b.icon, iconRight: b.icon ? undefined : 'arrow-down', id: b.id })
+          : button(b.label, { variant: 'primary', href: b.href, act: b.act, data: b.data, icon: b.icon, id: b.id, disabled: b.disabled });
+      }
+      line3 = `<div class="mt-3 flex flex-col gap-2.5 rounded-control border border-line bg-card px-3.5 py-2.5 sm:flex-row sm:items-center sm:justify-between" data-slot="next-step"><p class="m-0 text-base text-copy"><span class="font-semibold text-ink">Next: </span>${o.next.text || ''}</p>${btn ? `<div class="shrink-0">${btn}</div>` : ''}</div>`;
+    } else if (o.nextWho) {
+      line3 = `<div class="mt-3 flex items-start gap-2 rounded-control border border-line bg-card px-3.5 py-2.5 text-base text-copy" data-slot="next-step">${TN.ic('user-round', 'mt-0.5 size-4 shrink-0 text-faint')}<p class="m-0"><span class="font-semibold text-ink">Next: </span>${o.nextWho}</p></div>`;
+    }
+    const ro = o.readOnly ? `<p class="m-0 mt-2.5 flex items-center gap-1.5 text-sm text-quiet" data-slot="read-only">${TN.ic('eye', 'size-4 shrink-0')}<span>${o.readOnly === true ? 'You can view this.' : o.readOnly}</span></p>` : '';
+    const det = o.details ? `<div class="mt-3">${fold({ summary: o.detailsLabel || 'Details', body: o.details, cls: 'shadow-none' })}</div>` : '';
+    return `<header class="${cx('mb-5 font-sans', o.cls)}" data-slot="record-header">${line1}${line2}${line3}${ro}${det}</header>`;
+  }
+
+  /* ---------- C2 queue toolbar and approval row actions ---------- */
+  /**
+   * TN.ui.queueToolbar({ id, search: { name = 'q', value, placeholder, label }, chips: [{ href, label, count, current }],
+   *   sort: { name = 'sort', value, label = 'Sort', options: [{ value, label }] }, act })
+   * One row: search (submits on Enter), up to four chips (the rest under "More"), sort select.
+   * act omitted -> built-in 'tn-queue': rewrites the current address with ?<search.name>=…&<sort.name>=… (other params kept,
+   * page param dropped) so the page just reads query[search.name] / query[sort.name] in render().
+   * act given -> your TN.act(name, (el) => …) receives the FORM on Enter and the SELECT on sort change (read el.form || el).
+   */
+  function queueToolbar(o = {}) {
+    const id = o.id || 'queue-toolbar';
+    const act = o.act || 'tn-queue';
+    const s = o.search, so = o.sort;
+    const names = ` data-search-name="${esc((s && s.name) || 'q')}" data-sort-name="${esc((so && so.name) || 'sort')}"`;
+    let searchHtml = '';
+    if (s) {
+      const sid = id + '-search';
+      searchHtml = `<div class="tn-toolbar-search"><label for="${esc(sid)}" class="sr-only">${s.label || s.placeholder || 'Search'}</label>${TN.ic('search', 'tn-search-icon size-4 text-quiet')}${U.input({ id: sid, type: 'search', name: s.name || 'q', value: s.value, placeholder: s.placeholder || 'Search', autoComplete: 'off', attrs: { enterkeyhint: 'search' } })}<span class="tn-search-go">${button('', { variant: 'ghost', size: 'sm', type: 'submit', icon: 'arrow-right', ariaLabel: 'Search', cls: 'px-2' })}</span></div>`;
+      if (s.value) searchHtml += `<p class="m-0 text-sm text-quiet">Showing matches for “${esc(s.value)}”. ${button('Clear search', { variant: 'link', size: 'sm', act: 'tn-queue-clear', data: { name: s.name || 'q' } })}</p>`;
+    }
+    let chipsHtml = '';
+    const chips = (o.chips || []).slice();
+    if (chips.length) {
+      let shown = chips.slice(0, 4), rest = chips.slice(4);
+      const cur = rest.findIndex((c) => c.current);
+      if (cur >= 0) { const c = rest.splice(cur, 1)[0]; rest.unshift(shown.pop()); shown.push(c); }
+      chipsHtml = U.filterChips({ label: o.chipsLabel || 'Filter', chips: shown });
+      if (rest.length) {
+        chipsHtml = `<div class="flex flex-wrap items-center gap-2">${chipsHtml}<details class="tn-more" data-more=""><summary class="${U.buttonClass('ghost', 'sm', 'min-h-9 list-none [&::-webkit-details-marker]:hidden')}">More${TN.ic('chevron-down', 'size-4')}<span class="sr-only"> filters</span></summary><ul class="tn-more-list">${rest.map((c) => `<li class="m-0"><a class="flex min-h-9 items-center justify-between gap-3 rounded-control px-2.5 text-sm font-medium text-copy no-underline hover:bg-wash hover:text-ink ${FOCUS}" href="${esc(hrefOf(c.href))}">${c.label}${typeof c.count === 'number' ? `<span class="text-xs text-quiet tabular-nums">${esc(c.count)}</span>` : ''}</a></li>`).join('')}</ul></details></div>`;
+      }
+    }
+    let sortHtml = '';
+    if (so && (so.options || []).length) {
+      const sid = id + '-sort';
+      sortHtml = `<div class="tn-toolbar-sort"><label for="${esc(sid)}" class="text-sm font-medium text-quiet">${so.label || 'Sort'}</label>${U.select({ id: sid, name: so.name || 'sort', value: so.value, options: so.options, change: act })}</div>`;
+    }
+    return `<form id="${esc(id)}" class="${cx('tn-toolbar font-sans', o.cls)}" role="search" aria-label="${esc(o.label || 'Search and filter')}" data-act="${esc(act)}"${names} data-slot="queue-toolbar">${searchHtml ? `<div class="flex flex-col gap-1.5">${searchHtml}</div>` : ''}${chipsHtml}${sortHtml}</form>`;
+  }
+  function rewriteQuery(set) {
+    const [path, qs = ''] = TN.path().split('?');
+    const p = new URLSearchParams(qs);
+    Object.entries(set).forEach(([k, v]) => { if (v == null || v === '') p.delete(k); else p.set(k, v); });
+    p.delete('page');
+    const s = p.toString();
+    TN.go(path + (s ? '?' + s : ''));
+  }
+  TN.act('tn-queue', (el) => {
+    const form = el.tagName === 'FORM' ? el : el.form;
+    if (!form) return;
+    const sn = form.dataset.searchName || 'q', on = form.dataset.sortName || 'sort';
+    const set = {};
+    const si = form.elements[sn]; if (si) set[sn] = si.value.trim();
+    const ss = form.elements[on]; if (ss) set[on] = ss.value;
+    rewriteQuery(set);
+  });
+  TN.act('tn-queue-clear', (el) => rewriteQuery({ [el.dataset.name || 'q']: '' }));
+  // "More" chip lists close on Escape and outside click.
+  document.addEventListener('keydown', (ev) => { if (ev.key !== 'Escape') return; const d = document.querySelector('details[data-more][open]'); if (d) { d.open = false; d.querySelector('summary').focus(); } });
+  document.addEventListener('pointerdown', (ev) => { document.querySelectorAll('details[data-more][open]').forEach((d) => { if (!d.contains(ev.target)) d.open = false; }); });
+
+  /**
+   * TN.ui.approvalRowActions({ id, approveAct, returnAct, approveLabel = 'Approve', returnLabel = 'Return', data, srFor, disabledReason })
+   * Approve (quiet outline) + Return (text) for one approval row; both carry data-id=id. returnAct should open
+   * TN.confirmChange({ …, reason: 'required' }) so the reason box is required (10 to 500 characters).
+   * disabledReason: both buttons disabled with the reason beside them (blocked state: e.g. "You raised this, so a different person approves it.").
+   */
+  function approvalRowActions(o = {}) {
+    const data = { id: o.id, ...(o.data || {}) };
+    const sr = o.srFor ? `: ${o.srFor}` : o.id ? `: ${esc(o.id)}` : '';
+    const dis = !!o.disabledReason;
+    const btns = button(o.approveLabel || 'Approve', { size: 'sm', act: dis ? undefined : o.approveAct, data, icon: 'check', srLabel: sr, disabled: dis })
+      + button(o.returnLabel || 'Return', { variant: 'ghost', size: 'sm', act: dis ? undefined : o.returnAct, data, icon: 'undo-2', srLabel: sr, disabled: dis });
+    return `<div class="flex flex-wrap items-center justify-end gap-2" data-slot="approval-actions">${btns}${dis ? `<p class="m-0 flex basis-full items-start justify-end gap-1.5 text-sm text-quiet">${TN.ic('lock', 'mt-0.5 size-3.5 shrink-0')}<span>${o.disabledReason}</span></p>` : ''}</div>`;
+  }
+
+  /* ---------- Accounts sections (D5) ---------- */
+  /** Count of Home rows (live + registered) for the current role whose address is this list (same numbers as Home). */
+  const homeCount = (href) => {
+    const want = String(href).replace(/^#/, '').split('?')[0];
+    if (!TN.homeAllRows) return 0;
+    let n = 0, unknown = false;
+    TN.homeAllRows().forEach((r) => { if (String(r.href || '').replace(/^#/, '').split('?')[0] === want) { if (r.count == null || Number.isNaN(r.count)) unknown = true; else n += Number(r.count) || 0; } });
+    return unknown && !n ? null : n;
+  };
+  const accTab = (href, label) => ({ href, label, count: () => (overrides[href] ? overrides[href]() : homeCount(href)) });
+  const overrides = {};
+  TN.ACC_SECTIONS = [
+    { key: 'to-check', label: 'To check', icon: 'clipboard-check', tabs: [accTab('/app/accounts', 'To check'), accTab('/app/accounts/customers', 'Customers'), accTab('/app/accounts/claims', 'Reported payments')] },
+    { key: 'money-in', label: 'Money in', icon: 'hand-coins', tabs: [accTab('/app/accounts/dues', 'Dues'), accTab('/app/accounts/documents', 'Invoices and vouchers'), accTab('/app/accounts/refunds', 'Refunds')] },
+    { key: 'money-out', label: 'Money out', icon: 'wallet', tabs: [accTab('/app/accounts/supplier-payments', 'Supplier payments'), accTab('/app/accounts/supplier-invoices', 'Supplier invoices'), accTab('/app/accounts/funding', 'Company funding'), accTab('/app/accounts/expenses', 'Department costs')] },
+    { key: 'cash-bank', label: 'Cash and bank', icon: 'landmark', tabs: [accTab('/app/accounts/cash', 'Branch cash'), accTab('/app/accounts/destinations', 'Company accounts')] },
+    { key: 'records', label: 'Records', icon: 'chart-column', tabs: [accTab('/app/reports', 'Reports')] },
+    { key: 'tally', label: 'Tally', icon: 'file-spreadsheet', tabs: [accTab('/app/accounts/tally', 'Tally')] },
+  ];
+  /** Replace the count of one Accounts tab (default: the matching Home rows). TN.setAccCount('/app/accounts/dues', () => n) */
+  TN.setAccCount = (href, fn) => { overrides[String(href).replace(/^#/, '').split('?')[0]] = fn; };
+  const norm = (k) => String(k || '').toLowerCase().replace(/[^a-z]/g, '').replace(/^cashandbank$/, 'cashbank');
+  /** Section by key ('to-check', 'money-in', 'money-out', 'cash-bank', 'records', 'tally'; label or spelling variants accepted). */
+  TN.accSection = (key) => TN.ACC_SECTIONS.find((s) => norm(s.key) === norm(key) || norm(s.label) === norm(key) || (norm(key) === 'cash' && s.key === 'cash-bank'));
+  /** Section that holds an address (longest tab match): TN.accSectionOf('/app/accounts/deals/BX-38412') -> To check. */
+  TN.accSectionOf = (href) => {
+    const p = String(href || '').replace(/^#/, '').split('?')[0];
+    let best = null, len = -1;
+    TN.ACC_SECTIONS.forEach((s) => s.tabs.forEach((t) => { if ((p === t.href || p.startsWith(t.href + '/')) && t.href.length > len) { best = s; len = t.href.length; } }));
+    return best;
+  };
+  const safeCount = (t) => { try { const n = t.count(); return n == null ? null : Number(n) || 0; } catch (e) { return null; } };
+  /** Count for a whole section (menu badge): sum of its tabs; null when none of them could be counted. */
+  TN.accSectionCount = (s) => { const ns = s.tabs.map(safeCount); return ns.every((n) => n == null) ? null : ns.reduce((a, n) => a + (n || 0), 0); };
+  /** Where the menu link goes: the first tab with something waiting, otherwise the first tab. */
+  TN.accSectionHref = (s) => (s.tabs.find((t) => (safeCount(t) || 0) > 0) || s.tabs[0]).href;
+  /**
+   * TN.ui.sectionTabs(sectionKey, currentHref) -> the section's tab strip (C5 look, counts); '' for a one-tab section.
+   * Put it under the page header of every Accounts page: TN.ui.sectionTabs('money-in', '/app/accounts/dues').
+   */
+  function sectionTabs(key, currentHref, o = {}) {
+    const s = TN.accSection(key) || TN.accSectionOf(currentHref);
+    if (!s || s.tabs.length < 2) return '';
+    const p = String(currentHref || TN.path()).replace(/^#/, '').split('?')[0];
+    const cur = s.tabs.filter((t) => p === t.href || p.startsWith(t.href + '/')).sort((a, b) => b.href.length - a.href.length)[0];
+    return U.tabs({ label: o.label || `${s.label} sections`, cls: o.cls || 'mb-4', items: s.tabs.map((t) => { const n = safeCount(t); return { href: t.href, label: t.label, current: t === cur, count: n == null ? 'unknown' : n }; }) });
+  }
+
+  /* ---------- C6 switch row ---------- */
+  const STATE_WORD = { on: 'On', off: 'Off', unknown: 'Not known' };
+  /**
+   * TN.ui.switchRow({ id, name, effect, more, state: 'on'|'off'|'unknown', last: { who, when }, act, data, disabledReason, changeLabel = 'Change' })
+   * Name · one-line effect ("More" fold for long text) · state badge in words · last change · "Change" button (data-act=act, data-id=id).
+   * Not an instant toggle: act should open TN.confirmChange(...). Put rows in a card: TN.ui.card({ title, flush: true, body: rows.join('') }).
+   */
+  function switchRow(o = {}) {
+    const id = o.id || 'switch';
+    const word = STATE_WORD[o.state] || 'Not known';
+    const t = statusTone(word);
+    const last = o.last && (o.last.who || o.last.when) ? `<p class="m-0 mt-1 text-xs text-quiet">Last change: ${[o.last.who, o.last.when].filter(Boolean).join(', ')}</p>` : o.last === null ? '<p class="m-0 mt-1 text-xs text-quiet">Never changed</p>' : '';
+    const more = o.more ? `<details class="tn-fold mt-1 text-sm"><summary class="inline-flex min-h-8 cursor-pointer items-center gap-1 rounded-chip font-medium text-brand-strong ${FOCUS}">${TN.ic('chevron-right', 'tn-chev size-3.5 shrink-0')}More<span class="sr-only"> about ${o.name}</span></summary><div class="mt-1 text-copy">${o.more}</div></details>` : '';
+    const dis = !!o.disabledReason;
+    const btn = button(o.changeLabel || 'Change', { size: 'sm', act: dis ? undefined : o.act, data: { id, ...(o.data || {}) }, disabled: dis, attrs: { 'aria-describedby': `${id}-name ${id}-state` } });
+    return `<div class="tn-switch-row font-sans" id="${esc(id)}-row" data-slot="switch-row"><div class="min-w-0 flex-1"><p class="m-0 font-semibold text-ink" id="${esc(id)}-name">${o.name ?? ''}</p>${o.effect ? `<p class="m-0 text-sm text-copy">${o.effect}</p>` : ''}${more}${last}${dis ? `<p class="m-0 mt-1 flex items-start gap-1.5 text-sm text-quiet">${TN.ic('lock', 'mt-0.5 size-3.5 shrink-0')}<span>${o.disabledReason}</span></p>` : ''}</div><div class="tn-switch-side"><span id="${esc(id)}-state">${badge(word, t.tone, { icon: t.icon, sr: 'State: ' })}</span>${btn}</div></div>`;
+  }
+
+  /* ---------- C7 confirm dialog (shadcn Alert Dialog pattern) ---------- */
+  const pending = {}; let seq = 0;
+  /**
+   * TN.confirmChange({ title, effect, affected, confirmLabel, tone, onConfirm: (reason) => {}, reason = 'optional' | 'required' | 'none',
+   *   reasonLabel = 'Reason', reasonHint, body })
+   * Title, one sentence of effect, who is affected, the reason box (optional by default, D9), Cancel (focused first) and one
+   * confirm button named for the action. 'required' = 10 to 500 characters (Return with reason); a refusal keeps the typed text.
+   * tone 'danger' -> red confirm button. onConfirm runs after the dialog closes; reason is '' when left empty.
+   */
+  TN.confirmChange = (o = {}) => {
+    const key = 'c' + (++seq);
+    pending[key] = o;
+    const mode = o.reason || 'optional';
+    const rid = `confirm-${key}-reason`;
+    const reasonField = mode === 'none' ? '' : U.field({ id: rid, label: o.reasonLabel || 'Reason', optional: mode === 'optional', hint: o.reasonHint || (mode === 'required' ? '10 to 500 characters. It is kept with the change.' : 'Kept with the change, with your name and the time.'), textarea: { name: 'reason', rows: 3, attrs: { maxlength: '500' } }, cls: 'mt-4' });
+    const body = `<form data-act="tn-confirm-change" data-key="${key}" id="confirm-${key}" novalidate="">${o.effect ? `<p class="m-0 text-copy">${o.effect}</p>` : ''}${o.affected ? `<p class="m-0 mt-2 text-sm text-quiet"><span class="font-semibold text-ink">Who is affected: </span>${o.affected}</p>` : ''}${o.body || ''}<div data-confirm-error=""></div>${reasonField}</form>`;
+    const footer = button('Cancel', { attrs: { 'data-close': '', 'data-confirm-cancel': '' } })
+      + button(o.confirmLabel || 'Confirm', { variant: o.tone === 'danger' ? 'danger' : 'primary', type: 'submit', attrs: { form: `confirm-${key}` } });
+    const html = U.dialog({ title: o.title || 'Confirm the change', body, footer, tone: o.tone }).replace('role="dialog"', 'role="alertdialog"');
+    const trigger = document.activeElement;
+    pending[key].trigger = trigger && (trigger.id ? '#' + CSS.escape(trigger.id) : trigger.dataset && trigger.dataset.act ? `[data-act="${trigger.dataset.act}"]${trigger.dataset.id ? `[data-id="${CSS.escape(trigger.dataset.id)}"]` : ''}` : null);
+    TN.openOverlay(html, { focus: '[data-confirm-cancel]' });
+    return key;
+  };
+  TN.act('tn-confirm-change', (form) => {
+    const o = pending[form.dataset.key];
+    if (!o) return;
+    const ta = form.querySelector('textarea[name="reason"]');
+    const reason = ta ? ta.value.trim() : '';
+    if ((o.reason === 'required') && (reason.length < 10 || reason.length > 500)) {
+      const box = form.querySelector('[data-confirm-error]');
+      const msg = reason.length < 10 ? 'Write the reason: at least 10 characters.' : 'Shorten the reason to 500 characters or fewer.';
+      box.innerHTML = U.errorSummary({ title: 'Not done yet', text: 'Your typed reason is still in the box.', items: [{ href: '#' + ta.id, text: msg }], cls: 'mt-4' });
+      ta.setAttribute('aria-invalid', 'true');
+      const err = box.querySelector('[role="alert"]'); if (err) err.focus();
+      return;
+    }
+    delete pending[form.dataset.key];
+    TN.closeOverlay();
+    if (typeof o.onConfirm === 'function') o.onConfirm(reason);
+    // The page was usually redrawn by onConfirm: put focus back on the same control if it still exists.
+    if (o.trigger) setTimeout(() => { const a = document.activeElement; if (!a || a === document.body || a.id === 'main') { const t = document.querySelector(o.trigger); if (t && t.focus) t.focus(); } }, 0);
+  });
+  // Error-summary links inside the dialog focus the field instead of changing the address.
+  document.addEventListener('click', (ev) => { const a = ev.target.closest('#tn-overlay [data-slot="error-summary"] a[href^="#"]'); if (!a) return; const f = document.getElementById(a.getAttribute('href').slice(1)); if (f) { ev.preventDefault(); ev.stopPropagation(); f.focus(); } }, true);
+
+  /* ---------- C8 screen states ---------- */
+  /**
+   * TN.ui.state({ kind: 'empty'|'error'|'blocked'|'readOnly'|'off'|'unknown', title, text, action, who, icon, saved })
+   * empty   : icon, title, one sentence why, at most one action (inside a card when card !== false).
+   * error   : what happened (title), whether it was saved (saved: true|false), who can fix it, action (e.g. Try again).
+   * blocked : action (pass it disabled) with the reason (text) and who unblocks it beside it.
+   * readOnly: one line "You can view this. <who> can change it."
+   * off     : "Switched off" notice with where it is switched on (action = link for a Super Admin).
+   * unknown : inline "not known" words (never 0).
+   */
+  function state(o = {}) {
+    const k = o.kind || 'empty';
+    if (k === 'empty') { const html = U.emptyState({ icon: o.icon || 'inbox', title: o.title || 'Nothing waiting', description: o.text || '', action: o.action, level: o.level }); return o.card === false ? html : U.card(html); }
+    if (k === 'error') {
+      const saved = o.saved === true ? '<p>Your work was saved.</p>' : o.saved === false ? '<p>Nothing was saved. Your typed input is still on the page.</p>' : '';
+      return U.notice(`${o.text ? `<p>${o.text}</p>` : ''}${saved}${o.who ? `<p>${o.who}</p>` : ''}${o.action ? `<div class="mt-1.5">${o.action}</div>` : ''}`, { tone: 'danger', title: o.title || 'Something went wrong', role: 'alert', cls: o.cls });
+    }
+    if (k === 'blocked') return `<div class="${cx('flex flex-wrap items-center gap-x-3 gap-y-1.5 font-sans', o.cls)}" data-slot="blocked">${o.action || ''}<p class="m-0 flex items-start gap-1.5 text-sm text-quiet">${TN.ic(o.icon || 'lock', 'mt-0.5 size-3.5 shrink-0')}<span>${o.text || ''}${o.who ? ` ${o.who}` : ''}</span></p></div>`;
+    if (k === 'readOnly') return `<p class="${cx('m-0 mb-4 flex items-center gap-1.5 font-sans text-sm text-quiet', o.cls)}" data-slot="read-only">${TN.ic(o.icon || 'eye', 'size-4 shrink-0')}<span>${o.text || `You can view this.${o.who ? ` ${o.who} can change it.` : ''}`}</span></p>`;
+    if (k === 'off') return U.notice(`${o.text ? `<p>${o.text}</p>` : ''}${o.who ? `<p>${o.who}</p>` : ''}${o.action ? `<div class="mt-1.5">${o.action}</div>` : ''}`, { tone: 'locked', icon: 'circle-off', title: o.title || 'Switched off', cls: o.cls });
+    if (k === 'unknown') return `<span class="${cx('font-normal text-quiet italic', o.cls)}">${o.text || 'Not known'}</span>`;
+    return '';
+  }
+
+  Object.assign(U, { statusTone, status, fold, jumpLinks, recordHeader, queueToolbar, approvalRowActions, sectionTabs, switchRow, state });
 })();

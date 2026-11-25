@@ -125,10 +125,11 @@
   const card = (id, title, sub, body, opts = {}) => `<div class="${C.card}${opts.extra ? ' ' + opts.extra : ''}" data-slot="card"><section aria-labelledby="${id}"><div class="${C.cardHead}"><div class="min-w-0"><${opts.h || 'h3'} class="${C.h2}" id="${id}">${esc(title)}</${opts.h || 'h3'}>${sub ? `<p class="m-0 text-sm text-quiet">${sub}</p>` : ''}</div>${opts.right || ''}</div><div class="px-4.5 py-4 flex flex-col gap-4">${body}</div></section></div>`;
   const dlist = (rows) => `<dl class="${C.dl}">${rows.filter(Boolean).map(([k, v, cls]) => `<dt class="text-sm font-medium text-quiet">${esc(k)}</dt><dd class="m-0 text-ink${cls ? ' ' + cls : ''}">${v}</dd>`).join('')}</dl>`;
   const summary = (rows) => `<dl class="m-0 flex flex-col divide-y divide-line font-sans" data-slot="summary-list">${rows.filter(Boolean).map(([k, v]) => `<div class="grid grid-cols-1 gap-0.5 py-2.5 first:pt-0 last:pb-0 sm:grid-cols-[minmax(10rem,40%)_1fr] sm:gap-4"><dt class="text-sm font-medium text-quiet">${esc(k)}</dt><dd class="m-0 wrap-break-word text-ink">${v}</dd></div>`).join('')}</dl>`;
-  const tabsNav = (label, items, cur, extra) => `<nav aria-label="${esc(label)}" class="font-sans ${extra || 'mb-5'}" data-slot="tabs"><ul class="m-0 flex list-none flex-wrap gap-1 border-b border-line p-0 sm:flex-nowrap sm:overflow-x-auto">${items.map((t) => `<li class="m-0 shrink-0"><a${t.key === cur ? ' aria-current="page"' : ''} class="${C.tab}" href="${t.href}">${esc(t.label)}${t.count != null ? `<span class="sr-only">:</span><span class="rounded-full bg-wash px-1.5 text-xs leading-5 font-medium text-quiet tabular-nums">${t.count}</span>` : ''}</a></li>`).join('')}</ul></nav>`;
+  // C5: every tab strip uses the shared TN.ui.tabs (links with ?tab= / ?show=, aria-current).
+  const tabsNav = (label, items, cur, extra) => TN.ui.tabs({ label, cls: extra || 'mb-5', items: items.map((x) => ({ href: x.href, label: esc(x.label), current: x.key === cur, count: x.count })) });
   const table = (label, caption, cols, rows) => `<div class="${C.card}" data-slot="card"><div class="group/table relative w-full overflow-x-auto ${C.focus} rounded-card" data-stack="true" role="region" aria-label="${esc(label)}" tabindex="0"><table role="table" class="w-full border-collapse bg-transparent font-sans text-base text-copy group-data-[stack=true]/table:max-sm:block"><caption class="px-4.5 text-left text-sm caption-top border-b border-line py-3 font-medium text-copy max-sm:block">${caption}</caption><thead role="rowgroup" class="group-data-[stack=true]/table:max-sm:sr-only"><tr role="row" class="${C.trHead}">${cols.map((c) => `<th scope="col" role="columnheader" class="${C.th}">${esc(c)}</th>`).join('')}</tr></thead><tbody role="rowgroup" class="group-data-[stack=true]/table:max-sm:block">${rows.map((r) => `<tr role="row" class="${C.tr}">${r.map((cell, i) => `<td role="cell" data-label="${esc(cols[i])}" class="${C.td} align-top${cell.cls ? ' ' + cell.cls : ''}">${cell.html != null ? cell.html : cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
   const empty = (icon, title, text) => `<div class="${C.card}" data-slot="card"><div role="status"><div class="flex flex-col items-center px-6 py-10 text-center font-sans" data-slot="empty-state"><span class="mb-3 grid size-11 place-items-center rounded-card bg-brand-tint text-brand">${ic(icon, 'size-5')}</span><h2 class="m-0 text-lg leading-6 font-semibold text-ink">${esc(title)}</h2><p class="m-0 mt-1.5 max-w-[42ch] text-base text-quiet">${esc(text)}</p></div></div></div>`;
-  const header = ({ eyebrow, title, desc, meta, actions, mb }) => `<header class="${mb === 3 ? '' : 'mb-5 '}flex flex-col gap-4 font-sans sm:flex-row sm:items-end sm:justify-between${mb === 3 ? ' mb-3' : ''}" data-slot="page-header"><div class="min-w-0"><p class="${C.eyebrow}">${eyebrow}</p><h1 class="${C.h1}">${meta != null ? `<span class="block wrap-anywhere">${esc(title)}</span>` : esc(title)}</h1>${desc ? `<p class="m-0 mt-1.5 text-base text-quiet">${desc}</p>` : ''}${meta ? `<div class="mt-2.5 flex flex-wrap items-center gap-2 text-sm text-quiet">${meta}</div>` : ''}</div>${actions ? `<div class="flex min-w-min flex-wrap items-center gap-2 max-sm:[&amp;&gt;*]:flex-1">${actions}</div>` : ''}</header>`;
+  const header = ({ eyebrow, title, desc, meta, actions, mb }) => `<header class="${mb === 3 ? '' : 'mb-5 '}flex flex-col gap-4 font-sans sm:flex-row sm:items-end sm:justify-between${mb === 3 ? ' mb-3' : ''}" data-slot="page-header"><div class="min-w-0">${eyebrow ? `<p class="${C.eyebrow}">${eyebrow}</p>` : ''}<h1 class="${C.h1}">${meta != null ? `<span class="block wrap-anywhere">${esc(title)}</span>` : esc(title)}</h1>${desc ? `<p class="m-0 mt-1.5 text-base text-quiet">${desc}</p>` : ''}${meta ? `<div class="mt-2.5 flex flex-wrap items-center gap-2 text-sm text-quiet">${meta}</div>` : ''}</div>${actions ? `<div class="flex min-w-min flex-wrap items-center gap-2 max-sm:[&amp;&gt;*]:flex-1">${actions}</div>` : ''}</header>`;
   const backLink = (href, label) => `<p class="m-0 mb-3"><a class="${C.back}" href="${href}">${ic('chevron-left', 'size-4')}${esc(label)}</a></p>`;
   const tl = (items, label) => `<ol aria-label="${esc(label)}" class="m-0 flex list-none flex-col p-0 font-sans" data-slot="timeline">${items.map((it, i) => {
     const last = i === items.length - 1;
@@ -438,11 +439,13 @@
     return out;
   }
   const canWork = (s) => TN.is('purchase') && s.assignee === meKey() && !isConfirmed(s) && s.taskStatus !== 'cancelled';
+  // C3: the task status word takes its tone from the shared table (TN.ui.status) when it exists.
+  const shared = (word, tone, icon) => (TN.ui.status ? TN.ui.status(esc(word), { sr: 'Task status: ', wrap: true }) : badge(tone, icon, word, 'Task status'));
   function taskStatusBadge(s) {
-    if (s.taskStatus === 'cancelled') return badge('neutral', 'circle-minus', 'Cancelled', 'Task status');
-    if (isConfirmed(s)) return badge('success', 'circle-check', 'Confirmed by supplier', 'Task status');
-    if (!s.assignee) return badge('neutral', 'hourglass', 'Waiting to be taken', 'Task status');
-    return badge('info', 'pencil-line', 'In progress · not booked yet', 'Task status');
+    if (s.taskStatus === 'cancelled') return shared('Cancelled', 'neutral', 'circle-minus');
+    if (isConfirmed(s)) return shared('Confirmed by supplier', 'success', 'circle-check');
+    if (!s.assignee) return shared('Waiting to be taken', 'neutral', 'hourglass');
+    return shared('In progress · not booked yet', 'info', 'pencil-line');
   }
   const goAheadBadge = (s) => {
     if (!s.goAhead || isConfirmed(s)) return '';
@@ -464,72 +467,136 @@
   }
 
   /* =====================================================================
-     #/app/purchase · Purchase tasks queue (LIVE)
+     #/app/purchase · Purchase tasks queue (C2 work-list pattern, 16 Nov 2026)
+     Tabs Not taken · Mine · All (+ Payment requests for Purchase), one toolbar
+     row (search, status chips, sort "Soonest travel first"), one-line rows:
+     What · Dates · Approved budget · Status · Next step · Who · Deal.
      ===================================================================== */
-  function stayCell(s) {
-    if (s.kind !== 'hotel' && s.kind !== 'package') return { html: '<span class="text-quiet">Not a hotel</span>', cls: 'text-sm' };
-    return { html: `<span class="whitespace-nowrap">${date(s.start)}</span> → <span class="whitespace-nowrap">${date(s.end)}</span> · ${plural(nights(s.start, s.end), 'night')}`, cls: 'text-sm' };
-  }
-  function roomsCell(id, s) {
+  const DK = TN.desk;
+  const nightsText = (s) => plural(nights(s.start, s.end), 'night');
+  function datesCell(id, s) {
     const deal = TN.deal(s.deal);
     const f = FACTS[id];
-    return { html: esc((f && (s.kind === 'hotel' || s.kind === 'package') ? plural(f[0], 'room') + ' · ' : '') + travellers(deal)), cls: 'text-sm' };
+    const who = esc((isHotelish(s) ? nightsText(s) + ' · ' : '') + (f && isHotelish(s) ? plural(f[0], 'room') + ' · ' : '') + travellers(deal));
+    const when = esc(DK.range(s.start, s.end));
+    return { html: `<span class="block whitespace-nowrap">${when}</span><span class="block text-sm text-quiet">${who}</span>` };
   }
-  function detailsCell(t) {
-    const sub = t.kind === 'hotel' || t.kind === 'package' ? '' : `<span class="block text-sm text-quiet">${esc(t.detail)}</span>`;
-    return `<span class="flex flex-col items-start gap-1.5 max-sm:items-end">${typePill(t.kind)}<a class="${C.rowLink}" href="#/app/purchase/${t.id}">${esc(t.title)}<span class="sr-only"> — open task</span></a>${sub}</span>`;
+  function whatCell(t) {
+    const sub = isHotelish(t) ? '' : `<span class="block text-sm text-quiet">${esc(t.detail)}</span>`;
+    return `<span class="desk-what flex flex-col items-start gap-1.5">${typePill(t.kind)}<a class="${C.rowLink}" href="#/app/purchase/${t.id}">${esc(t.title)}<span class="sr-only"> — open task</span></a>${sub}</span>`;
   }
+  /** The second status fact as plain text beside the one badge (never a second badge). */
+  function secondFact(t) {
+    const mgr = TN.is('manager');
+    if (t.taskStatus === 'cancelled' || isConfirmed(t)) return invoiceMissing(t.id, t) ? 'Original invoice missing' : '';
+    if (overBudgetWaiting(t.id, t)) return mgr ? 'Price above budget · your approval' : 'Price above budget · waiting for Manager';
+    if (t.goAhead === 'refused') return 'Go-ahead refused by Accounts';
+    if (needsGoAhead(t)) return 'Waiting for Accounts go-ahead';
+    if (t.goAhead === 'given') return 'Accounts go-ahead given';
+    return '';
+  }
+  const QCHIPS = [
+    { key: 'goahead', label: 'Waiting for go-ahead', test: (t) => !isConfirmed(t) && needsGoAhead(t) },
+    { key: 'budget', label: 'Price above budget', test: (t) => !isConfirmed(t) && overBudgetWaiting(t.id, t) },
+    { key: 'open', label: 'Not booked yet', test: (t) => !!t.assignee && !isConfirmed(t) },
+    { key: 'confirmed', label: 'Confirmed', test: (t) => isConfirmed(t) },
+    { key: 'invoice', label: 'Invoice missing', test: (t) => invoiceMissing(t.id, t) },
+  ];
+  const haystack = (t) => { const d = TN.deal(t.deal) || {}; return [t.title, t.detail, t.deal, d.title, d.destination, typeLabel(t), supName(t.supplier), takenBy(t)].join(' '); };
+  /** Queue "Next step": the same words as the task's Next line, plus one row button when the viewer can act. */
+  function rowNext(t) {
+    const n = nextInfo(t.id, t);
+    const words = n.none ? 'Nothing waiting' : cap(n.plain);
+    let btn = '';
+    if (TN.is('purchase') && !t.assignee && t.taskStatus !== 'cancelled') btn = DK.rowAct(`Take<span class="sr-only"> ${esc(t.title)}</span>`, 'pur-take', { id: t.id });
+    else if (TN.is('purchase') && t.assignee === meKey() && !n.none && !n.who) btn = DK.rowButton(`Continue<span class="sr-only"> ${esc(t.title)}</span>`, `href="#/app/purchase/${t.id}?tab=${n.files ? 'files' : 'work'}"`);
+    else if (TN.is('manager') && overBudgetWaiting(t.id, t)) btn = DK.rowButton(`Review<span class="sr-only"> the price for ${esc(t.title)}</span>`, `href="#/app/purchase/${t.id}?tab=work&amp;focus=pur-approve-btn"`);
+    return { html: `<span class="desk-next flex flex-col items-start gap-2 max-sm:items-end"><span class="text-sm text-copy">${esc(words)}</span>${btn}</span>` };
+  }
+  /** Tabs shared by the task queue and the Payment requests list (Payment requests is a tab here, C1/DM-19). */
+  function queueTabs(cur, counts, keep) {
+    const mgr = TN.is('manager');
+    const k = DK.qs({ q: keep.q, sort: keep.sort });
+    const amp = k ? '&' + k.slice(1) : '';
+    const items = mgr
+      ? [{ key: 'not_taken', label: 'Not taken', href: `#/app/purchase?show=not_taken${amp}`, count: counts.not_taken }, { key: 'all', label: 'All', href: `#/app/purchase${k}`, count: counts.all }]
+      : [{ key: 'not_taken', label: 'Not taken', href: `#/app/purchase${k}`, count: counts.not_taken }, { key: 'mine', label: 'Mine', href: `#/app/purchase?show=mine${amp}`, count: counts.mine }, { key: 'all', label: 'All', href: `#/app/purchase?show=all${amp}`, count: counts.all }];
+    if (TN.is('purchase')) items.push({ key: 'payments', label: 'Payment requests', href: '#/app/purchase/payments', count: counts.payments });
+    return tabsNav('Purchase task lists', items, cur, 'mb-4');
+  }
+  const openPayCount = () => D.supplierPayments.filter((p) => p.raisedBy === 'purchase' && ['requested', 'waiting_manager', 'approved', 'on_hold'].includes(p.status)).length;
   function renderQueue(params, q) {
     const mgr = TN.is('manager');
     const all = tasks().filter((t) => t.taskStatus !== 'cancelled');
     const notTaken = all.filter((t) => !t.assignee);
     const mine = all.filter((t) => t.assignee === meKey());
-    const show = q.show || (mgr ? 'all' : 'not_taken');
-    const list = show === 'mine' ? mine : show === 'not_taken' ? notTaken : all;
-    list.sort((a, b) => (a.start < b.start ? -1 : 1));
-    const tabs = mgr
-      ? [{ key: 'not_taken', label: 'Not taken', href: '#/app/purchase?show=not_taken', count: notTaken.length }, { key: 'all', label: 'All', href: '#/app/purchase', count: all.length }]
-      : [{ key: 'not_taken', label: 'Not taken', href: '#/app/purchase', count: notTaken.length }, { key: 'mine', label: 'Mine', href: '#/app/purchase?show=mine', count: mine.length }, { key: 'all', label: 'All', href: '#/app/purchase?show=all', count: all.length }];
-    // The type pill sits above the service name: eight columns made Status wrap one letter per line.
-    const rows = list.map((t) => [
-      detailsCell(t),
-      stayCell(t),
-      roomsCell(t.id, t),
-      { html: t.budget != null ? money(t.budget) : 'Budget not set', cls: 'whitespace-nowrap tabular-nums' },
-      { html: `<span class="flex min-w-48 flex-col items-start gap-1.5 max-sm:items-end">${taskStatusBadge(t)}${needsGoAhead(t) && !isConfirmed(t) ? goAheadBadge(t) : ''}${overBudgetWaiting(t.id, t) ? badge('warning', 'hourglass', mgr ? 'Price above budget · your approval' : 'Price above budget · waiting for Manager', 'Cost') : ''}</span>` },
-      takenBy(t),
-      { html: `<span class="whitespace-nowrap">${esc(t.deal)}</span> · Jodhpur`, cls: 'text-sm' },
-    ]);
-    const emptyText = show === 'mine' ? ['No tasks taken by you', 'Open the Not taken tab to pick one up.'] : show === 'not_taken' ? ['Every task is taken', 'New hotel, transfer and activity tasks appear here when Sales submits a booking.'] : ['No Purchase tasks yet', 'Tasks appear here when Sales submits a booking with hotels, transfers or activities.'];
+    const show = ['not_taken', 'mine', 'all'].includes(q.show) && (!mgr || q.show !== 'mine') ? q.show : (mgr ? 'all' : 'not_taken');
+    const base = show === 'mine' ? mine : show === 'not_taken' ? notTaken : all;
+    const sort = DK.SORTS.some((x) => x.value === q.sort) ? q.sort : 'soonest';
+    const searched = q.q ? base.filter((t) => DK.matches(q.q, haystack(t))) : base;
+    const chip = QCHIPS.find((c) => c.key === q.chip);
+    const list = DK.sortBy(chip ? searched.filter(chip.test) : searched, sort, (t) => t.start, (t) => t.deal);
+    const cur = { show: show === (mgr ? 'all' : 'not_taken') ? null : show, q: q.q, sort: q.sort, chip: q.chip };
+    const chips = QCHIPS.map((c) => ({ key: c.key, label: esc(c.label), count: searched.filter(c.test).length, current: chip && chip.key === c.key, href: DK.withQuery('#/app/purchase', cur, { chip: chip && chip.key === c.key ? null : c.key }) }))
+      .filter((c) => c.count || c.current);
+    const toolbar = DK.queueToolbar({ id: 'pur-queue', act: 'desk-queue', search: { name: 'q', value: q.q || '', placeholder: 'Deal, hotel, supplier or place' }, chips, sort: { name: 'sort', value: sort, options: DK.SORTS } });
+    const rows = list.map((t) => ({ attrs: { 'data-task': t.id }, cells: [
+      whatCell(t),
+      datesCell(t.id, t),
+      { html: t.budget != null ? money(t.budget) : 'Budget not set', numeric: true, cls: 'whitespace-nowrap' },
+      { html: `<span class="desk-status flex flex-col items-start gap-1 max-sm:items-end">${taskStatusBadge(t)}${secondFact(t) ? `<span class="text-sm text-copy">${esc(secondFact(t))}</span>` : ''}</span>` },
+      rowNext(t),
+      { html: esc(takenBy(t)) },
+      { html: `<span class="whitespace-nowrap">${esc(t.deal)}</span>`, cls: 'text-sm' },
+    ] }));
+    const filtered = q.q || chip;
+    const emptyText = filtered ? ['Nothing matches', 'No task on this tab matches the search or filter. Clear them to see every task.'] : show === 'mine' ? ['No tasks taken by you', 'Open the Not taken tab to pick one up.'] : show === 'not_taken' ? ['Every task is taken', 'New hotel, transfer and activity tasks appear here when Sales submits a booking.'] : ['No Purchase tasks yet', 'Tasks appear here when Sales submits a booking with hotels, transfers or activities.'];
+    const clear = filtered ? `<a class="${C.btnSecondary}" data-slot="button" href="${DK.withQuery('#/app/purchase', { show: cur.show }, {})}">Clear search and filter</a>` : '';
+    const body = list.length
+      ? TN.ui.table({ label: 'Purchase tasks', top: true, columns: DK.cols(['What', 'Dates', { label: 'Approved budget', numeric: true }, 'Status', 'Next step', 'Who', 'Deal']), rows, caption: `${list.length} ${list.length === 1 ? 'task' : 'tasks'}${filtered ? ` of ${base.length} on this tab` : ''}` })
+      : DK.state({ kind: 'empty', icon: filtered ? 'search-x' : show === 'mine' ? 'briefcase' : 'inbox', title: emptyText[0], text: emptyText[1], action: clear });
     return `<div class="font-sans text-base text-copy">
-      ${header({ eyebrow: 'Purchase', title: 'Purchase tasks', desc: 'Hotels, transfers and activities from submitted bookings. Each counts as booked only after you record the supplier’s confirmation.' })}
-      <div class="mb-4">${internal('Customer prices and proof files are never shown here.')}${mgr ? '<p class="m-0 mt-1.5 text-copy">Purchase colleagues take these tasks. You can follow progress here.</p>' : ''}</div>
-      ${tabsNav('Purchase task filters', tabs, show, 'mb-4')}
-      ${list.length ? table('Purchase tasks table', `${list.length} ${list.length === 1 ? 'task' : 'tasks'}`, ['Service', 'Stay', 'Rooms and travellers', 'Approved budget', 'Status', 'Taken by', 'Deal'], rows) : empty(show === 'mine' ? 'briefcase' : 'inbox', emptyText[0], emptyText[1])}
+      ${header({ title: 'Purchase tasks', desc: mgr ? 'Purchase colleagues take these tasks. You can follow progress here.' : 'Each counts as booked only after you record the supplier’s confirmation.' })}
+      ${queueTabs(show, { not_taken: notTaken.length, mine: mine.length, all: all.length, payments: openPayCount() }, { q: q.q, sort: q.sort })}
+      ${toolbar}
+      ${body}
     </div>`;
   }
 
   /* =====================================================================
      #/app/purchase/:taskId · task page (LIVE tabs + PENDING cards)
      ===================================================================== */
-  function nextLine(id, s) {
+  /** What happens next on a task, in the same words everywhere (task header and queue row).
+      { plain, none, who, take, jump: element id on the Work tab, label, files } */
+  function nextInfo(id, s) {
     const dl = TN.deal(s.deal);
     const cx = dl && dl.cancellation ? (D.cancellations || []).find((x) => x.id === dl.cancellation) : null;
-    if (cx && cx.status === 'waiting_manager') return '<span class="font-semibold text-ink">Next:</span> the Branch Manager approves the cancellation charges';
-    if (cx && (cx.status === 'requested' || cx.status === 'charges_entered')) return `<span class="font-semibold text-ink">Next:</span> ${cx.status === 'requested' ? 'enter the supplier’s cancellation charges' : 'send the cancellation charges to the Manager'}`;
-    if (isConfirmed(s)) {
-      if (invoiceMissing(id, s)) return '<span class="font-semibold text-ink">Next:</span> upload the supplier’s original invoice';
-      return 'Nothing waiting.';
+    const mineNow = TN.is('purchase') && s.assignee === meKey();
+    if (cx && cx.status === 'waiting_manager') return { plain: 'the Branch Manager approves the cancellation charges', who: true };
+    if (cx && (cx.status === 'requested' || cx.status === 'charges_entered')) {
+      const entering = cx.status === 'requested';
+      return { plain: entering ? 'enter the supplier’s cancellation charges' : 'send the cancellation charges to the Manager', jump: mineNow ? (entering ? 'pur-charges-btn' : 'pur-send-charges-btn') : null, label: entering ? 'Enter charges' : 'Send charges to the Manager', who: !mineNow };
     }
-    if (!s.assignee) return '<span class="font-semibold text-ink">Next:</span> take this task';
-    if (overBudgetWaiting(id, s)) return `<span class="font-semibold text-ink">Next:</span> ${TN.is('manager') ? 'you approve or return the price above budget on the Work tab' : 'the Branch Manager approves the price above budget'}`;
-    if (s.assignee !== meKey()) return `<span class="font-semibold text-ink">Next:</span> ${esc(name(s.assignee))} works on this task`;
+    if (isConfirmed(s)) {
+      if (invoiceMissing(id, s)) return { plain: 'upload the supplier’s original invoice', files: true, label: 'Upload supplier invoice', who: !mineNow };
+      return { none: true };
+    }
+    if (!s.assignee) return { plain: TN.is('purchase') ? 'take this task' : 'a Purchase colleague takes this task', take: TN.is('purchase') && s.taskStatus !== 'cancelled', who: !TN.is('purchase') };
+    if (overBudgetWaiting(id, s)) {
+      if (TN.is('manager')) { const w = W[id]; const lc = latestCost(id); const returned = w.costReturned && lc && w.costReturned.v === lc.v; return { plain: 'you approve or return the price above budget on the Work tab', jump: returned ? null : 'pur-approve-btn', label: 'Approve or return the price' }; }
+      return { plain: 'the Branch Manager approves the price above budget', who: true };
+    }
+    if (s.assignee !== meKey()) return { plain: `${name(s.assignee)} works on this task`, who: true };
     const is = issues(id, s);
-    if (is.includes('missing_quote')) return `<span class="font-semibold text-ink">Next:</span> ask ${isHotelish(s) ? 'the hotel' : 'the supplier'} for rates and add each rate in Rate negotiation`;
-    if (is.includes('missing_cost')) return '<span class="font-semibold text-ink">Next:</span> choose the final rate in Rate negotiation';
-    if (is.includes('go_ahead')) return '<span class="font-semibold text-ink">Next:</span> wait for the Accounts go-ahead, then send the booking request';
-    if (!bookingSentFor(id).length) return '<span class="font-semibold text-ink">Next:</span> send the booking request from the final rate, then record the supplier’s confirmation';
-    return '<span class="font-semibold text-ink">Next:</span> record the supplier’s confirmation';
+    if (is.includes('missing_quote')) return { plain: `ask ${isHotelish(s) ? 'the hotel' : 'the supplier'} for rates and add each rate in Rate negotiation`, jump: 'log-amount', label: 'Add a rate' };
+    if (is.includes('missing_cost')) { const first = rateTiles(id)[0]; return { plain: 'choose the final rate in Rate negotiation', jump: first ? `pur-final-${first.id}` : 'work-negotiation', label: 'Choose the final rate' }; }
+    if (is.includes('go_ahead')) return { plain: 'wait for the Accounts go-ahead, then send the booking request', who: true };
+    if (!bookingSentFor(id).length) return { plain: 'send the booking request from the final rate, then record the supplier’s confirmation', jump: 'pur-booking-btn', label: 'Send booking request' };
+    return { plain: 'record the supplier’s confirmation', jump: 'pur-confirm-btn', label: 'Record supplier confirmation' };
+  }
+  function nextLine(id, s) {
+    const n = nextInfo(id, s);
+    return n.none ? 'Nothing waiting.' : `<span class="font-semibold text-ink">Next:</span> ${esc(n.plain)}`;
   }
   function internalLine(id, s) {
     const w = W[id];
@@ -539,32 +606,48 @@
     return internal(`Internal task — ${books(s)} is not booked yet. Taking the task did not book ${books(s)}. Nothing has been sent to ${w.emails.length ? '' : `${who} or `}the customer by the CRM.`);
   }
 
+  /* C4 record header + D6: the person holding the task lands on Work; nobody holding it,
+     or a read-only viewer, lands on Details. Old links (?tab=work|files|history) keep working. */
   function renderTask(params, q) {
     const id = params.taskId;
     const s = TN.service(id);
     if (!isPurchaseTask(s) || !W[id]) return `${backLink('#/app/purchase', 'Back to Purchase tasks')}${empty('search-x', 'Task not found', 'We couldn’t find this. It may have been removed, or you may not have access.')}`;
     const deal = TN.deal(s.deal);
     const sales = TN.is('sales');
-    let tab = q.tab || 'details';
+    const holder = TN.is('purchase') && s.assignee === meKey();
+    let tab = ['details', 'work', 'files', 'history'].includes(q.tab) ? q.tab : (holder ? 'work' : 'details');
     const kindLabel = (KIND[s.kind] || KIND.hotel)[0];
-    let actions = '';
-    if (TN.is('purchase') && !s.assignee && s.taskStatus !== 'cancelled') {
-      actions = `<form class="flex flex-col items-start gap-2 sm:items-end" data-act="pur-take" data-id="${id}"><p id="claim-help" class="m-0 text-sm text-quiet">Shows colleagues you are handling it. It does not book ${books(s)}.</p><button type="submit" class="${C.btnPrimary}" data-slot="button" aria-describedby="claim-help">Take this task</button><div role="status" aria-live="polite" class="w-full"></div></form>`;
-    }
-    const viewOnly = !sales && s.assignee && s.assignee !== meKey() ? `<p class="m-0 text-sm text-copy">You can view this but not change it. Purchase in Jodhpur works on it.</p>` : '';
     // Money fence: Sales never sees supplier prices or Purchase files, so Sales gets Details and History only.
     const tabs = [
-      { key: 'details', label: 'Details', href: `#/app/purchase/${id}` },
+      { key: 'details', label: 'Details', href: `#/app/purchase/${id}?tab=details` },
       sales ? null : { key: 'work', label: 'Work', href: `#/app/purchase/${id}?tab=work` },
       sales ? null : { key: 'files', label: 'Files', href: `#/app/purchase/${id}?tab=files` },
       { key: 'history', label: 'History', href: `#/app/purchase/${id}?tab=history` },
     ].filter(Boolean);
     if (sales && (tab === 'work' || tab === 'files')) tab = 'details';
     const body = tab === 'work' ? workTab(id, s, deal) : tab === 'files' ? filesTab(id, s, deal) : tab === 'history' ? historyTab(id) : detailsTab(id, s, deal);
+    // O6: the "Next:" button jumps to and focuses the matching control (on Work; from another tab it opens Work there).
+    const n = nextInfo(id, s);
+    let button = null;
+    if (n.take) button = { label: 'Take this task', act: 'pur-take', data: { id } };
+    else if (!sales && !n.who && n.files) button = tab === 'files' ? { label: n.label, jump: 'pur-invoice-btn' } : { label: n.label, href: `#/app/purchase/${id}?tab=files&focus=pur-invoice-btn` };
+    else if (!sales && !n.who && n.jump) button = tab === 'work' ? { label: n.label, jump: n.jump } : { label: n.label, href: `#/app/purchase/${id}?tab=work&focus=${n.jump}` };
+    const text = n.none ? 'Nothing waiting.' : n.take ? `take this task. It shows colleagues you are handling it; it does not book ${books(s)}.` : esc(n.plain);
+    const readOnly = sales ? 'You can view this. Purchase in Jodhpur can change it.' : s.assignee && s.assignee !== meKey() ? `You can view this. ${esc(name(s.assignee))} (Purchase) can change it.` : !TN.is('purchase') ? 'You can view this. A Purchase colleague can change it.' : '';
+    const status = `${taskStatusBadge(s)}${sales ? '' : goAheadBadge(s)}`;
+    const head = DK.recordHeader({
+      back: { href: sales ? `#/app/deals/${esc(s.deal)}` : '#/app/purchase', label: sales ? 'Back to the Deal' : 'Back to Purchase tasks' },
+      recordId: `${esc(kindLabel)} task · ${esc(s.deal)}`,
+      title: esc(s.title),
+      status: `${typePill(s.kind)}${status}`,
+      owner: `<span class="text-copy">Taken by: ${esc(takenBy(s))}</span>`,
+      next: n.who && !n.none ? null : { text, button },
+      nextWho: n.who && !n.none ? esc(n.plain) + '.' : '',
+      readOnly,
+      details: internalLine(id, s),
+    });
     return `<div class="font-sans text-base text-copy">
-      ${backLink(sales ? `#/app/deals/${esc(s.deal)}` : '#/app/purchase', sales ? 'Back to the Deal' : 'Back to Purchase tasks')}
-      ${header({ eyebrow: `${kindLabel} task · ${esc(s.deal)}`, title: s.title, meta: `${typePill(s.kind)}${taskStatusBadge(s)}${sales ? '' : goAheadBadge(s)}<span class="text-copy">Taken by: ${esc(takenBy(s))}</span>`, actions, mb: 3 })}
-      <div class="mb-4 flex flex-col gap-1.5"><p class="m-0 text-copy" data-slot="task-next">${nextLine(id, s)}</p>${viewOnly}${internalLine(id, s)}</div>
+      ${head}
       ${tabsNav('Task sections', tabs, tab)}
       ${body}
     </div>`;
@@ -726,7 +809,7 @@
   }
   const specialRequest = (id) => { const f = FACTS[id]; return f && f[4] ? notice('warning', `<p>${esc(f[4])}</p>`, 'Special request') : ''; };
   /** Everything Sales entered for this service. compact = the Work tab version (no travellers/stay rows repeated twice). */
-  function bookedBody(id, s, deal) {
+  function bookedBody(id, s, deal, noRequest) {
     const f = FACTS[id];
     const b = isHotelish(s) ? TN.hotelBreakup(id) : null;
     const facts = isHotelish(s)
@@ -741,7 +824,7 @@
     } else {
       money2 = `${isHotelish(s) ? notice('info', TN.is('sales') ? '<p>No room breakup was entered in Book now for this service.</p>' : '<p>Sales did not give a room breakup. Ask Sales if you need the rate per room.</p>') : ''}${summary([['Total budget', s.budget != null ? `<span class="font-semibold text-ink tabular-nums">${money(s.budget)}</span>` : 'Budget not set']])}`;
     }
-    return `${dlist(facts)}${money2}${specialRequest(id)}`;
+    return `${dlist(facts)}${money2}${noRequest ? '' : specialRequest(id)}`;
   }
   function bookedCard(id, s, deal) {
     const title = s.kind === 'hotel' ? 'What Sales booked for this hotel' : s.kind === 'package' ? 'What Sales booked for this package' : 'What Sales booked';
@@ -876,7 +959,11 @@
   function bookingSummaryCard(id, s, deal, w) {
     const title = isHotelish(s) ? `${shortHotel(s.title)} · ${(s.title.split(',')[1] || deal.destination).trim()}` : s.title;
     const right = isConfirmed(s) ? badge('success', 'circle-check', 'Booked and confirmed', 'Booking') : badge('info', 'circle-play', 'Not booked yet', 'Booking');
-    return card('work-summary', title, `${typeLabel(s)} for ${esc(s.deal)}. Exactly what Sales entered in Book now.`, bookedBody(id, s, deal), { right });
+    // O5: one line (dates · rooms · travellers · budget) plus the special request; the full entry folds.
+    const f = FACTS[id];
+    const one = [isHotelish(s) ? `${DK.range(s.start, s.end)} · ${nightsText(s)}` : DK.range(s.start, s.end), f && isHotelish(s) ? plural(f[0], 'room') : '', travellers(deal), s.budget != null ? `Budget ${money(s.budget)}` : 'Budget not set'].filter(Boolean).map(esc).join(' · ');
+    const body = `<p class="m-0 text-copy tabular-nums" data-slot="booked-line">${one}</p>${specialRequest(id)}${DK.fold({ cls: 'shadow-none', id: `booked-${id}`, summary: 'Show what Sales booked', body: `<div class="flex flex-col gap-4">${bookedBody(id, s, deal, true)}</div>` })}`;
+    return card('work-summary', title, `${typeLabel(s)} for ${esc(s.deal)}. Exactly what Sales entered in Book now.`, body, { right });
   }
   const typeLabel = (s) => (KIND[s.kind] || KIND.hotel)[0];
 
@@ -916,23 +1003,23 @@
     const meta = `<p class="m-0 text-sm text-quiet">Added by ${esc(byWho(r.by))} · ${esc(dt(r.at))}</p>`;
     let actions = '';
     if (!isFinal && opts.mine) {
-      actions = `<form novalidate aria-label="Use ${esc(money(r.amount))} as the final rate" data-act="pur-final" data-id="${id}" data-rate="${esc(r.id)}">${slot('final-' + r.id)}<button type="submit" class="button secondary">Use as final rate</button></form>`;
+      actions = `<form novalidate aria-label="Use ${esc(money(r.amount))} as the final rate" data-act="pur-final" data-id="${id}" data-rate="${esc(r.id)}">${slot('final-' + r.id)}<button type="submit" class="button secondary" id="pur-final-${esc(r.id)}">Use as final rate</button></form>`;
     } else if (isFinal && !confirmed && s.taskStatus !== 'cancelled') {
       // Manager decision on a price above budget, on the tile itself (live refusal: nobody approves their own price).
       if (lc && overBudgetWaiting(id, s)) {
         const returned = w.costReturned && w.costReturned.v === lc.v;
         if (returned) actions += notice('danger', `<p>The Branch Manager did not approve this price: “${esc(w.costReturned.reason)}”. Use another rate, or ask Sales to raise the budget.</p>`, 'Price not approved');
-        else if (TN.is('manager')) actions += notice('warning', `<p>${rupees(lc.amount - s.budget)} above the budget of ${money(s.budget)}. Approve it if you agree.</p><form novalidate aria-label="Approve the price above budget" data-act="pur-approve-cost" data-id="${id}" data-v="${lc.v}">${slot('approve')}<p id="approve-cost-help" class="hint mb-0">Approves only this price. A newer final rate needs a new approval. Nothing is paid.</p><button type="submit" class="button" aria-describedby="approve-cost-help">Approve this price above budget</button></form><p class="m-0 text-sm">To return it with a reason, use <a class="${C.rowLink}" href="#/app/approvals">Approvals</a>.</p>`, 'Above the budget');
+        else if (TN.is('manager')) actions += notice('warning', `<p>${rupees(lc.amount - s.budget)} above the budget of ${money(s.budget)}. Approve it if you agree.</p><form novalidate aria-label="Approve the price above budget" data-act="pur-approve-cost" data-id="${id}" data-v="${lc.v}">${slot('approve')}<p id="approve-cost-help" class="hint mb-0">Approves only this price. A newer final rate needs a new approval. Nothing is paid.</p><button type="submit" class="button" id="pur-approve-btn" aria-describedby="approve-cost-help">Approve this price above budget</button></form><p class="m-0 text-sm">To return it with a reason, use <a class="${C.rowLink}" href="#/app/approvals">Approvals</a>.</p>`, 'Above the budget');
         else actions += notice('warning', `<p>${rupees(lc.amount - s.budget)} above the budget. The Branch Manager must approve it before you book.</p>`, 'Waiting for the Branch Manager');
       } else if (TN.is('manager') && flash && flash.key === 'approve') actions += msgHtml(true, flash.text);
       if (TN.is('purchase')) {
         const sent = bookingSentFor(id);
         if (!sent.length) {
           const why = blockReason(id, s, 'booking');
-          actions += `<div class="flex flex-col gap-2"><div><button type="button" class="button" data-act="pur-mail" data-id="${id}" data-kind="booking" data-rate="${esc(r.id)}"${btnState('booking', why)}>${ic('send', 'size-4')}Send booking request</button></div>${blockNotice('booking', why)}</div>`;
+          actions += `<div class="flex flex-col gap-2"><div><button type="button" class="button" id="pur-booking-btn" data-act="pur-mail" data-id="${id}" data-kind="booking" data-rate="${esc(r.id)}"${btnState('booking', why)}>${ic('send', 'size-4')}Send booking request</button></div>${blockNotice('booking', why)}</div>`;
         } else {
           const why = blockReason(id, s, 'confirm');
-          actions += `<p class="m-0 text-sm text-copy">Booking request sent ${esc(dt(sent[sent.length - 1].at))}. Next: record the supplier’s confirmation.</p><div class="flex flex-col gap-2"><div class="flex flex-wrap gap-2"><button type="button" class="button" aria-haspopup="dialog" data-act="pur-open-confirm"${btnState('confirm', why)}>Record supplier confirmation</button><button type="button" class="button secondary" data-act="pur-mail" data-id="${id}" data-kind="booking" data-rate="${esc(r.id)}"${btnState('booking', blockReason(id, s, 'booking'))}>Send booking request again</button></div>${blockNotice('confirm', why)}</div>${why ? '' : confirmDialog(id, s, w.files.filter((f) => f.kind === 'supplier_confirmation' && f.state === 'stored').slice(-1)[0])}`;
+          actions += `<p class="m-0 text-sm text-copy">Booking request sent ${esc(dt(sent[sent.length - 1].at))}. Next: record the supplier’s confirmation.</p><div class="flex flex-col gap-2"><div class="flex flex-wrap gap-2"><button type="button" class="button" id="pur-confirm-btn" aria-haspopup="dialog" data-act="pur-open-confirm"${btnState('confirm', why)}>Record supplier confirmation</button><button type="button" class="button secondary" data-act="pur-mail" data-id="${id}" data-kind="booking" data-rate="${esc(r.id)}"${btnState('booking', blockReason(id, s, 'booking'))}>Send booking request again</button></div>${blockNotice('confirm', why)}</div>${why ? '' : confirmDialog(id, s, w.files.filter((f) => f.kind === 'supplier_confirmation' && f.state === 'stored').slice(-1)[0])}`;
         }
       }
     } else if (isFinal && confirmed) {
@@ -970,6 +1057,10 @@
         ${field('log-note', 'Note (optional)', '<input id="log-note" name="note" maxlength="200" autocomplete="off" aria-describedby="log-note-hint"/>', isHotelish(s) ? 'For example: “Revised after our call” or “Includes the gala dinner”.' : 'For example: “Includes pick-up and drop”.')}
         <div><button type="submit" class="button">Add rate</button></div>
       </form>`;
+    }
+    if (form && lc) {
+      const keepOpen = flash && flash.key === 'log';
+      form = DK.fold({ cls: 'shadow-none', id: `add-rate-${id}`, summary: 'Add a rate', open: keepOpen, body: form.replace('class="flex flex-col gap-1 border-t border-line pt-4"', 'class="flex flex-col gap-1"') });
     }
     const list = tiles.length
       ? `<ul class="m-0 grid list-none gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3" aria-label="Rates, oldest first">${tiles.map((r) => rateTile(id, s, w, r, { mine, final })).join('')}</ul>`
@@ -1027,7 +1118,11 @@
       const reason = blockReason(id, s, 'pay');
       payFoot = `<p class="m-0 text-sm text-copy">${confirmed ? 'Ask for the remaining supplier payment against the agreed price.' : 'You can ask for an advance before the supplier confirms. It does not mark the booking as confirmed.'}</p><div class="flex flex-col gap-2"><div><button type="button" class="button secondary" data-act="pur-pay" data-id="${id}"${btnState('pay', reason)}>${confirmed ? 'Request supplier payment' : 'Request advance payment'}</button></div>${blockNotice('pay', reason)}</div>`;
     }
-    const payCard = card('work-pay', 'Supplier payments', 'Accounts approves up to ₹50,000 for a supplier on a Deal; above that, the Branch Manager. Accounts pays and records the bank reference.', `${pays.length ? `<ul class="m-0 flex list-none flex-col gap-3 p-0" aria-label="Payment requests for this service">${pays.map(payLi).join('')}</ul>` : '<p class="m-0 text-quiet">No payment requested yet.</p>'}${payFoot}`);
+    const finished = (p) => p.status === 'paid' || p.status === 'verified' || (p.status === 'returned' && p.resentAs);
+    const payItem = (p) => (finished(p)
+      ? `<li class="m-0">${DK.fold({ cls: 'shadow-none', summary: `<span class="tabular-nums">${esc(p.id)} · ${money(p.amount)} · ${esc((PAY[p.status] || PAY.requested)[2])}${p.resentAs ? ` · sent again as ${esc(p.resentAs)}` : ''}</span><span class="sr-only">. Show details</span>`, body: `<ul class="m-0 list-none p-0">${payLi(p)}</ul>` })}</li>`
+      : payLi(p));
+    const payCard = card('work-pay', 'Supplier payments', 'Accounts approves up to ₹50,000 for a supplier on a Deal; above that, the Branch Manager. Accounts pays and records the bank reference.', `${pays.length ? `<ul class="m-0 flex list-none flex-col gap-3 p-0" aria-label="Payment requests for this service">${pays.map(payItem).join('')}</ul>` : '<p class="m-0 text-quiet">No payment requested yet.</p>'}${payFoot}`);
 
     // LIVE: hand back (assignee) / reassign (Manager).
     const release = mine ? card('work-release', 'Hand the task back', '', `<form novalidate aria-label="Hand the task back" data-act="pur-release" data-id="${id}"><p id="release-help" class="hint mb-0">The task goes back to the queue. Prices, e-mails and files stay for the next person.</p><button type="submit" class="button secondary" aria-describedby="release-help">Hand the task back</button></form>`) : '';
@@ -1036,7 +1131,8 @@
 
     const goNotice = !confirmed && s.assignee && s.goAhead === 'refused' ? notice('danger', `<p>${esc(ISSUE.go_ahead_refused)}</p>`, 'Go-ahead refused') : '';
     const showPending = s.assignee || confirmed;
-    return `<div class="flex flex-col gap-5"><section class="flex flex-col gap-5" aria-label="Work on this task">${cancellationCard(id, s, deal)}${dealServicesSwitcher(deal, id)}${workflowStepperCard(id, s, w)}${goNotice}${bookingSummaryCard(id, s, deal, w)}${negotiationCard(id, s, w)}${confirmationCard(id, s, w)}${showPending ? payCard : ''}${files}${release}${reassign}</section></div>`;
+    const jumps = DK.jumpLinks([{ href: '#work-negotiation', label: 'Rates' }, showPending ? { href: '#work-pay', label: 'Payments' } : null, { href: '#work-files', label: 'Files' }].filter(Boolean));
+    return `<div class="flex flex-col gap-5">${jumps}<section class="flex flex-col gap-5" aria-label="Work on this task">${cancellationCard(id, s, deal)}${dealServicesSwitcher(deal, id)}${workflowStepperCard(id, s, w)}${goNotice}${bookingSummaryCard(id, s, deal, w)}${negotiationCard(id, s, w)}${confirmationCard(id, s, w)}${showPending ? payCard : ''}${files}${release}${reassign}</section></div>`;
   }
 
   /* ---------- PENDING: cancellation charges (BX-38198, c-198) ---------- */
@@ -1062,7 +1158,7 @@
     const rows = ch && ch.supplierCharge != null
       ? summary([['Committed cost', lc ? money(lc.amount) : '—'], ['Supplier keeps', `<span class="tabular-nums">${money(ch.supplierCharge)}</span>`], ['Supplier refunds', `<span class="tabular-nums">${money(ch.supplierRefund)}</span>`], ch.note ? ['Note', esc(ch.note)] : null, ['Entered', `${esc(name(ch.enteredBy))} · ${esc(dt(ch.enteredAt))}`], ['Credit note', cn.length ? cn.map((i) => `${esc(i.number)} · ${invBadge(i)}`).join('<br/>') : 'Not uploaded yet']])
       : '<p class="m-0 text-copy">The supplier’s charge for this service is not entered yet.</p>';
-    const btns = editable ? `<div class="flex flex-wrap gap-2"><button type="button" class="button secondary" data-act="pur-charges" data-id="${id}">${ch && ch.supplierCharge != null ? 'Change charges' : 'Enter charges'}</button>${!cn.length ? `<button type="button" class="button secondary" data-act="pur-invoice" data-id="${id}" data-kind="Credit note">Upload credit note</button>` : ''}${c.status !== 'waiting_manager' ? `<button type="button" class="button" data-act="pur-send-charges" data-cancel="${c.id}" data-id="${id}">Send charges to the Manager</button>` : ''}</div>` : '';
+    const btns = editable ? `<div class="flex flex-wrap gap-2"><button type="button" class="button secondary" id="pur-charges-btn" data-act="pur-charges" data-id="${id}">${ch && ch.supplierCharge != null ? 'Change charges' : 'Enter charges'}</button>${!cn.length ? `<button type="button" class="button secondary" data-act="pur-invoice" data-id="${id}" data-kind="Credit note">Upload credit note</button>` : ''}${c.status !== 'waiting_manager' ? `<button type="button" class="button" id="pur-send-charges-btn" data-act="pur-send-charges" data-cancel="${c.id}" data-id="${id}">Send charges to the Manager</button>` : ''}</div>` : '';
     const sentLine = c.status === 'waiting_manager' && c.sentToManagerAt ? `<p class="m-0 text-sm text-quiet">Sent to the Branch Manager by ${esc(name(c.sentBy))} on ${esc(dt(c.sentToManagerAt))}. Changing a charge takes it back until you send it again.</p>` : '';
     return `<div class="${C.card}" data-slot="card"><section aria-labelledby="work-cancel"><div class="${C.cardHead} max-sm:flex-col max-sm:items-start"><div class="flex min-w-0 flex-col gap-2"><h3 class="${C.h2}" id="work-cancel">Trip cancelled: supplier charges</h3>${badge(lab[0], lab[1], lab[2], 'Cancellation')}<p class="m-0 text-copy">Sales asked to cancel the whole trip on ${esc(date(c.at))}. Enter what this supplier keeps and refunds, and upload its credit note. The Branch Manager approves the charges; Accounts handles the money.</p></div></div><div class="px-4.5 py-4 flex flex-col gap-4">${slot('cancel')}${rows}<p class="m-0 text-sm text-quiet">${entered} of ${allSvc} services of this Deal have their charges entered.</p>${sentLine}${btns}</div></section></div>`;
   }
@@ -1078,7 +1174,7 @@
     const missing = invoiceMissing(id, s);
     const invList = invs.length ? `<ul class="m-0 flex list-none flex-col gap-2 p-0" aria-label="Supplier invoices and credit notes">${invs.map((i) => `<li class="m-0 flex flex-wrap items-start gap-3 rounded-control border px-3.5 py-2.5 border-line bg-canvas">${ic('receipt', 'mt-0.5 size-4 shrink-0 text-quiet')}<div class="min-w-40 flex-1"><p class="m-0 font-medium wrap-anywhere text-ink"><a href="#/app/purchase/${id}?tab=files" class="${C.fileLink}">${esc(i.file)}</a></p><p class="m-0 text-sm text-quiet">${esc(i.kind)} ${esc(i.number)} · ${esc(date(i.date))} · ${money(i.amount)} · GST ${money(i.gst)} · uploaded by ${esc(byWho(i.by))}</p>${i.status === 'returned' && i.returnReason ? `<p class="m-0 text-sm text-copy">Reason: ${esc(i.returnReason)}</p>` : ''}</div><div class="shrink-0">${invBadge(i)}</div></li>`).join('')}</ul>` : '<p class="m-0 text-sm text-quiet">No supplier invoice or credit note yet.</p>';
     const remind = missing ? notice('warning', `<p>The trip ended on ${esc(date(deal.end))}. Upload the supplier’s original invoice so Accounts can check it and close this booking.</p>`, 'Original invoice missing') : '';
-    const invBtns = mineSide && s.supplier ? `<div class="flex flex-wrap gap-2"><button type="button" class="button secondary" data-act="pur-invoice" data-id="${id}" data-kind="Invoice">Upload supplier invoice</button><button type="button" class="button secondary" data-act="pur-invoice" data-id="${id}" data-kind="Credit note">Upload credit note</button></div>` : '';
+    const invBtns = mineSide && s.supplier ? `<div class="flex flex-wrap gap-2"><button type="button" class="button secondary" id="pur-invoice-btn" data-act="pur-invoice" data-id="${id}" data-kind="Invoice">Upload supplier invoice</button><button type="button" class="button secondary" data-act="pur-invoice" data-id="${id}" data-kind="Credit note">Upload credit note</button></div>` : '';
     return `<div class="${C.card}" data-slot="card"><section aria-labelledby="task-files-heading"><div class="${C.cardHead}"><div class="min-w-0"><h2 class="${C.h2}" id="task-files-heading">Files</h2><p class="m-0 text-sm text-quiet">Only files for this task. Customer payment proofs and acceptance messages are never listed here.</p></div>${ic('folder-open', 'size-4 text-faint')}</div><div class="px-4.5 py-4 flex flex-col gap-4">
       ${flash && flash.key === 'invoice' ? msgHtml(true, flash.text) : ''}
       <section aria-labelledby="task-files-purchase" class="flex flex-col gap-2"><h3 id="task-files-purchase" class="m-0 text-base font-semibold text-ink">Purchase files</h3>${purch}</section>
@@ -1096,7 +1192,8 @@
 
   TN.act('pur-take', (el) => {
     const [id, s] = getTask(el);
-    if (s.assignee) { const st = el.querySelector('[role="status"]'); if (st) st.innerHTML = '<div class="message error" role="alert"><strong>Error: </strong>This task was already handled differently by someone else. Reload to see the latest state.</div>'; return; }
+    if (!TN.is('purchase') || s.taskStatus === 'cancelled') return TN.toast(ERR.forbidden, 'danger');
+    if (s.assignee) { const st = el.querySelector && el.querySelector('[role="status"]'); const text = 'This task was already handled differently by someone else. Reload to see the latest state.'; if (st) st.innerHTML = `<div class="message error" role="alert"><strong>Error: </strong>${text}</div>`; else TN.toast('Not taken', 'danger', text); return; }
     s.assignee = meKey(); s.taskStatus = 'in_progress';
     log(id, 'Task taken');
     TN.toast('Task taken. Colleagues can see you are handling it.');
@@ -1587,12 +1684,48 @@
     <div class="form-grid">${field(`${p}-supplier-contact`, 'Contact person', `<input id="${p}-supplier-contact" maxlength="120" autocomplete="off" name="contactName" value="${esc(s.contact || '')}"/>`)}${field(`${p}-supplier-phone`, 'Phone', `<input id="${p}-supplier-phone" type="tel" inputmode="tel" maxlength="40" autocomplete="off" name="contactPhone" value="${esc(s.phone || '')}"/>`)}${field(`${p}-supplier-email`, 'Email', `<input id="${p}-supplier-email" type="email" inputmode="email" maxlength="254" autocomplete="off" name="contactEmail" value="${esc(s.email || '')}"/>`)}</div>
     ${field(`${p}-supplier-terms`, 'Payment terms', `<textarea id="${p}-supplier-terms" name="paymentTerms" maxlength="1000" rows="3" aria-describedby="${p}-supplier-terms-hint">${esc(s.terms || '')}</textarea>`, 'What the supplier told you, in your words. Recording terms does not schedule any payment.')}`;
 
-  function renderSuppliers() {
-    const list = purchaseSuppliers().sort((a, b) => a.name.localeCompare(b.name));
-    const rows = list.map((s) => [`<a class="${C.rowLink}" href="#/app/purchase/suppliers/${s.id}">${esc(s.name)}</a>`, esc(svcLabel(s.services)), s.city ? esc(s.city) : notRecorded, verBadge(s), s.status === 'archived' ? 'Archived' : 'Active']);
-    const add = TN.is('purchase') ? `<div class="${C.card} mt-5" data-slot="card"><section aria-labelledby="supplier-add"><div class="${C.cardHead}"><div class="min-w-0"><h2 class="${C.h2}" id="supplier-add">Add a supplier</h2></div></div><div class="px-4.5 py-4"><form novalidate aria-label="Add a supplier" data-act="pur-sup-add">${statusSlot()}${supplierFormFields('new', { services: ['hotel'] })}<button type="submit" class="button" aria-disabled="false">Add supplier</button></form></div></section></div>` : '';
-    return `<div class="font-sans text-base text-copy">${backLink('#/app/purchase', 'Back to Purchase tasks')}${header({ eyebrow: 'Purchase', title: 'Suppliers', desc: 'Supplier details are recorded by Purchase and stay marked “not verified” until a manager verifies them; any later change by Purchase marks them not verified again.' })}${table('Suppliers table', `${list.length} suppliers`, ['Supplier', 'Services', 'City', 'Details', 'Status'], rows)}${add}</div>`;
+  /* Suppliers register (C2, DM-20): list first, "Add a supplier" opens the same form in a drawer. */
+  const SUP_CHIPS = [
+    { key: 'unverified', label: 'Not verified', test: (s) => !s.verified },
+    { key: 'bank', label: 'Bank details to approve', test: (s) => s.bank === 'changed' || s.bank === 'waiting' },
+    { key: 'archived', label: 'Archived', test: (s) => s.status === 'archived' },
+  ];
+  const SUP_SORTS = [{ value: 'name', label: 'Name A to Z' }, { value: 'city', label: 'City' }];
+  function renderSuppliers(params, q) {
+    const all = purchaseSuppliers();
+    const searched = q.q ? all.filter((s) => DK.matches(q.q, [s.name, s.city, svcLabel(s.services), s.contact, s.email].join(' '))) : all;
+    const chip = SUP_CHIPS.find((c) => c.key === q.chip);
+    const sort = SUP_SORTS.some((x) => x.value === q.sort) ? q.sort : 'name';
+    const list = (chip ? searched.filter(chip.test) : searched).sort((a, b) => (sort === 'city' ? String(a.city || '~').localeCompare(String(b.city || '~')) : 0) || a.name.localeCompare(b.name));
+    const cur = { q: q.q, sort: q.sort, chip: q.chip };
+    const chips = SUP_CHIPS.map((c) => ({ label: esc(c.label), count: searched.filter(c.test).length, current: chip && chip.key === c.key, href: DK.withQuery('#/app/purchase/suppliers', cur, { chip: chip && chip.key === c.key ? null : c.key }) })).filter((c) => c.count || c.current);
+    const mgr = TN.is('manager');
+    const rows = list.map((s) => {
+      const bankWaiting = s.bank === 'changed' || s.bank === 'waiting';
+      const second = bankWaiting ? (s.bank === 'changed' ? 'Bank details changed · payments on hold' : 'Bank details not approved yet') : '';
+      let next = '';
+      if (mgr && bankWaiting) next = DK.rowButton(`Approve bank details<span class="sr-only"> for ${esc(s.name)}</span>`, `href="#/app/purchase/suppliers/${s.id}?focus=supplier-bank"`);
+      else if (mgr && !s.verified) next = DK.rowButton(`Verify<span class="sr-only"> ${esc(s.name)}</span>`, `href="#/app/purchase/suppliers/${s.id}"`);
+      return { cells: [
+        `<a class="${C.rowLink}" href="#/app/purchase/suppliers/${s.id}">${esc(s.name)}</a>`,
+        esc(svcLabel(s.services)),
+        s.city ? esc(s.city) : notRecorded,
+        { html: `<span class="flex flex-col items-start gap-1 max-sm:items-end">${verBadge(s)}${second ? `<span class="text-sm text-copy">${esc(second)}</span>` : ''}</span>` },
+        s.status === 'archived' ? 'Archived' : 'Active',
+        ...(mgr ? [{ html: next || '<span class="text-sm text-quiet">Nothing waiting</span>' }] : []),
+      ] };
+    });
+    const action = TN.is('purchase') ? `<button type="button" class="${C.btnPrimary}" data-slot="button" data-act="pur-sup-open" aria-haspopup="dialog">Add a supplier</button>` : '';
+    const filtered = q.q || chip;
+    const body = list.length
+      ? TN.ui.table({ label: 'Suppliers', top: true, columns: ['Supplier', 'Services', 'City', 'Details', 'Status', ...(mgr ? ['Next step'] : [])], rows, caption: `${list.length} ${list.length === 1 ? 'supplier' : 'suppliers'}${filtered ? ` of ${all.length}` : ''}` })
+      : DK.state({ kind: 'empty', icon: filtered ? 'search-x' : 'inbox', title: filtered ? 'Nothing matches' : 'No suppliers yet', text: filtered ? 'No supplier matches the search or filter.' : 'Add the hotels, cab companies and activity providers you book with.', action: filtered ? `<a class="${C.btnSecondary}" data-slot="button" href="#/app/purchase/suppliers">Clear search and filter</a>` : action });
+    return `<div class="font-sans text-base text-copy">${header({ title: 'Suppliers', desc: 'Details stay “not verified” until a manager verifies them; a later change by Purchase marks them not verified again.', actions: action })}${DK.queueToolbar({ id: 'sup-queue', act: 'desk-queue', search: { name: 'q', value: q.q || '', placeholder: 'Supplier name, city or service' }, chips, sort: { name: 'sort', value: sort, options: SUP_SORTS } })}${body}</div>`;
   }
+  TN.act('pur-sup-open', () => {
+    if (!TN.is('purchase')) return TN.toast(ERR.forbidden, 'danger');
+    TN.drawer({ title: 'Add a supplier', description: 'Details are marked not verified until a manager checks them.', wide: true, body: `<form id="pur-sup-form" novalidate aria-label="Add a supplier" data-act="pur-sup-add" class="flex flex-col gap-4">${statusSlot()}${supplierFormFields('new', { services: ['hotel'] })}</form>`, footer: footer('pur-sup-form', 'Add supplier') });
+  });
 
   function renderSupplier(params) {
     const id = params.id;
@@ -1682,6 +1815,7 @@
      #/app/purchase/payments · Purchase's own payment requests (PENDING)
      Looks like the live Accounts "Reported payments" list.
      ===================================================================== */
+  const PAY_SORTS = [{ value: 'soonest', label: 'Due soonest first' }, { value: 'latest', label: 'Due latest first' }, { value: 'deal', label: 'Deal reference' }];
   function renderPayments(params, q) {
     const own = D.supplierPayments.filter((p) => p.raisedBy === 'purchase');
     const groups = {
@@ -1691,23 +1825,35 @@
       all: own,
     };
     const show = groups[q.show] ? q.show : 'open';
-    const list = groups[show].slice().sort((a, b) => (a.dueBy < b.dueBy ? -1 : 1));
-    const tabs = [
-      { key: 'open', label: 'Open', href: '#/app/purchase/payments', count: groups.open.length },
-      { key: 'returned', label: 'Returned', href: '#/app/purchase/payments?show=returned', count: groups.returned.length },
-      { key: 'paid', label: 'Paid', href: '#/app/purchase/payments?show=paid' },
-      { key: 'all', label: 'All', href: '#/app/purchase/payments?show=all' },
-    ];
-    const li = (p) => {
+    const sort = PAY_SORTS.some((x) => x.value === q.sort) ? q.sort : 'soonest';
+    const hay = (p) => { const s = TN.service(p.service); return [p.id, p.deal, p.part, (TN.supplier(p.supplier) || {}).name, s ? s.title : ''].join(' '); };
+    const searched = (g) => (q.q ? g.filter((p) => DK.matches(q.q, hay(p))) : g);
+    const list = DK.sortBy(searched(groups[show]), sort, (p) => p.dueBy, (p) => p.deal);
+    const cur = { show: show === 'open' ? null : show, q: q.q, sort: q.sort };
+    const chips = [['open', 'Open'], ['returned', 'Returned'], ['paid', 'Paid'], ['all', 'All']].map(([k, l]) => ({ label: l, count: searched(groups[k]).length, current: k === show, href: DK.withQuery('#/app/purchase/payments', cur, { show: k === 'open' ? null : k }) }));
+    const rows = list.map((p) => {
       const s = TN.service(p.service); const sp = TN.supplier(p.supplier); const st = PAY[p.status] || PAY.requested;
       const fund = p.funding ? D.funding.find((x) => x.id === p.funding) : null;
-      const extra = p.status === 'returned' ? `<p class="m-0 text-sm text-copy">Returned by ${esc(name(p.returnedBy))} on ${esc(date(p.returnedAt))}: ${esc(p.returnReason)}</p>${p.resentAs ? `<p class="m-0 text-sm text-quiet">Sent again as ${esc(p.resentAs)}.</p>` : `<div class="mt-1"><button type="button" class="button secondary" data-act="pur-pay-again" data-id="${p.service}" data-pay="${p.id}">Change and send again</button></div>`}`
-        : p.status === 'paid' || p.status === 'verified' ? `<p class="m-0 text-sm text-quiet">Paid on ${esc(date(p.paidAt))} by ${esc(name(p.paidBy))} · ${esc(p.bankRef)}${p.verifiedBy ? ` · checked by ${esc(name(p.verifiedBy))}` : ''}</p>`
-        : `<p class="m-0 text-sm text-quiet">${esc(st[3])}${fund ? ` Company funding ${esc(fund.id)}: ${esc(FUND_LABEL[fund.status] || fund.status)}.` : ''}</p>`;
-      return `<li class="m-0 flex flex-col gap-2 rounded-card border border-line bg-card px-4 py-3 shadow-card sm:flex-row sm:items-center sm:justify-between"><div class="min-w-0"><p class="m-0 font-semibold text-ink"><a class="${C.fileLink}" href="#/app/purchase/${p.service}?tab=work">${esc(p.id)} · ${esc(sp.name)}</a></p><p class="m-0 text-sm text-copy tabular-nums">${money(p.amount)} · ${esc(p.part)} · due ${esc(date(p.dueBy))} · ${esc(p.deal)}</p><p class="m-0 text-sm text-quiet">${esc(s ? s.title : '')} · requested by ${esc(byWho(p.raisedBy))} on ${esc(date(p.raisedAt))}</p>${extra}</div><div class="shrink-0">${payBadge(p)}</div></li>`;
-    };
-    const emptyTxt = { open: ['No open payment requests', 'Request a supplier payment from the Work tab of a Purchase task.'], returned: ['Nothing returned', 'Requests Accounts or the Manager send back appear here.'], paid: ['Nothing paid yet', 'Paid requests appear here with the bank reference.'], all: ['No payment requests yet', 'Request a supplier payment from the Work tab of a Purchase task.'] }[show];
-    return `<div class="font-sans text-base text-copy">${header({ eyebrow: 'Purchase', title: 'Payment requests', desc: 'Supplier payments you asked for. Accounts approves up to ₹50,000 for a supplier on a Deal; above that, the Branch Manager. Accounts pays each one and records the bank reference.' })}${tabsNav('Payment request filters', tabs, show, 'mb-4')}${list.length ? `<ol class="m-0 flex list-none flex-col gap-3 p-0" aria-label="${esc(tabs.find((t) => t.key === show).label)}, by due date">${list.map(li).join('')}</ol>` : empty('inbox', emptyTxt[0], emptyTxt[1])}</div>`;
+      const second = p.status === 'returned' ? `Returned by ${name(p.returnedBy)} on ${date(p.returnedAt)}: ${p.returnReason}${p.resentAs ? ` Sent again as ${p.resentAs}.` : ''}`
+        : p.status === 'paid' || p.status === 'verified' ? `Paid on ${date(p.paidAt)} by ${name(p.paidBy)} · ${p.bankRef}${p.verifiedBy ? ` · checked by ${name(p.verifiedBy)}` : ''}`
+        : fund ? `Company funding ${fund.id}: ${FUND_LABEL[fund.status] || fund.status}.` : '';
+      const nextWords = p.status === 'returned' ? (p.resentAs ? 'Nothing waiting' : 'Change it and send it again') : p.status === 'verified' ? 'Nothing waiting' : st[3];
+      const next = `<span class="desk-next flex flex-col items-start gap-2 max-sm:items-end"><span class="text-sm text-copy">${esc(nextWords)}</span>${p.status === 'returned' && !p.resentAs ? DK.rowAct(`Change and send again<span class="sr-only"> ${esc(p.id)}</span>`, 'pur-pay-again', { id: p.service, pay: p.id }) : ''}</span>`;
+      return { cells: [
+        `<span class="desk-what flex flex-col items-start gap-0.5"><a class="${C.rowLink}" href="#/app/purchase/${p.service}?tab=work">${esc(p.id)} · ${esc(sp.name)}</a><span class="text-sm text-quiet">${esc(s ? s.title : '')} · ${esc(p.part)}</span></span>`,
+        { html: `<span class="block whitespace-nowrap">${esc(date(p.dueBy))}</span><span class="block text-sm text-quiet whitespace-nowrap">Requested ${esc(date(p.raisedAt))}</span>` },
+        { html: money(p.amount), numeric: true, cls: 'whitespace-nowrap' },
+        { html: `<span class="desk-status flex flex-col items-start gap-1 max-sm:items-end">${payBadge(p)}${second ? `<span class="text-sm text-copy wrap-break-word">${esc(second)}</span>` : ''}</span>` },
+        { html: next },
+        { html: `<span class="whitespace-nowrap">${esc(p.deal)}</span>`, cls: 'text-sm' },
+      ] };
+    });
+    const emptyTxt = q.q ? ['Nothing matches', 'No payment request on this list matches the search.'] : { open: ['No open payment requests', 'Request a supplier payment from the Work tab of a Purchase task.'], returned: ['Nothing returned', 'Requests Accounts or the Manager send back appear here.'], paid: ['Nothing paid yet', 'Paid requests appear here with the bank reference.'], all: ['No payment requests yet', 'Request a supplier payment from the Work tab of a Purchase task.'] }[show];
+    const all = tasks().filter((x) => x.taskStatus !== 'cancelled');
+    const body = list.length
+      ? TN.ui.table({ label: 'Payment requests', top: true, columns: DK.cols(['Request', 'Due by', { label: 'Amount', numeric: true }, 'Status', 'Next step', 'Deal']), rows, caption: `${list.length} ${list.length === 1 ? 'request' : 'requests'}` })
+      : DK.state({ kind: 'empty', icon: q.q ? 'search-x' : 'inbox', title: emptyTxt[0], text: emptyTxt[1] });
+    return `<div class="font-sans text-base text-copy">${header({ title: 'Purchase tasks', desc: 'Supplier payments you asked for. Accounts approves up to ₹50,000 for a supplier on a Deal; above that, the Branch Manager. Accounts pays each one and records the bank reference.' })}${queueTabs('payments', { not_taken: all.filter((x) => !x.assignee).length, mine: all.filter((x) => x.assignee === meKey()).length, all: all.length, payments: groups.open.length }, {})}${DK.queueToolbar({ id: 'pay-queue', act: 'desk-queue', search: { name: 'q', value: q.q || '', placeholder: 'Request, supplier, hotel or Deal' }, chips, sort: { name: 'sort', value: sort, options: PAY_SORTS } })}${body}</div>`;
   }
   TN.act('pur-pay-again', (el) => {
     const old = D.supplierPayments.find((p) => p.id === el.dataset.pay);
@@ -1718,27 +1864,27 @@
      Page registration and Home rows
      ===================================================================== */
   TN.page('/app/purchase', { nav: '/app/purchase', roles: ['purchase', 'manager', 'sales'], title: 'Purchase tasks', render: renderQueue });
-  TN.page('/app/purchase/suppliers', { nav: '/app/purchase/suppliers', roles: ['purchase', 'manager'], title: 'Suppliers', render: renderSuppliers, mount: () => { flash = null; } });
-  TN.page('/app/purchase/suppliers/:id', { nav: '/app/purchase/suppliers', roles: ['purchase', 'manager'], title: (p) => (TN.supplier(p.id) || {}).name || 'Supplier', render: renderSupplier, mount: () => { flash = null; } });
-  TN.page('/app/purchase/payments', { nav: '/app/purchase/payments', roles: ['purchase'], title: 'Payment requests', render: renderPayments });
+  TN.page('/app/purchase/suppliers', { nav: '/app/purchase/suppliers', roles: ['purchase', 'manager'], title: 'Suppliers', render: (p, q) => renderSuppliers(p, q), mount: () => { flash = null; } });
+  TN.page('/app/purchase/suppliers/:id', { nav: '/app/purchase/suppliers', roles: ['purchase', 'manager'], title: (p) => (TN.supplier(p.id) || {}).name || 'Supplier', render: renderSupplier, mount: (root, p, q) => { flash = null; TN.desk.focusFromQuery(q); } });
+  TN.page('/app/purchase/payments', { nav: '/app/purchase', roles: ['purchase'], title: 'Payment requests', render: renderPayments });
   TN.page('/app/purchase/:taskId', {
     nav: '/app/purchase', roles: ['purchase', 'manager', 'sales'],
     title: (p) => (TN.service(p.taskId) || {}).title || 'Purchase task',
     render: (p, q) => { if (TN.is('sales')) { const s = TN.service(p.taskId); if (!s || s.dept !== 'purchase') return empty('lock', 'You can’t open this task', 'Task not found or not in Purchase.'); } return renderTask(p, q); },
-    mount: (root) => { const m = root.querySelector('.message.error[data-msg]'); if (m) m.focus(); flash = null; },
+    mount: (root, p, q) => { const m = root.querySelector('.message.error[data-msg]'); if (m) m.focus(); else TN.desk.focusFromQuery(q); flash = null; },
   });
 
   const R = ['purchase', 'manager'];
   const open = () => tasks().filter((t) => t.taskStatus !== 'cancelled');
   // Lead: 'not taken' row dropped; the live Home row 'Purchase tasks not taken yet, or yours in progress' covers it.
   if (0) TN.homeRow({ roles: R, section: 'What needs you', label: 'Purchase tasks not taken', href: '#/app/purchase?show=not_taken', count: () => open().filter((t) => !t.assignee).length });
-  TN.homeRow({ roles: R, section: 'What needs you', label: 'Hotel tasks waiting for Accounts go-ahead', href: '#/app/purchase?show=all', count: () => open().filter((t) => !isConfirmed(t) && needsGoAhead(t)).length });
-  TN.homeRow({ roles: ['manager'], section: 'What needs you', label: 'Hotel costs above budget waiting for your approval', href: '#/app/purchase', count: () => open().filter((t) => !isConfirmed(t) && overBudgetWaiting(t.id, t)).length });
-  TN.homeRow({ roles: ['purchase'], section: 'What needs you', label: 'Costs above budget waiting for the Manager', href: '#/app/purchase?show=all', count: () => open().filter((t) => !isConfirmed(t) && overBudgetWaiting(t.id, t)).length });
-  TN.homeRow({ roles: R, section: 'What needs you', label: 'Supplier invoices missing after the trip', href: '#/app/purchase?show=all', count: () => open().filter((t) => invoiceMissing(t.id, t)).length });
+  TN.homeRow({ roles: R, section: 'What needs you', label: 'Hotel tasks waiting for Accounts go-ahead', href: '#/app/purchase?show=all&chip=goahead', count: () => open().filter((t) => !isConfirmed(t) && needsGoAhead(t)).length });
+  TN.homeRow({ roles: ['manager'], section: 'What needs you', label: 'Hotel costs above budget waiting for your approval', href: '#/app/purchase?chip=budget', count: () => open().filter((t) => !isConfirmed(t) && overBudgetWaiting(t.id, t)).length });
+  TN.homeRow({ roles: ['purchase'], section: 'What needs you', label: 'Costs above budget waiting for the Manager', href: '#/app/purchase?show=all&chip=budget', count: () => open().filter((t) => !isConfirmed(t) && overBudgetWaiting(t.id, t)).length });
+  TN.homeRow({ roles: R, section: 'What needs you', label: 'Supplier invoices missing after the trip', href: '#/app/purchase?show=all&chip=invoice', count: () => open().filter((t) => invoiceMissing(t.id, t)).length });
   TN.homeRow({ roles: ['purchase'], section: 'What needs you', label: 'Payment requests returned to you', href: '#/app/purchase/payments?show=returned', count: () => D.supplierPayments.filter((p) => p.raisedBy === 'purchase' && p.status === 'returned' && !p.resentAs).length });
-  TN.homeRow({ roles: ['manager'], section: 'What needs you', label: 'Supplier bank details to approve', href: '#/app/purchase/suppliers', count: () => purchaseSuppliers().filter((s) => s.bank === 'changed' || s.bank === 'waiting').length });
-  TN.homeRow({ roles: ['manager'], section: 'What needs you', label: 'Suppliers to verify', href: '#/app/purchase/suppliers', count: () => purchaseSuppliers().filter((s) => !s.verified).length });
+  TN.homeRow({ roles: ['manager'], section: 'What needs you', label: 'Supplier bank details to approve', href: '#/app/purchase/suppliers?chip=bank', count: () => purchaseSuppliers().filter((s) => s.bank === 'changed' || s.bank === 'waiting').length });
+  TN.homeRow({ roles: ['manager'], section: 'What needs you', label: 'Suppliers to verify', href: '#/app/purchase/suppliers?chip=unverified', count: () => purchaseSuppliers().filter((s) => !s.verified).length });
 
   // For other department files (read-only helpers; no money beyond supplier cost).
   TN.purchase = { work: (id) => W[id], rates: rateRecords, tiles: rateTiles, finalTile, history: historyOf, breakup: (id) => TN.hotelBreakup(id), blockReason: (id, action) => blockReason(id, TN.service(id), action), appendRate, openMail, hotelKey, canWork, workCostIssue, needsGoAhead, mailTemplate, persist: persistPurchase, facts: (id) => FACTS[id], progress: (id) => purchaseProgress(id, TN.service(id), W[id]), issues: (id) => issues(id, TN.service(id)), latestCost, isConfirmed };

@@ -109,6 +109,147 @@
   const takeFlash = (key) => { const h = flashes[key]; delete flashes[key]; return h || ''; };
   const notify = (to, text, extra = {}) => D.notices.unshift({ id: 'n-acct-' + (++uid), to, kind: 'notice', text, at: nowStamp(), ...extra });
   const text10 = (v) => { const n = String(v || '').trim().length; return n >= 10 && n <= 500; };
+  /** Close an open drawer or dialog (forms now open there), then re-render in place. */
+  const settle = () => { if (document.querySelector('#tn-overlay > *')) TN.closeOverlay(); TN.refresh(); };
+
+  /* =====================================================================
+     Redesign parts shared by every Accounts page (16 Nov 2026, Agent D).
+     Agent A's shared helpers (TN.ui.sectionTabs, queueToolbar, approvalRowActions,
+     status, recordHeader, state) are used when they exist; otherwise these local
+     versions draw the same pattern from existing CRM parts. 70-money.js uses
+     them through TN.accUI.
+     ===================================================================== */
+  TN.accCount = TN.accCount || {};
+  const SECTIONS = [
+    { key: 'check', label: 'To check', tabs: [['/app/accounts', 'To check'], ['/app/accounts/customers', 'Customers'], ['/app/accounts/claims', 'Reported payments']] },
+    { key: 'in', label: 'Money in', tabs: [['/app/accounts/dues', 'Dues'], ['/app/accounts/documents', 'Invoices and vouchers'], ['/app/accounts/refunds', 'Refunds']] },
+    { key: 'out', label: 'Money out', tabs: [['/app/accounts/supplier-payments', 'Supplier payments'], ['/app/accounts/supplier-invoices', 'Supplier invoices'], ['/app/accounts/funding', 'Company funding'], ['/app/accounts/expenses', 'Department costs']] },
+    { key: 'cash', label: 'Cash and bank', tabs: [['/app/accounts/cash', 'Branch cash'], ['/app/accounts/destinations', 'Company accounts']] },
+    { key: 'records', label: 'Records', tabs: [['/app/reports', 'Reports']] },
+    { key: 'tally', label: 'Tally', tabs: [['/app/accounts/tally', 'Tally']] },
+  ];
+  const A_KEY = { check: 'to-check', in: 'money-in', out: 'money-out', cash: 'cash-bank', records: 'records', tally: 'tally' };
+  const sectionLabel = (key) => (SECTIONS.find((s) => s.key === key) || {}).label || 'Accounts';
+  /** Section tab strip (brief section 3). Only tabs this role may open; no strip for a one-tab section. */
+  function sectionTabs(key, href) {
+    const shared = TN.accSection ? TN.accSection(A_KEY[key] || key) : null;
+    // The shared strip lists every tab; a role that cannot open one of them (the Manager) gets only its own tabs.
+    if (ui.sectionTabs && TN.ACC_SECTIONS && (!shared || shared.tabs.every((t) => TN.canOpen(t.href)))) { try { return ui.sectionTabs(A_KEY[key] || key, href); } catch (e) { /* fall back below */ } }
+    const s = SECTIONS.find((x) => x.key === key);
+    const tabs = shared ? shared.tabs.map((t) => [t.href, t.label, t.count]) : s.tabs.map(([h, l]) => [h, l, TN.accCount[h]]);
+    const items = tabs.filter(([h]) => TN.canOpen(h)).map(([h, l, fn]) => {
+      let n; try { n = fn ? fn() : undefined; } catch (e) { n = undefined; }
+      return { href: h, label: l, current: h === href, count: typeof n === 'number' ? n : undefined };
+    });
+    return items.length > 1 ? ui.tabs({ label: `${s.label} pages`, cls: 'mb-4', items }) : '';
+  }
+  /** Status badge from the shared status-to-tone table (C3) when present; tone is the fallback. */
+  const STONE = { ok: 'success', info: 'info', warn: 'warning', neutral: 'neutral', danger: 'danger' };
+  function st(word, tone, second) {
+    if (ui.status) { try { return ui.status(word, { second, wrap: true }); } catch (e) { /* fall back */ } }
+    return `<span class="inline-flex flex-wrap items-center gap-x-2 gap-y-1">${ui.badge(word, STONE[tone] || tone || 'neutral', { wrap: true })}${second ? `<span class="text-sm text-quiet">${second}</span>` : ''}</span>`;
+  }
+  /** Date range that never wraps: "6–8 Nov 2026", "28 Oct – 3 Nov 2026". */
+  function range(a, b) {
+    if (!a) return '—';
+    if (!b || a === b) return `<span class="whitespace-nowrap">${fdate(a)}</span>`;
+    const [ya, ma] = a.split('-'); const [yb, mb] = b.split('-');
+    const da = fdate(a).split(' '); const db = fdate(b);
+    const left = ya !== yb ? fdate(a) : ma !== mb ? `${da[0]} ${da[1]}` : da[0];
+    return `<span class="whitespace-nowrap">${left}${ya === yb && ma === mb ? '–' : ' – '}${db}</span>`;
+  }
+  /**
+   * Work-list toolbar (C2): one search field, up to four chips (rest under "More"), a sort select.
+   * o = { id, search: { name, value, placeholder, label }, chips: [{ href, label, count, current }], sort: { name, value, options: [{ value, label }] }, extra }
+   * Search and sort keep the page's other query values (?tab=, ?filter=).
+   */
+  function toolbar(o) {
+    if (ui.queueToolbar) { try { return ui.queueToolbar({ ...o, act: undefined }); } catch (e) { /* fall back */ } }
+    const chips = o.chips || [];
+    let shown = chips.slice(0, 4); let more = chips.slice(4);
+    const cur = more.find((c) => c.current);
+    if (cur) { more = more.filter((c) => c !== cur).concat(shown[3]); shown = shown.slice(0, 3).concat(cur); }
+    const chipLinks = chips.length ? ui.filterChips({ label: o.chipsLabel || 'Show', chips: shown.map((c) => ({ ...c, count: c.count === undefined ? undefined : c.count })) }) : '';
+    const moreHtml = more.length ? `<details class="relative font-sans text-sm" data-slot="more-chips"><summary class="inline-flex min-h-9 cursor-pointer list-none items-center gap-1.5 rounded-control border border-line-strong bg-card px-3 py-1 text-sm font-medium text-ink hover:bg-wash [&::-webkit-details-marker]:hidden ${ui.FOCUS}">More<span class="sr-only"> filters</span>${TN.ic('chevron-down', 'size-3.5')}</summary><div class="mt-2">${ui.filterChips({ label: 'More filters', chips: more })}</div></details>` : '';
+    const s = o.search; const so = o.sort;
+    const form = s || so ? `<form role="search" aria-label="${esc(o.label || 'Find in this list')}" data-act="acc-q" class="flex flex-col gap-2 sm:flex-row sm:items-end">${s ? `<div class="min-w-0 flex-1"><label class="sr-only" for="${o.id}-q">${esc(s.label || 'Search')}</label><div class="relative">${TN.ic('search', 'pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-quiet')}<input type="search" id="${o.id}-q" name="${esc(s.name)}" value="${esc(s.value || '')}" placeholder="${esc(s.placeholder)}" autoComplete="off" spellCheck="false" class="${ui.CONTROL} pl-9" data-slot="input"/></div></div>` : ''}${so ? `<div class="flex items-center gap-2"><label class="text-sm whitespace-nowrap text-quiet" for="${o.id}-sort">Sort</label><select id="${o.id}-sort" name="${esc(so.name)}" data-change="acc-q" class="${ui.CONTROL} cursor-pointer">${so.options.map((x) => `<option value="${esc(x.value)}"${x.value === so.value ? ' selected=""' : ''}>${esc(x.label)}</option>`).join('')}</select></div>` : ''}${s ? ui.button('Find', { type: 'submit' }) : ''}</form>` : '';
+    return `<div class="mb-4 flex flex-col gap-3 font-sans" data-slot="queue-toolbar">${form}${chipLinks || moreHtml || o.extra ? `<div class="flex flex-wrap items-start gap-2">${chipLinks}${moreHtml}${o.extra || ''}</div>` : ''}</div>`;
+  }
+  TN.act('acc-q', (el) => {
+    const form = el.tagName === 'FORM' ? el : el.form || el.closest('form');
+    if (!form) return;
+    const path = TN.path().split('?')[0];
+    const q = { ...TN.query() };
+    new FormData(form).forEach((v, k) => { q[k] = String(v).trim(); });
+    Object.keys(q).forEach((k) => { if (!q[k]) delete q[k]; });
+    const focusId = el.tagName === 'FORM' ? (form.querySelector('input[type=search]') || {}).id : el.id;
+    const qs = new URLSearchParams(q).toString();
+    TN.go(path + (qs ? '?' + qs : ''));
+    if (focusId) setTimeout(() => { const f = document.getElementById(focusId); if (f) f.focus(); }, 60);
+  });
+  /** Filter and sort a list by the toolbar's ?q= and ?sort= values. */
+  function applyQuery(list, q, o) {
+    const needle = String(q[o.searchName || 'q'] || '').trim().toLowerCase();
+    let out = needle ? list.filter((x) => o.text(x).toLowerCase().includes(needle)) : list.slice();
+    const key = o.sorts[q.sort] ? q.sort : o.def;
+    out.sort(o.sorts[key].cmp);
+    return { list: out, sort: key, needle };
+  }
+  const sortOptions = (sorts) => Object.entries(sorts).map(([value, s]) => ({ value, label: s.label }));
+  /** Approve / Return on an approval row (C2). Return opens the reason box. */
+  function rowActions(o) {
+    if (ui.approvalRowActions) { try { return ui.approvalRowActions({ ...o, srFor: o.sr }); } catch (e) { /* fall back */ } }
+    return `<div class="flex flex-wrap gap-2">${ui.button(o.approveLabel || 'Approve', { size: 'sm', act: o.approveAct, data: { id: o.id }, srLabel: o.sr ? ' ' + o.sr : '' })}${ui.button(o.returnLabel || 'Return', { size: 'sm', variant: 'ghost', act: o.returnAct, data: { id: o.id }, srLabel: o.sr ? ' ' + o.sr : '', attrs: { 'aria-haspopup': 'dialog' } })}</div>`;
+  }
+  /** Blocked state on a row (C8): the action stays visible, disabled, with the reason beside it. */
+  function blockedBtn(label, reason) {
+    const id = nid('why');
+    return `<div class="flex flex-col items-start gap-1"><button type="button" class="${ui.buttonClass('secondary', 'sm')}" aria-disabled="true" aria-describedby="${id}" data-slot="button">${label}</button><p id="${id}" class="m-0 max-w-80 text-sm text-quiet">${reason}</p></div>`;
+  }
+  /** Reason box in the C7 confirm dialog: Cancel first, one button named for the action. */
+  function reasonDialog(o) {
+    // C7 confirm dialog (Agent A) with the reason required; the confirmed reason is handed to the page's own form action.
+    if (TN.confirmChange) {
+      TN.confirmChange({ title: o.title, effect: o.effect, affected: o.who, confirmLabel: o.confirmLabel, tone: o.danger ? 'danger' : undefined, reason: 'required', reasonLabel: o.label || 'Reason', reasonHint: o.hint || '10 to 500 characters.',
+        onConfirm: (reason) => {
+          const f = document.createElement('form'); f.dataset.act = o.act; f.dataset.id = o.id; f.noValidate = true; f.hidden = true;
+          f.innerHTML = '<div data-result></div><textarea name="reason"></textarea>'; f.querySelector('textarea').value = reason;
+          document.body.appendChild(f); try { f.requestSubmit(); } finally { f.remove(); }
+        } });
+      return;
+    }
+    const fid = 'acc-reason-form';
+    TN.dialog({ title: o.title, description: o.effect,
+      body: `<form id="${fid}" data-act="${o.act}" data-id="${esc(o.id)}" noValidate="" class="flex flex-col gap-3"><div data-result></div>${o.who ? `<p class="m-0 text-sm text-quiet">${o.who}</p>` : ''}${ui.field({ id: 'acc-reason', label: o.label || 'Reason', hint: o.hint || '10 to 500 characters.', textarea: { name: 'reason', rows: 3, attrs: { maxLength: 500 } } })}</form>`,
+      footer: ui.button('Cancel', { attrs: { 'data-close': '' } }) + ui.button(o.confirmLabel, { variant: o.danger ? 'danger' : 'primary', type: 'submit', attrs: { form: fid } }) });
+  }
+  /** Reason from a reason dialog form; null (with an alert and focus) when it is not 10 to 500 characters. */
+  function dialogReason(form, msg = 'Write 10 to 500 characters.') {
+    const v = String(new FormData(form).get('reason') || '').trim();
+    if (text10(v)) return v;
+    const t = form.querySelector('textarea'); if (t) t.setAttribute('aria-invalid', 'true');
+    const box = form.querySelector('[data-result]'); if (box) refuseB11(box, msg);
+    if (t) t.focus();
+    return null;
+  }
+  /** Fold-out detail row under a list row (rows, not cards; details on demand). */
+  const openRows = new Set();
+  const detailToggle = (id, sr) => `<span class="block"><button type="button" class="mt-1 inline-flex min-h-8 cursor-pointer items-center gap-1 rounded-chip border-0 bg-transparent p-0 text-sm font-medium text-brand-strong underline decoration-1 underline-offset-4 hover:text-brand-deep ${ui.FOCUS}" data-act="acc-row-toggle" data-id="${esc(id)}" aria-expanded="${openRows.has(id) ? 'true' : 'false'}" aria-controls="row-${esc(id)}">Details<span class="sr-only"> ${sr || ''}</span></button></span>`;
+  const detailRow = (id, cols, html) => ({ cls: 'bg-canvas', attrs: { id: 'row-' + id, 'data-acc-detail': '', ...(openRows.has(id) ? {} : { hidden: '' }) }, cells: [{ html: `<div class="flex flex-col gap-3 py-1">${html}</div>`, noLabel: true, attrs: { colspan: cols } }] });
+  TN.act('acc-row-toggle', (el) => {
+    const id = el.dataset.id; const row = document.getElementById('row-' + id);
+    const open = el.getAttribute('aria-expanded') !== 'true';
+    if (open) openRows.add(id); else openRows.delete(id);
+    el.setAttribute('aria-expanded', String(open));
+    if (row) row.hidden = !open;
+  });
+  /** In-page jump that moves focus (hash routing means plain #anchors cannot be used). */
+  TN.act('acc-jump', (el) => { if (TN.jumpTo) return TN.jumpTo(el.dataset.target); const t = document.getElementById(el.dataset.target); if (!t) return; if (t.tagName === 'DETAILS') t.open = true; t.scrollIntoView({ block: 'start' }); const f = t.matches('button, a, input, select, textarea, summary, [tabindex]') ? t : t.querySelector('button:not([aria-disabled]), summary, a, input, select, textarea') || t; if (f === t && !t.hasAttribute('tabindex')) t.tabIndex = -1; f.focus(); });
+  const emptyCard = (o) => (ui.state ? (() => { try { return ui.state({ kind: 'empty', title: o.title, text: o.text, action: o.action }); } catch (e) { return null; } })() : null) || ui.card(ui.emptyState({ icon: o.icon || 'circle-check', title: o.title, description: o.text, action: o.action, level: 2 })).replace('<div class="px-4.5 py-4">', '<div>');
+  const pagerFor = (n, noun, many) => ui.pager({ label: 'List pages', text: n ? `1–${n} of ${TN.fmt.plural(n, noun, many)}` : '' });
+  /** List page header: section name as eyebrow, one muted line, one primary action. */
+  const listHeader = (key, title, line, actions) => ui.pageHeader({ eyebrow: sectionLabel(key), title, description: line, actions, cls: 'mb-4' });
+  TN.accUI = { sectionTabs, st, range, toolbar, applyQuery, sortOptions, rowActions, blockedBtn, reasonDialog, dialogReason, detailToggle, detailRow, emptyCard, pagerFor, listHeader, settle, refuseB11 };
 
   /* =====================================================================
      Invented Accounts data (own collections; shared records get extra fields)
@@ -276,61 +417,130 @@
     if (filter === 'cheques_pending') return all.filter((d) => money(d.id).cheques > 0);
     return all;
   }
-  function lookupPanel(q) {
-    const ref = (q.ref || '').trim();
-    let result = '';
-    if (ref) {
-      const d = TN.deal(ref.toUpperCase());
-      result = d
-        ? `<div class="mt-3" role="status"><p class="m-0"><a class="${LINK}" href="#/app/accounts/deals/${esc(d.id)}">${esc(d.id)} · ${esc(d.title)}</a></p><p class="m-0 text-sm text-quiet">Jodhpur · ${d.submittedAt ? 'Confirmed booking' : 'No confirmed booking yet; receipts can still be recorded'}</p></div>`
-        : `<p class="m-0 mt-3" role="status">No deal with the exact reference “${esc(ref)}” in your companies. Check the reference and try again.</p>`;
-    }
-    return `<section class="mb-4 rounded-card border border-line bg-card px-4.5 py-4 font-sans shadow-card" aria-labelledby="fin-lookup-heading"><h2 id="fin-lookup-heading" class="m-0 mb-2 text-lg font-semibold text-ink">Find a deal by reference</h2><form role="search" aria-label="Find a deal by exact reference" class="flex flex-col gap-2 sm:flex-row sm:items-end" data-act="acct-lookup"><div class="flex min-w-0 flex-1 flex-col gap-1"><label for="fin-lookup-ref" class="text-base font-semibold text-ink">Deal reference</label><span id="fin-lookup-hint" class="text-sm text-quiet">Find a deal by its exact reference.</span><input type="text" class="${INPUT}" data-slot="input" id="fin-lookup-ref" maxLength="60" autoComplete="off" spellCheck="false" aria-describedby="fin-lookup-hint" required="" name="ref" value="${esc(ref)}"/></div><button type="submit" class="${BTN()}" data-slot="button">Find deal</button></form>${result}</section>`;
+  const cap = (t) => String(t || '').charAt(0).toUpperCase() + String(t || '').slice(1);
+  const ownerName = (d) => esc(pname(d.owner));
+  /** What the row asks next, with one row button when this person can act. */
+  function rowNext(d) {
+    const rs = receiptsOf(d.id).filter((r) => r.status === 'recorded');
+    const others = rs.filter((r) => r.recordedBy !== me());
+    if (others.length) return { text: `${TN.fmt.plural(others.length, 'receipt')} to verify`, btn: ui.button('Verify', { size: 'sm', href: `/app/accounts/deals/${d.id}?tab=receipts`, srLabel: ` receipts on ${esc(d.id)}` }) };
+    if (rs.length) return { text: 'Another Accounts person verifies your receipt' };
+    const n = nextOf(d);
+    if (n.nothing) return { text: 'Nothing waiting' };
+    if (!n.tab) return { text: cap(n.text) };
+    return { text: cap(n.text), btn: ui.button(n.tab === 'review' ? 'Review' : 'Open', { size: 'sm', href: `/app/accounts/deals/${d.id}?tab=${n.tab}`, srLabel: ` ${esc(d.id)}` }) };
   }
-  TN.act('acct-lookup', (f) => { const ref = new FormData(f).get('ref') || ''; TN.go('/app/accounts?ref=' + encodeURIComponent(String(ref).trim())); });
-
-  function queueTable(list, label) {
-    const rows = list.map((d) => {
-      const m = money(d.id);
-      return `<tr><td data-label="Deal"><a href="#/app/accounts/deals/${esc(d.id)}"><strong>${esc(d.id)}</strong><span class="visually-hidden"> — open in Accounts</span></a><span class="fin-sub">${esc(d.title)}</span></td><td data-label="Branch">Jodhpur</td><td data-label="Booking">${d.submittedAt ? 'Confirmed' : 'No confirmed booking'}</td><td data-label="Billing">${billingPill(A.billing[d.id])}</td><td data-label="Review">${d.submittedAt ? reviewPill(d) : reviewPill({})}</td><td data-label="Available" class="fin-num">${inr(m.available)}</td><td data-label="Awaiting verification" class="fin-num">${inr(m.waiting)}</td><td data-label="Cheques awaiting clearance" class="fin-num">${inr(m.cheques)}</td></tr>`;
-    }).join('');
-    return `<div class="table-scroll"><table class="stack-table fin-queue"><caption>${TN.fmt.plural(list.length, 'deal')} · ${label}</caption><thead><tr><th scope="col">Deal</th><th scope="col">Branch</th><th scope="col">Booking</th><th scope="col">Billing</th><th scope="col">Review</th><th scope="col">Available</th><th scope="col">Awaiting verification</th><th scope="col">Cheques awaiting clearance</th></tr></thead><tbody>${rows}</tbody></table><details class="mt-8 font-sans text-sm text-quiet"><summary class="${SUMMARY}">Why are the amounts separate?</summary><p class="m-0 mt-4">Available money, receipts awaiting verification and cheques awaiting clearance are different things, so they are shown side by side and never added together.</p></details></div>`;
+  const nextCell = (n) => `<div class="flex flex-col items-start gap-1.5"><span class="text-sm text-copy">${n.text}</span>${n.btn || ''}</div>`;
+  const DEAL_SORTS = {
+    oldest: { label: 'Oldest waiting first', cmp: (a, b) => (a.submittedAt || '9').localeCompare(b.submittedAt || '9') || a.id.localeCompare(b.id) },
+    newest: { label: 'Newest first', cmp: (a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || '') },
+    trip: { label: 'Soonest travel first', cmp: (a, b) => (a.start || '').localeCompare(b.start || '') },
+  };
+  const dealText = (d) => [d.id, d.title, d.destination, (TN.customer(d.customer) || {}).name].join(' ');
+  function queueTable(list) {
+    return ui.table({
+      label: 'Deals to check', top: true,
+      columns: [{ label: 'Deal', cellCls: 'min-w-48' }, { label: 'Available', numeric: true }, { label: 'Awaiting verification', numeric: true }, { label: 'Cheques awaiting clearance', numeric: true }, 'Status', { label: 'Next step', cellCls: 'min-w-40' }],
+      rows: list.map((d) => {
+        const m = money(d.id); const b = A.billing[d.id];
+        const bill = !b ? 'Billing not entered yet' : b.status === 'verified' ? 'Billing verified' : 'Billing saved, not verified';
+        const rev = !d.submittedAt ? ['No confirmed booking to review', 'neutral'] : REVIEW[d.accountsReview] ? [REVIEW[d.accountsReview][2], REVIEW[d.accountsReview][0]] : ['No confirmed booking to review', 'neutral'];
+        return [
+          `${ui.rowLink(`/app/accounts/deals/${d.id}`, `${esc(d.id)}<span class="sr-only"> — open in Accounts</span>`)}<span class="block text-sm text-quiet">${esc(d.title)}</span><span class="block text-sm text-quiet">Trip ${range(d.start, d.end)}</span>`,
+          inr(m.available), inr(m.waiting), inr(m.cheques),
+          st(rev[0], rev[1], bill),
+          nextCell(rowNext(d)),
+        ];
+      }),
+      footer: pagerFor(list.length, 'deal'),
+    }) + `<details class="mt-4 font-sans text-sm text-quiet"><summary class="${SUMMARY}">Why are the amounts separate?</summary><p class="m-0 mt-3">Available money, receipts awaiting verification and cheques awaiting clearance are different things, so they are shown side by side and never added together.</p></details>`;
   }
   const GA = { waiting: ['info', '◐', 'Waiting for go-ahead'], refused: ['warn', '!', 'On hold'], given: ['ok', '●', 'Go-ahead given'] };
   const gaPill = (s) => pill(...(GA[s.goAhead] || GA.waiting).slice(0, 2), 'Go-ahead:', (GA[s.goAhead] || GA.waiting)[2]);
-  function goAheadTable(list) {
-    const rows = list.map((s) => {
-      const d = TN.deal(s.deal);
-      const fund = fundingFor(d.id, [s.id]);
-      return `<tr><td data-label="Deal"><a href="#/app/accounts/deals/${esc(d.id)}?tab=review"><strong>${esc(d.id)}</strong><span class="visually-hidden"> — open in Accounts</span></a><span class="fin-sub">${esc(d.title)}</span></td><td data-label="Hotel">${esc(s.title)}<span class="fin-sub">${esc(s.detail)}</span></td><td data-label="Stay">${TN.fmt.day(s.start)} to ${fdate(s.end)}</td><td data-label="Review">${reviewPill(d)}</td><td data-label="Go-ahead">${gaPill(s)}</td><td data-label="Company money" class="fin-num">${fund > 0 ? inr(fund) : inr(0)}</td></tr>`;
-    }).join('');
-    return `<div class="table-scroll"><table class="stack-table fin-queue"><caption>${TN.fmt.plural(list.length, 'hotel')} · Hotel go-ahead</caption><thead><tr><th scope="col">Deal</th><th scope="col">Hotel</th><th scope="col">Stay</th><th scope="col">Review</th><th scope="col">Go-ahead</th><th scope="col">Company money</th></tr></thead><tbody>${rows}</tbody></table><details class="mt-8 font-sans text-sm text-quiet"><summary class="${SUMMARY}">What is the go-ahead?</summary><p class="m-0 mt-4">Purchase may ask hotels for offers as soon as the customer accepts, but books a hotel only after Accounts gives the go-ahead. Approving the booking review gives the go-ahead for its hotels at the same time, unless you hold one. Company money is the part of the hotel cost the company would pay before enough customer money is verified; it also needs the go-ahead.</p></details></div>`;
+  const gaWord = (s) => (GA[s.goAhead] || GA.waiting);
+  /** Can this hotel get the go-ahead now? { ok } or { why }. */
+  function goAheadBlock(s) {
+    const d = TN.deal(s.deal);
+    if (d.accountsReview !== 'approved') return { why: d.accountsReview === 'returned' ? 'The booking is back with Sales. The go-ahead waits until Sales fixes it and Accounts approves it.' : 'Approve the booking first. Approving gives the go-ahead for its hotels at the same time.' };
+    const after = fundingFor(d.id, [s.id]);
+    if (after > FUND_LIMIT && !managerFunding(d.id, s.id)) return { why: `Company money for this deal would be ${inr(after)}, above ${inr(FUND_LIMIT)}. The branch Manager must approve the company funding first.` };
+    return { ok: true };
   }
+  const GA_SORTS = {
+    trip: { label: 'Soonest stay first', cmp: (a, b) => (a.start || '').localeCompare(b.start || '') },
+    oldest: { label: 'Oldest waiting first', cmp: (a, b) => (TN.deal(a.deal).submittedAt || '').localeCompare(TN.deal(b.deal).submittedAt || '') },
+  };
+  function goAheadTable(list) {
+    return ui.table({
+      label: 'Hotels waiting for the go-ahead', top: true,
+      columns: ['Hotel', 'Stay', { label: 'Company money', numeric: true }, 'Status', 'Next step', 'Deal'],
+      rows: list.map((s) => {
+        const d = TN.deal(s.deal);
+        const fund = fundingFor(d.id, [s.id]);
+        const blk = goAheadBlock(s);
+        const act = s.goAhead === 'refused' && blk.ok ? ui.button('Give go-ahead', { size: 'sm', act: 'acct-goahead', data: { id: s.id }, srLabel: ` for ${esc(s.title)}` })
+          : blk.ok ? rowActions({ id: s.id, approveAct: 'acct-goahead', returnAct: 'acct-hold-open', approveLabel: 'Give go-ahead', returnLabel: 'Hold', sr: `for ${esc(s.title)}` })
+          : blockedBtn(`Give go-ahead<span class="sr-only"> for ${esc(s.title)}</span>`, blk.why);
+        return [
+          `<span class="font-semibold text-ink">${esc(s.title)}</span><span class="block text-sm text-quiet">${esc(s.detail)}</span>`,
+          range(s.start, s.end),
+          inr(fund),
+          st(gaWord(s)[2], gaWord(s)[0], d.accountsReview && REVIEW[d.accountsReview] ? 'Review: ' + REVIEW[d.accountsReview][2] : ''),
+          act,
+          ui.rowLink(`/app/accounts/deals/${d.id}?tab=review`, `${esc(d.id)}<span class="sr-only"> — open in Accounts</span>`),
+        ];
+      }),
+      footer: pagerFor(list.length, 'hotel'),
+    }) + `<details class="mt-4 font-sans text-sm text-quiet"><summary class="${SUMMARY}">What is the go-ahead?</summary><p class="m-0 mt-3">Purchase may ask hotels for offers as soon as the customer accepts, but books a hotel only after Accounts gives the go-ahead. Approving the booking review gives the go-ahead for its hotels at the same time, unless you hold one. Company money is the part of the hotel cost the company would pay before enough customer money is verified; it also needs the go-ahead.</p></details>`;
+  }
+  TN.act('acct-hold-open', (el) => {
+    const s = D.services[el.dataset.id];
+    reasonDialog({ title: `Hold ${esc(s.title)}?`, effect: 'Purchase keeps preparing offers but must not book this hotel. Sales sees your reason; Purchase sees only “on hold”.', act: 'acct-hold', id: el.dataset.id, confirmLabel: 'Hold go-ahead' });
+  });
+
+  /* Counts for the section tab strips (and the menu, if the shell wants them). */
+  const queueCount = () => D.deals.filter(inQueue).filter((d) => d.accountsReview === 'waiting').length + receiptsToVerifyForMe().length + goAheadWaitingList().filter((s) => s.goAhead === 'waiting').length;
+  const accCounts60 = {
+    '/app/accounts': queueCount,
+    '/app/accounts/customers': () => A.parties.filter((p) => p.status === 'not_checked').length,
+    '/app/accounts/claims': () => D.paymentReports.filter((c) => c.status === 'reported' && c.by !== me()).length,
+    '/app/accounts/expenses': () => COSTS().filter((e) => e.status === 'submitted' && e.submittedBy !== me()).length,
+  };
+  Object.assign(TN.accCount, accCounts60);
+  if (TN.setAccCount) Object.entries(accCounts60).forEach(([h, f]) => TN.setAccCount(h, f));
 
   TN.page('/app/accounts', {
     nav: '/app/accounts', roles: ROLES, title: 'To check',
     render(_, q) {
       const filter = QF.some((f) => f.value === q.filter) ? q.filter : 'needs_review';
-      const meta = QF.find((f) => f.value === filter);
       const isGa = filter === 'go_ahead';
-      const list = isGa ? goAheadWaitingList() : queueDeals(filter);
-      const tabs = ui.tabs({ label: 'To check tabs', items: QF.filter((f) => f.tab).map((f) => ({ href: '/app/accounts' + (f.value === 'needs_review' ? '' : '?filter=' + f.value), label: f.label, current: f.value === filter, count: f.value === filter ? list.length : undefined })) });
-      const more = `<nav aria-label="More filters" class="flex flex-wrap items-center gap-x-3 gap-y-1 font-sans text-sm text-quiet"><span>More filters:</span>${QF.filter((f) => !f.tab).map((f) => `<a class="${LINK_FILTER}" href="#/app/accounts?filter=${f.value}"${f.value === filter ? ' aria-current="page"' : ''}>${f.label}</a>`).join('')}</nav>`;
-      const body = list.length === 0
-        ? ui.card(ui.emptyState({ icon: 'circle-check', title: QEMPTY[filter][0], description: QEMPTY[filter][1], level: 2 })).replace('<div class="px-4.5 py-4">', '<div>')
-        : isGa ? goAheadTable(list) : queueTable(list, meta.label);
-      return financeHeader({ title: 'To check', lines: '<p>Bookings and payments to check.</p>' })
-        + lookupPanel(q)
-        + `<div class="mb-4 flex flex-col gap-2">${tabs}${more}</div>`
-        + body
-        + `<p class="m-0 mt-5 font-sans text-sm text-quiet">Also in Accounts: <a class="${LINK}" href="#/app/accounts/cash">Open branch cash, deposits and daily counts</a> · <a class="${LINK}" href="#/app/accounts/destinations">Open company accounts (bank accounts and UPI IDs customers pay into)</a></p>`;
+      const raw = isGa ? goAheadWaitingList() : queueDeals(filter);
+      const ref = String(q.ref || '').trim();
+      const r = isGa
+        ? applyQuery(raw, q, { searchName: 'ref', text: (s) => `${s.title} ${s.detail} ${dealText(TN.deal(s.deal))}`, sorts: GA_SORTS, def: 'trip' })
+        : applyQuery(raw, q, { searchName: 'ref', text: dealText, sorts: DEAL_SORTS, def: 'oldest' });
+      const keep = (f) => '/app/accounts' + (f === 'needs_review' ? '' : '?filter=' + f);
+      const countOf = (f) => (f === 'go_ahead' ? goAheadWaitingList().length : queueDeals(f).length);
+      const bar = toolbar({ id: 'tc', label: 'Find a deal to check',
+        search: { name: 'ref', value: ref, placeholder: 'Deal reference, customer or trip', label: 'Find a deal' },
+        chipsLabel: 'To check filters',
+        chips: QF.map((f) => ({ href: keep(f.value), label: f.label, count: countOf(f.value), current: f.value === filter })),
+        sort: { name: 'sort', value: r.sort, options: sortOptions(isGa ? GA_SORTS : DEAL_SORTS) } });
+      // An exact reference that is not in this list still opens (record a receipt for any deal).
+      const exact = ref && !r.list.length ? TN.deal(ref.toUpperCase()) : null;
+      const empty = exact
+        ? emptyCard({ icon: 'search', title: `${esc(exact.id)} is not in this list`, text: `${esc(exact.title)}. ${exact.submittedAt ? 'Open it to see its receipts and review.' : 'No confirmed booking yet; receipts can still be recorded.'}`, action: ui.button(`Open ${esc(exact.id)}`, { href: `/app/accounts/deals/${exact.id}` }) })
+        : ref ? emptyCard({ icon: 'search-x', title: 'No deal matches', text: `Nothing in this list matches “${esc(ref)}”. Check the reference, or choose “All”.` })
+          : emptyCard({ title: QEMPTY[filter][0], text: QEMPTY[filter][1] });
+      const body = r.list.length ? (isGa ? goAheadTable(r.list) : queueTable(r.list)) : empty;
+      return ui.page(listHeader('check', 'To check', 'Bookings, receipts and hotel go-aheads waiting for Accounts.')
+        + sectionTabs('check', '/app/accounts') + bar + takeFlash('tocheck') + body);
     },
   });
 
   /* =====================================================================
      Accounts view of a Deal  ·  #/app/accounts/deals/:id
      ===================================================================== */
-  const TABS = [['money', 'Money'], ['review', 'Review'], ['receipts', 'Receipts'], ['documents', 'Documents']];
   function nextOf(d) {
     const waiting = receiptsOf(d.id).filter((r) => r.status === 'recorded').length;
     const b = A.billing[d.id];
@@ -388,7 +598,7 @@
   function claimsSection(d) {
     const list = D.paymentReports.filter((c) => c.deal === d.id);
     const reported = list.filter((c) => c.status === 'reported').reduce((t, c) => t + c.amount, 0);
-    return `<section aria-labelledby="fin-claims-heading" class="rounded-card border border-line bg-card px-4.5 py-4 font-sans text-base text-copy shadow-card"><div class="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 id="fin-claims-heading" class="m-0 text-lg font-semibold text-ink">Reported payments</h2><span class="text-sm text-quiet">Reported by Sales (not money): <span class="font-semibold text-ink tabular-nums">${inr(reported)}</span></span></div>${takeFlash('claims-' + d.id)}${ui.notice('<p>Reported by Sales. Not money until a receipt is recorded and checked by a second Accounts person. Record the real receipt from it, or link a receipt already recorded.</p><p>Existing receipt rules apply unchanged: cash limits, cheque clearance, approved company accounts and the maximum receipt.</p>', { tone: 'info', cls: 'mb-4' })}${list.length ? `<ol class="m-0 flex list-none flex-col gap-4 p-0" aria-label="Claims, newest first">${list.map((c) => claimArticle(c, d)).join('')}</ol>` : '<p class="m-0 text-quiet">No payments reported by Sales for this deal.</p>'}</section>`;
+    return `<section aria-labelledby="fin-claims-heading" class="rounded-card border border-line bg-card px-4.5 py-4 font-sans text-base text-copy shadow-card"><div class="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 id="fin-claims-heading" class="m-0 text-lg font-semibold text-ink">Reported payments</h2><span class="text-sm text-quiet">Reported by Sales (not money): <span class="font-semibold text-ink tabular-nums">${inr(reported)}</span></span></div>${takeFlash('claims-' + d.id)}<p class="m-0 mb-4 text-sm text-quiet">Not money until a receipt is recorded and checked by a second Accounts person. Record the real receipt from it, or link a receipt already recorded.</p>${list.length ? `<ol class="m-0 flex list-none flex-col gap-4 p-0" aria-label="Claims, newest first">${list.map((c) => claimArticle(c, d)).join('')}</ol>` : '<p class="m-0 text-quiet">No payments reported by Sales for this deal.</p>'}</section>`;
   }
   TN.act('acct-claim-panel', (el) => {
     const art = el.closest('article');
@@ -432,7 +642,7 @@
     const rv = A.review[d.id];
     const hotels = hotelsOf(d.id);
     const waitingGa = hotels.filter((s) => s.goAhead !== 'given').length;
-    return `<section class="fin-card" aria-labelledby="fin-ready"><h2 id="fin-ready">Readiness checklist</h2><ul class="checklist fin-checklist">${check(!!d.submittedAt, d.submittedAt ? `Booking confirmed (version ${rv ? rv.version : 1})` : 'No confirmed booking yet', d.submittedAt ? '' : 'Receipts can still be recorded without a booking.')}${check(b && b.status === 'verified', b && b.status === 'verified' ? 'Billing details checked' : b ? 'Billing details saved, not checked yet' : 'Billing details not entered', !b ? 'Enter the customer billing details below.' : b.status === 'draft' ? 'Saved; another Accounts check is needed.' : '')}${check(d.submittedAt ? d.accountsReview === 'approved' : null, d.submittedAt ? `Review: ${REVIEW[d.accountsReview][2]}` : 'Review: nothing to review without a confirmed booking')}${hotels.length ? check(waitingGa === 0, waitingGa === 0 ? `Hotel go-ahead given (${TN.fmt.plural(hotels.length, 'hotel')})` : `Hotel go-ahead: ${waitingGa} of ${TN.fmt.plural(hotels.length, 'hotel')} still waiting`) : ''}${check(null, 'Money: see the three separate figures on the Money tab')}</ul></section>`;
+    return `<section class="fin-card" aria-labelledby="fin-ready"><h2 id="fin-ready">Readiness checklist</h2><ul class="checklist fin-checklist">${check(!!d.submittedAt, d.submittedAt ? `Booking confirmed (version ${rv ? rv.version : 1})` : 'No confirmed booking yet', d.submittedAt ? '' : 'Receipts can still be recorded without a booking.')}${check(b && b.status === 'verified', b && b.status === 'verified' ? 'Billing details checked' : b ? 'Billing details saved, not checked yet' : 'Billing details not entered', !b ? 'Enter the customer billing details below.' : b.status === 'draft' ? 'Saved; another Accounts check is needed.' : '')}${check(d.submittedAt ? d.accountsReview === 'approved' : null, d.submittedAt ? `Review: ${REVIEW[d.accountsReview][2]}` : 'Review: nothing to review without a confirmed booking')}${hotels.length ? check(waitingGa === 0, waitingGa === 0 ? `Hotel go-ahead given (${TN.fmt.plural(hotels.length, 'hotel')})` : `Hotel go-ahead: ${waitingGa} of ${TN.fmt.plural(hotels.length, 'hotel')} still waiting`) : ''}${check(null, 'Money: see the three separate figures on the Receipts tab')}</ul></section>`;
   }
   function planSection(d) {
     const plan = D.instalments.filter((i) => i.deal === d.id);
@@ -496,7 +706,7 @@
       let act;
       if (booked) act = noFurther('hotel');
       else if (d.accountsReview !== 'approved') act = `<div class="fin-actions" role="group" aria-label="Go-ahead for ${esc(s.title)}">${unavailable('Give go-ahead', d.accountsReview === 'returned' ? 'The booking is back with Sales. The go-ahead waits until Sales fixes it and Accounts approves it.' : 'Approve the booking first. Approving gives the go-ahead for its hotels at the same time.')}</div>`;
-      else if (s.goAhead === 'given') act = `<div class="fin-actions" role="group" aria-label="Go-ahead for ${esc(s.title)}">${holdForm(s)}${stateOnly('Give go-ahead')}</div>`;
+      else if (s.goAhead === 'given') act = `<div class="fin-actions" role="group" aria-label="Go-ahead for ${esc(s.title)}">${holdForm(s)}</div>`;
       else act = `<div class="fin-actions" role="group" aria-label="Go-ahead for ${esc(s.title)}">${needsMgr ? unavailable('Give go-ahead', `Company money for this deal would be ${inr(after)}, above ${inr(FUND_LIMIT)}. The branch Manager must approve the company funding first.`) : `<form noValidate="" class="fin-inline-form" aria-label="Give go-ahead for ${esc(s.title)}" data-act="acct-goahead" data-id="${s.id}"><p id="ga-give-${s.id}" class="hint mb-0">Purchase may then book this hotel with the supplier. It does not book the hotel, pay the supplier or message anyone.</p><button type="submit" class="button" aria-disabled="false" aria-describedby="ga-give-${s.id}">Give go-ahead<span class="visually-hidden"> for ${esc(s.title)}</span></button></form>`}${s.goAhead === 'refused' ? '' : holdForm(s)}</div>`;
       return `<li class="fin-receipt" aria-labelledby="ga-${s.id}"><div class="fin-receipt-head"><div><h3 id="ga-${s.id}" class="m-0">${esc(s.title)}</h3><p class="offer-meta">${esc(s.detail)}</p></div><p class="fin-receipt-amount m-0">${inr(hotelCost(s))}</p></div><p class="m-0 button-row">${gaPill(s)}</p><dl class="facts fin-receipt-facts">${facts}</dl>${act}</li>`;
     }).join('');
@@ -513,13 +723,15 @@
     if (after > before && D.funding) D.funding.unshift({ id: 'F-26-0' + (10 + (++uid)), deal: d.id, service: s.id, amount: after - before, reason: 'Hotel go-ahead given before enough customer money was verified.', requestedBy: me(), at: TN.TODAY, status: 'approved', approvedBy: me(), recoverFrom: 'Next customer receipt on this Deal' });
     return after > before ? after - before : 0;
   }
+  const onList = () => TN.path().split('?')[0] === '/app/accounts';
   TN.act('acct-goahead', (f) => {
+    if (goAheadBlock({ id: f.dataset.id, ...D.services[f.dataset.id] }).why) return TN.toast('Not allowed', 'danger', goAheadBlock({ id: f.dataset.id, ...D.services[f.dataset.id] }).why);
     const s = { id: f.dataset.id, ...D.services[f.dataset.id] };
     const d = TN.deal(s.deal);
     const funded = giveGoAhead(s, d);
     notify(['purchase'], `Accounts gave the go-ahead for ${s.title} (${d.id}). You may book it with the hotel.`, { deal: d.id });
-    flash('ga-' + d.id, doneMsg(`Go-ahead given for ${esc(s.title)}. Purchase may now book it with the hotel.${funded ? ` Company funding of ${inr(funded)} recorded with your approval.` : ''}`));
-    TN.refresh();
+    flash(onList() ? 'tocheck' : 'ga-' + d.id, doneMsg(`Go-ahead given for ${esc(s.title)}. Purchase may now book it with the hotel.${funded ? ` Company funding of ${inr(funded)} recorded with your approval.` : ''}`));
+    settle();
   });
   TN.act('acct-hold', (f) => {
     const reason = String(new FormData(f).get('reason') || '').trim();
@@ -530,8 +742,8 @@
     A.goAheadLog[f.dataset.id] = { at: nowStamp(), by: me(), reason };
     notify(['purchase'], `Accounts put the go-ahead for ${s.title} (${d.id}) on hold. Keep preparing offers; do not book it with the hotel yet.`, { deal: d.id });
     notify(['sales'], `Accounts put the hotel ${s.title} on ${d.id} on hold: ${reason}`, { deal: d.id });
-    flash('ga-' + d.id, doneMsg(`${esc(s.title)} is on hold. Purchase sees “on hold” only; Sales sees your reason.`));
-    TN.refresh();
+    flash(onList() ? 'tocheck' : 'ga-' + d.id, doneMsg(`${esc(s.title)} is on hold. Purchase sees “on hold” only; Sales sees your reason.`));
+    settle();
   });
 
   /* ---------- Approve / return the booking review ---------- */
@@ -631,6 +843,7 @@
     return pill(t[0], t[1], 'Receipt status:', t[2] + extra);
   }
   const fileList = (r, label = 'Proof files', described) => (r.files && r.files.length ? `<ul class="file-list fin-files" aria-label="${label}">${r.files.map((x) => `<li class="file-row is-stored"><span class="file-glyph" aria-hidden="true">✓</span><span><a class="file-name" href="#" data-act="acct-open-file"${described ? ` aria-describedby="${described}"` : ''}>${esc(x.name)}</a><span class="file-meta"> · ${FILE_KIND[x.kind] || 'Bank proof (statement line or credit advice)'} · Stored</span></span></li>`).join('')}</ul>` : '<p class="offer-meta">No proof uploaded.</p>');
+  TN.act('acct-doc-preview', (el) => (TN.openDocument ? TN.openDocument(el.dataset.id) : TN.toast('The document preview is not available.', 'warning')));
   TN.act('acct-open-file', (el) => TN.toast(`Opening ${el.textContent}. The private link works for 60 seconds; the opening is recorded with your name.`, 'info'));
   function uploadForm(r) {
     const kinds = r.mode === 'Cheque' ? [{ value: 'cheque_image', label: FILE_KIND.cheque_image }, { value: 'bank_proof', label: FILE_KIND.bank_proof }] : [{ value: 'bank_proof', label: FILE_KIND.bank_proof }];
@@ -643,38 +856,67 @@
     const parts = [];
     if (s === 'recorded') {
       if (r.recordedBy === mine) {
-        parts.push(unavailable(`Verify receipt<span class="visually-hidden"> ${r.id}</span>`, 'You recorded this receipt. Another Accounts person must do this step.'));
         parts.push(unavailable(`Reject receipt<span class="visually-hidden"> ${r.id}</span>`, 'You recorded this receipt. Another Accounts person must do this step.'));
       } else {
-        parts.push(`<form noValidate="" class="fin-inline-form" aria-label="Verify ${r.id}" data-act="acct-verify" data-id="${r.id}"><p id="verify-help-${r.id}" class="hint mb-0">Confirms the money arrived, matching the proof. It then counts as available customer funds.</p><button type="submit" class="button" aria-disabled="false" aria-describedby="verify-help-${r.id}">Verify receipt<span class="visually-hidden"> ${r.id}</span></button>${status()}</form>`);
         parts.push(reasonDetails(r, 'acct-reject', 'Reject receipt', 'Nothing was posted for this receipt. A receipt rejected as “details entered wrongly” can be corrected with a new receipt.', [{ value: 'not_received', label: 'Money not received' }, { value: 'data_error', label: 'Details entered wrongly' }], 'Reject receipt'));
       }
-      parts.push(stateOnly('Reverse receipt, Record a correction'));
     } else if (s === 'verified') {
       parts.push(r.verifiedBy === mine ? unavailable('Reverse receipt', 'You verified this receipt. Another Accounts person must reverse it.') : reasonDetails(r, 'acct-reverse', 'Reverse receipt', 'Reverses this receipt. The original stays in history. This is not a refund.', [{ value: 'bank_return', label: 'Returned by the bank' }, { value: 'not_received', label: 'Money not received' }, { value: 'data_error', label: 'Details entered wrongly' }], 'Reverse receipt'));
-      parts.push(stateOnly('Verify receipt, Reject receipt, Record a correction'));
     } else if (s === 'pending_clearance') {
-      const hasBank = (r.files || []).some((x) => x.kind === 'bank_proof');
-      parts.push(hasBank ? `<form noValidate="" class="fin-inline-form" aria-label="Record cheque cleared ${r.id}" data-act="acct-cleared" data-id="${r.id}"><p id="clear-help-${r.id}" class="hint mb-0">The bank credited the cheque. The money then counts as available customer funds.</p><button type="submit" class="button" aria-disabled="false" aria-describedby="clear-help-${r.id}">Record cheque cleared</button>${status()}</form>` : unavailable('Record cheque cleared', 'Upload the required proof first.'));
       parts.push(reasonDetails(r, 'acct-cheque-outcome', 'Record cheque not honoured', 'Bounced or stopped needs bank proof uploaded first. Nothing is posted. A bounced cheque can be re-presented.', [{ value: 'bounced', label: 'Bounced' }, { value: 'stopped', label: 'Payment stopped' }, { value: 'cancelled', label: 'Cancelled' }], 'Record outcome', 'Note (needed for a cancelled cheque)', `<div class="field"><label for="out-d-${r.id}">Date of the outcome</label><input id="out-d-${r.id}" type="date" required="" name="outcomeDate" value=""/></div>`));
-      parts.push(stateOnly('Verify receipt, Reject receipt, Re-present cheque, Reverse receipt, Record a correction'));
     } else if (s === 'cleared') {
       parts.push(r.clearedBy === mine ? unavailable('Reverse receipt', 'You recorded the bank clearance. Another Accounts person must reverse it.') : reasonDetails(r, 'acct-reverse', 'Reverse receipt', 'Reverses this receipt. The original stays in history. This is not a refund.', [{ value: 'bank_return', label: 'Returned by the bank' }, { value: 'not_received', label: 'Money not received' }, { value: 'data_error', label: 'Details entered wrongly' }], 'Reverse receipt'));
-      parts.push(stateOnly('Verify receipt, Reject receipt, Record cheque cleared, Record cheque not honoured, Re-present cheque, Record a correction'));
     } else if (s === 'bounced') {
-      parts.push(`<form noValidate="" class="fin-inline-form" aria-label="Re-present cheque ${r.id}" data-act="acct-represent" data-id="${r.id}"><button type="submit" class="button secondary" aria-disabled="false">Re-present cheque</button>${status()}</form>`);
-      parts.push(stateOnly('Verify receipt, Reject receipt, Record cheque cleared, Record cheque not honoured, Reverse receipt, Record a correction'));
-    } else return `<div class="fin-actions" aria-label="Actions for ${r.id}" role="group">${noFurther()}</div>`;
-    return `<div class="fin-actions" aria-label="Actions for ${r.id}" role="group">${parts.join('')}</div>`;
+    }
+    return parts.length ? `<div class="fin-actions" aria-label="More actions for ${r.id}" role="group">${parts.join('')}</div>` : '';
   }
-  function receiptCard(r) {
-    const s = rstat(r);
+  function receiptFacts(r) {
     const dst = r.dest ? destOf(r.dest) : null;
     const dv = dst ? dst.versions[0] : null;
-    const facts = `<dt>Received</dt><dd>${fdate(r.date)} at Jodhpur${r.mode === 'Cash' && r.collector ? ` · collected by ${esc(pname(r.collector))}` : ''}</dd><dt>Payer</dt><dd>${esc(r.payer || '')}${r.pan ? ` · PAN ${esc(r.pan)}` : ''}${r.mobile ? ` · mobile ${esc(r.mobile)}` : ''}</dd>${r.mode === 'Bank transfer' || r.mode === 'UPI' ? `<dt>Reference</dt><dd class="fin-mono">${esc(String(r.ref || '').replace(/^(UTR|UPI) /, ''))}</dd>` : ''}${dst ? `<dt>Paid into</dt><dd>${esc(dst.label)} · ${dst.kind === 'bank' ? 'Bank account' : 'UPI ID'} · ${esc(maskedDest(dst, dv))} · version ${dv.no}<span class="fin-sub">As approved when this receipt was recorded. Later changes or retirement do not alter it.</span></dd>` : ''}${r.mode === 'Cheque' ? `<dt>Cheque</dt><dd>No. <span class="fin-mono">${esc(r.chequeNo || '—')}</span> · MICR <span class="fin-mono">${esc(r.micr || '—')}</span> · dated ${fdate(r.chequeDate)}${r.outcomeDate ? ` · outcome on ${fdate(r.outcomeDate)}` : ''}</dd>` : ''}<dt>Recorded</dt><dd>${fdt(r.recordedAt || r.date + ' 12:00')} by ${esc(pname(r.recordedBy))} · policy version ${A.policy.version}</dd>${r.verifiedBy ? `<dt>Verified</dt><dd>${fdt(r.verifiedAt || r.date + ' 16:00')} by ${esc(pname(r.verifiedBy))}</dd>` : ''}${r.reason ? `<dt>Reason</dt><dd class="prewrap">${esc(r.reason)}</dd>` : ''}`;
-    const up = ['recorded', 'pending_clearance', 'bounced'].includes(s) ? uploadForm(r) : '';
-    return `<li class="fin-receipt is-${s}" aria-labelledby="rcpt-${r.id}"><div class="fin-receipt-head"><div><h3 id="rcpt-${r.id}" class="m-0">${esc(r.id)} · ${esc(r.mode)}</h3><p class="offer-meta">Internal receipt number</p></div><p class="fin-receipt-amount m-0">${inr(r.amount)}</p></div>${receiptPill(r)}<dl class="facts fin-receipt-facts">${facts}</dl>${fileList(r)}${up}${receiptActions(r)}</li>`;
+    return `<dl class="facts fin-receipt-facts"><dt>Received</dt><dd>${fdate(r.date)} at Jodhpur${r.mode === 'Cash' && r.collector ? ` · collected by ${esc(pname(r.collector))}` : ''}</dd><dt>Payer</dt><dd>${esc(r.payer || '')}${r.pan ? ` · PAN ${esc(r.pan)}` : ''}${r.mobile ? ` · mobile ${esc(r.mobile)}` : ''}</dd>${r.mode === 'Bank transfer' || r.mode === 'UPI' ? `<dt>Reference</dt><dd class="fin-mono">${esc(String(r.ref || '').replace(/^(UTR|UPI) /, ''))}</dd>` : ''}${dst ? `<dt>Paid into</dt><dd>${esc(dst.label)} · ${dst.kind === 'bank' ? 'Bank account' : 'UPI ID'} · ${esc(maskedDest(dst, dv))} · version ${dv.no}<span class="fin-sub">As approved when this receipt was recorded. Later changes or retirement do not alter it.</span></dd>` : ''}${r.mode === 'Cheque' ? `<dt>Cheque</dt><dd>No. <span class="fin-mono">${esc(r.chequeNo || '—')}</span> · MICR <span class="fin-mono">${esc(r.micr || '—')}</span> · dated ${fdate(r.chequeDate)}${r.outcomeDate ? ` · outcome on ${fdate(r.outcomeDate)}` : ''}</dd>` : ''}<dt>Recorded</dt><dd>${fdt(r.recordedAt || r.date + ' 12:00')} by ${esc(pname(r.recordedBy))} · policy version ${A.policy.version}</dd>${r.verifiedBy ? `<dt>Verified</dt><dd>${fdt(r.verifiedAt || r.date + ' 16:00')} by ${esc(pname(r.verifiedBy))}</dd>` : ''}${r.reason ? `<dt>Reason</dt><dd class="prewrap">${esc(r.reason)}</dd>` : ''}</dl>`;
   }
+  /** The one action on a receipt row (Verify when one waits). Other actions sit in the row's Details. */
+  function receiptMain(r, helpId) {
+    const s = rstat(r);
+    const sr = `<span class="sr-only"> receipt ${r.id}</span>`;
+    if (s === 'recorded') {
+      if (r.recordedBy === me()) return blockedBtn(`Verify${sr}`, 'You recorded this receipt. Another Accounts person must do this step.');
+      return `<form noValidate="" class="flex flex-col items-start gap-1" aria-label="Verify ${r.id}" data-act="acct-verify" data-id="${r.id}">${status()}<button type="submit" id="verify-${r.id}" class="${ui.buttonClass('secondary', 'sm')}" data-slot="button" aria-describedby="${helpId}">Verify${sr}</button></form>`;
+    }
+    if (s === 'pending_clearance') {
+      const hasBank = (r.files || []).some((x) => x.kind === 'bank_proof');
+      return hasBank ? `<form noValidate="" class="flex flex-col items-start gap-1" aria-label="Record cheque cleared ${r.id}" data-act="acct-cleared" data-id="${r.id}">${status()}<button type="submit" id="clear-${r.id}" class="${ui.buttonClass('secondary', 'sm')}" data-slot="button">Record cheque cleared${sr}</button></form>` : blockedBtn(`Record cheque cleared${sr}`, 'Upload the required proof first. Open Details to upload it.');
+    }
+    if (s === 'bounced') return `<form noValidate="" class="flex flex-col items-start gap-1" aria-label="Re-present cheque ${r.id}" data-act="acct-represent" data-id="${r.id}">${status()}<button type="submit" class="${ui.buttonClass('secondary', 'sm')}" data-slot="button">Re-present cheque${sr}</button></form>`;
+    return '<span class="text-sm text-quiet">Nothing to do</span>';
+  }
+  const AWAIT = ['recorded', 'pending_clearance', 'bounced'];
+  /** Receipts as rows: awaiting first, then newest. Details open on demand. */
+  function receiptTable(d, helpId) {
+    const list = receiptsOf(d.id).sort((a, b) => (AWAIT.includes(rstat(b)) ? 1 : 0) - (AWAIT.includes(rstat(a)) ? 1 : 0));
+    if (!list.length) return emptyCard({ icon: 'receipt', title: 'No receipts yet', text: 'No receipts recorded for this deal yet.' });
+    const rows = [];
+    list.forEach((r) => {
+      const s = rstat(r); const t = RS[s];
+      const extra = s === 'rejected' || s === 'reversed' ? ` (${KIND_TEXT[r.kindOf] || 'money not received'})` : '';
+      const who = r.verifiedBy ? `Verified by ${esc(pname(r.verifiedBy))}` : `Recorded by ${esc(pname(r.recordedBy))}`;
+      rows.push({ attrs: { id: 'rcpt-' + r.id }, cells: [
+        `<span class="font-semibold whitespace-nowrap text-ink">${esc(r.id)}</span> <span class="text-copy">· ${esc(r.mode)}</span>${detailToggle('r-' + r.id, 'for receipt ' + r.id)}`,
+        `<span class="whitespace-nowrap">${fdate(r.date)}</span>`,
+        inr(r.amount),
+        st(t[2] + extra, t[0], who),
+        r.files && r.files.length ? TN.fmt.plural(r.files.length, 'file') : '<span class="text-quiet">No proof</span>',
+        receiptMain(r, helpId),
+      ] });
+      const up = AWAIT.includes(s) ? uploadForm(r) : '';
+      rows.push(detailRow('r-' + r.id, 6, receiptFacts(r) + fileList(r) + up + receiptActions(r)));
+    });
+    return ui.table({ label: 'Customer receipts', top: true, columns: ['Receipt', 'Received', { label: 'Amount', numeric: true }, 'Status', 'Proof', 'Next step'], rows, caption: 'Awaiting receipts first, then newest.' });
+  }
+  TN.act('acct-record-open', (el) => {
+    const d = TN.deal(el.dataset.id);
+    TN.drawer({ wide: true, title: 'Record a receipt', description: `${esc(d.id)} · ${esc(d.title)}`, body: receiptForm(d) });
+  });
   /** Record a receipt (also used from a reported payment). */
   function receiptForm(d, o = {}) {
     const c = o.claim;
@@ -749,7 +991,7 @@
     notify([otherRole()], `Receipt ${id} recorded by ${pname(me())} on ${d.id}: ${inr(amount)} by ${MODE_LABEL[mode].toLowerCase().replace('upi', 'UPI')}. A different person must verify it.`, { href: `#/app/accounts/deals/${d.id}?tab=receipts`, deal: d.id });
     flash('receipts-' + d.id, doneMsg(`Receipt ${id} recorded (internal number). Another Accounts person must verify it.`));
     if (f.dataset.claim) flash('claims-' + d.id, ui.notice(`<p>Receipt ${id} recorded from this claim. Another Accounts person must verify it.</p>`, { tone: 'success', role: 'status', cls: 'mb-4' }));
-    TN.refresh();
+    settle();
   });
   const rcpt = (id) => D.receipts.find((r) => r.id === id);
   TN.act('acct-verify', (f) => {
@@ -819,29 +1061,124 @@
       .concat(n > 1 ? [`<li class="m-0 flex flex-col gap-2 rounded-control border border-line bg-canvas px-3.5 py-3"><p class="m-0 font-semibold text-ink">${TN.fmt.plural(n - 1, 'other traveller')}</p><p class="m-0 flex gap-2 text-sm text-copy">${ic('circle-alert', 'mt-0.5 size-4 shrink-0 text-status-danger')}No ID proof attached yet. Ask the salesperson.</p></li>`] : []).join('') : '';
     const idCard = d.submittedAt ? `<div class="mt-5"><div class="rounded-card border border-line bg-card font-sans text-base text-copy shadow-card" data-slot="card"><section aria-labelledby="id-proofs-heading"><div class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4.5 py-3.5"><h2 class="m-0 text-lg leading-6 font-semibold tracking-[-0.005em] text-ink" id="id-proofs-heading">Traveller ID proofs</h2><p class="m-0 text-sm text-quiet"><span class="inline-flex gap-1.5">${ic('lock', 'mt-0.5 size-3.5 shrink-0 text-faint')}Private identity documents for this work. Every view is recorded. Do not copy or forward them.</span></p></div><div class="px-4.5 py-4"><ul class="m-0 flex list-none flex-col gap-3 p-0" aria-label="Travellers and their ID proofs">${travellers}</ul></div></section></div></div>` : '';
     const withFiles = receiptsOf(d.id).filter((r) => r.files && r.files.length);
-    return `${idCard}<section class="fin-card" aria-labelledby="fin-documents"><h2 id="fin-documents">Receipt proof files</h2><p id="fin-documents-hint" class="hint">Bank proofs and cheque images for this deal’s receipts. Private: only Accounts can open them, and each opening is recorded.</p>${withFiles.length ? `<ul class="m-0 flex list-none flex-col gap-3 p-0" aria-label="Proof files by receipt">${withFiles.map((r) => `<li class="m-0"><p class="m-0 font-semibold text-ink">${esc(r.id)} · ${esc(r.mode)}</p>${fileList(r, 'Proof files of ' + r.id, 'fin-documents-hint')}</li>`).join('')}</ul>` : '<p class="m-0">No receipt proof files on this deal yet.</p>'}</section>`;
+    const docs = (D.documents || []).filter((x) => x.deal === d.id);
+    const M = TN.money || {};
+    const custDocs = docs.length ? ui.table({ label: 'Customer documents', top: true, columns: ['Document', 'Dated', { label: 'Amount', numeric: true }, 'Status', 'Next step'],
+      rows: docs.map((x) => { const w = (M.docStatus && M.docStatus[x.status]) || ['neutral', x.status]; return [`<span class="font-semibold text-ink">${esc(x.kind)}</span><span class="block text-sm whitespace-nowrap text-quiet">${esc(x.id)}</span>`, `<span class="whitespace-nowrap">${fdate(x.date)}</span>`, x.amount != null ? inr(x.amount) : '<span class="text-quiet">No prices</span>', st(w[1], w[0]), ui.button('Preview', { size: 'sm', act: 'acct-doc-preview', data: { id: x.id }, srLabel: ' ' + esc(x.kind) + ' ' + esc(x.id), attrs: { 'aria-haspopup': 'dialog' } })]; }),
+      caption: 'Invoice and Advance Invoice are not tax invoices. The tax invoice is issued from Tally.' })
+      : emptyCard({ icon: 'file-text', title: 'No customer documents yet', text: 'Invoice, Advance Invoice and hotel voucher are made on Invoices and vouchers.' });
+    const custSection = `<section aria-labelledby="fin-cust-docs" class="mb-5"><div class="mb-3 flex flex-wrap items-end justify-between gap-2"><h2 id="fin-cust-docs" class="m-0 text-lg font-semibold text-ink">Customer documents</h2>${ui.link('/app/accounts/documents?tab=all&q=' + d.id, 'Open Invoices and vouchers')}</div>${custDocs}</section>`;
+    return `${custSection}${idCard}<section class="fin-card" aria-labelledby="fin-documents"><h2 id="fin-documents">Receipt proof files</h2><p id="fin-documents-hint" class="hint">Bank proofs and cheque images for this deal’s receipts. Private: only Accounts can open them, and each opening is recorded.</p>${withFiles.length ? `<ul class="m-0 flex list-none flex-col gap-3 p-0" aria-label="Proof files by receipt">${withFiles.map((r) => `<li class="m-0"><p class="m-0 font-semibold text-ink">${esc(r.id)} · ${esc(r.mode)}</p>${fileList(r, 'Proof files of ' + r.id, 'fin-documents-hint')}</li>`).join('')}</ul>` : '<p class="m-0">No receipt proof files on this deal yet.</p>'}</section>`;
+  }
+
+  /* ---------- Dues and plan tab ---------- */
+  const openCancel = (dealId) => D.cancellations.some((c) => c.deal === dealId && !['closed', 'refund_paid'].includes(c.status));
+  function ageingOf(i) {
+    if (i.status === 'paid') return ['Paid', 'success'];
+    if (openCancel(i.deal)) return ['On hold: cancellation requested', 'neutral'];
+    const late = -TN.fmt.daysFrom(i.due);
+    if (late > 30) return [`${late} days overdue`, 'danger'];
+    if (late > 0) return [`${TN.fmt.plural(late, 'day')} overdue`, 'warning'];
+    if (late === 0) return ['Due today', 'warning'];
+    return [`Due in ${TN.fmt.plural(-late, 'day')}`, 'info'];
+  }
+  function duesTab(d) {
+    const plan = D.instalments.filter((i) => i.deal === d.id);
+    const total = plan.reduce((t, i) => t + i.amount, 0);
+    const still = plan.reduce((t, i) => t + (i.amount - (i.paid || 0)), 0);
+    const adds = plan.length ? (d.sellingPrice != null && total === d.sellingPrice ? ui.badge('Adds up to the selling total', 'success') : ui.badge('Does not add up to the selling total', 'danger', { icon: 'triangle-alert' })) : '';
+    const table = plan.length ? ui.table({ label: 'Instalments', inCard: false, top: true,
+      columns: ['Instalment', 'Due', { label: 'Amount', numeric: true }, { label: 'Still due', numeric: true }, 'Status'],
+      rows: plan.map((i, n) => { const a = ageingOf(i); return [`<span class="font-semibold text-ink">${n + 1}. ${esc(i.label)}</span>${i.paid && i.status !== 'paid' ? '<span class="block text-sm text-quiet">Part paid</span>' : ''}`, `<span class="whitespace-nowrap">${fdate(i.due)}</span>`, inr(i.amount), inr(i.amount - (i.paid || 0)), st(a[0], a[1])]; }),
+      caption: `Plan total ${inr(total)} · still due ${inr(still)}` }) : `<div class="px-4.5 py-4"><p class="m-0 text-quiet">No payment plan on this version.</p></div>`;
+    return ui.card({ title: 'Dues and payment plan', titleId: 'fin-dues', actions: adds, flush: true, body: table })
+      + `<p class="m-0 mt-3 font-sans text-sm text-quiet">Instalments are a plan, not money received. Only verified receipts reduce a due; the Deal’s salesperson follows up. ${ui.link('/app/accounts/dues?tab=open', 'Open Customer dues')}</p>`;
+  }
+
+  /* ---------- Refunds tab ---------- */
+  function refundsTab(d) {
+    const cx = D.cancellations.filter((c) => c.deal === d.id);
+    const rf = D.refunds.filter((r) => r.deal === d.id);
+    const M = TN.money || {};
+    if (!cx.length && !rf.length) return emptyCard({ icon: 'undo-2', title: 'No refunds on this deal', text: 'A refund or recovery appears here after the branch Manager approves a cancellation or a change.' });
+    const cxRows = cx.map((c) => { const w = (M.cancelStatus && M.cancelStatus[c.status]) || ['neutral', c.status]; const charges = c.charges.reduce((t, x) => t + x.supplierCharge, 0); const owes = charges + c.ourCharge - c.customerPaid; return [`<span class="font-semibold text-ink">Cancellation</span><span class="block text-sm text-quiet">${esc(c.kind)}</span>`, inr(Math.abs(owes)), st(w[1], w[0], owes > 0 ? 'Customer still owes' : 'Refund to the customer'), ui.button('Open', { size: 'sm', href: '/app/accounts/refunds', srLabel: ' cancellations being settled' })]; });
+    const rfRows = rf.map((r) => { const w = (M.rfStatus && M.rfStatus[r.kind] && M.rfStatus[r.kind][r.status]) || ['neutral', r.status]; const party = r.kind === 'Customer refund' ? TN.customer(r.party).name : TN.supplier(r.party).name; return [`<span class="font-semibold whitespace-nowrap text-ink">${esc(r.id)}</span><span class="block text-sm text-quiet">${esc(r.kind)} · ${esc(party)}</span>`, inr(r.amount), st(w[1], w[0]), ui.button('Open', { size: 'sm', href: `/app/accounts/refunds?tab=${['approved', 'paid', 'verified'].includes(r.status) ? r.status : 'all'}`, srLabel: ' ' + esc(r.id) })]; });
+    return ui.table({ label: 'Refunds and recoveries on this deal', top: true, columns: ['Refund', { label: 'Amount', numeric: true }, 'Status', 'Next step'], rows: cxRows.concat(rfRows) })
+      + `<p class="m-0 mt-3 font-sans text-sm text-quiet">Refunds are paid and verified on ${ui.link('/app/accounts/refunds', 'Refunds')}; a different Accounts person verifies each one.</p>`;
+  }
+
+  /* ---------- Record header (C4) ---------- */
+  const DEAL_TABS = [['receipts', 'Receipts'], ['dues', 'Dues and plan'], ['documents', 'Documents'], ['refunds', 'Refunds'], ['review', 'Review']];
+  const TAB_ALIAS = { money: 'receipts' };
+  const REVIEW_JUMP = { 'check the billing details': 'fin-billing', 'approve or return the booking': 'fin-booking' };
+  function headNext(d, tab) {
+    const rs = receiptsOf(d.id).filter((r) => r.status === 'recorded');
+    const others = rs.filter((r) => r.recordedBy !== me());
+    if (others.length) {
+      const r = others[others.length - 1];
+      return { text: `verify receipt ${esc(r.id)} (${inr(r.amount)}, ${esc(r.mode)})`, button: tab === 'receipts' ? { label: 'Verify receipt', jump: 'verify-' + r.id } : { label: 'Verify receipt', href: `/app/accounts/deals/${d.id}?tab=receipts` } };
+    }
+    const n = nextOf(d);
+    const cq = receiptsOf(d.id).find((r) => rstat(r) === 'pending_clearance');
+    if (!rs.length && n.nothing && cq) return { text: `record the bank clearance of cheque ${esc(cq.id)} when the bank credits it`, button: { label: 'Record a receipt', act: 'acct-record-open' } };
+    if (rs.length) return { text: 'another Accounts person verifies the receipt you recorded', button: { label: 'Record a receipt', act: 'acct-record-open' } };
+    if (n.nothing || !n.tab) return { text: n.nothing ? 'nothing waiting. Record a receipt when the customer pays.' : esc(n.text), button: { label: 'Record a receipt', act: 'acct-record-open' } };
+    const target = REVIEW_JUMP[n.text] || 'fin-goahead';
+    return { text: esc(n.text), button: tab === n.tab ? { label: n.label, jump: target } : { label: n.label, href: `/app/accounts/deals/${d.id}?tab=${n.tab}` } };
+  }
+  function dealHeader(d, tab) {
+    const n = headNext(d, tab);
+    const b = A.billing[d.id];
+    const bill = !b ? 'Billing not entered yet' : b.status === 'verified' ? 'Billing verified' : 'Billing saved, not verified';
+    const rev = d.submittedAt && REVIEW[d.accountsReview] ? REVIEW[d.accountsReview] : ['neutral', '–', 'No confirmed booking to review'];
+    const rv = A.review[d.id];
+    const c = TN.customer(d.customer);
+    const details = ui.summaryList([
+      { label: 'Branch', value: 'Jodhpur' },
+      { label: 'Booking', value: d.submittedAt ? `Confirmed${rv ? ` ${fdt(rv.confirmedAt)} by ${esc(pname(rv.by))} · version ${rv.version}` : ''}` : 'No confirmed booking yet; receipts can still be recorded' },
+      { label: 'Customer', value: `${esc(c.name)} · ${esc(c.phone)}` },
+      { label: 'Trip', value: `${esc(d.destination)} · ${range(d.start, d.end)}` },
+      { label: 'Money out for this deal', value: `${ui.link('/app/accounts/supplier-payments?tab=all&q=' + d.id, 'Supplier payments')} · ${ui.link('/app/accounts/funding?tab=all&q=' + d.id, 'Company funding')}` },
+    ]);
+    const btnHtml = !n.button ? '' : n.button.jump ? ui.button(n.button.label, { variant: 'primary', act: 'acc-jump', data: { target: n.button.jump } })
+      : n.button.act ? ui.button(n.button.label, { variant: 'primary', act: n.button.act, data: { id: d.id }, attrs: { 'aria-haspopup': 'dialog' } }) : ui.button(n.button.label, { variant: 'primary', href: n.button.href });
+    if (ui.recordHeader) {
+      try {
+        return ui.recordHeader({ back: { href: '/app/accounts', label: 'To check' }, recordId: esc(d.id), title: esc(d.title), status: rev[2], owner: esc(pname(d.owner)),
+          next: n.button ? { text: n.text, button: n.button.jump ? { label: n.button.label, jump: '#' + n.button.jump } : n.button.act ? { label: n.button.label, act: n.button.act, data: { id: d.id } } : { label: n.button.label, href: n.button.href } } : null,
+          nextWho: n.who, details });
+      } catch (e) { /* fall back to the local header */ }
+    }
+    return ui.backLink('/app/accounts', 'To check')
+      + `<header class="mb-4 flex flex-col gap-3 font-sans" data-slot="record-header"><p class="m-0 text-sm font-medium text-quiet">Accounts · ${esc(d.id)}</p><div class="flex flex-wrap items-center gap-x-3 gap-y-2"><h1 class="m-0 min-w-0 text-2xl leading-tight font-display tracking-heading wrap-anywhere text-ink max-sm:text-xl">${esc(d.title)}</h1>${st(rev[2], rev[0], bill)}${ui.owner(esc(pname(d.owner)), 'Sales owner')}</div>`
+      + `<div class="flex flex-col gap-2 rounded-control border border-line bg-card px-3.5 py-3 sm:flex-row sm:items-center sm:justify-between" data-slot="accounts-deal-next"><p class="m-0"><span class="font-semibold text-ink">Next:</span> ${n.text}${n.who ? `<span class="block text-sm text-quiet">${n.who}</span>` : ''}</p>${btnHtml}</div>`
+      + `<details class="font-sans text-sm"><summary class="${SUMMARY}">Details</summary><div class="mt-3 rounded-control border border-line bg-card px-3.5 py-3">${details}</div></details></header>`;
   }
 
   TN.page('/app/accounts/deals/:id', {
     nav: '/app/accounts', roles: ROLES, title: (p) => p.id + ' · Accounts',
     render(p, q) {
       const d = TN.deal(p.id);
-      if (!d) return financeHeader({ title: 'Deal not found', lines: '' }) + ui.card(ui.emptyState({ icon: 'search-x', title: 'This record was not found or you cannot see it.', description: 'Look the deal up by its exact reference on To check.', action: ui.button('Back to To check', { href: '/app/accounts' }), level: 2 })).replace('<div class="px-4.5 py-4">', '<div>');
+      if (!d) return ui.page(ui.backLink('/app/accounts', 'To check') + ui.pageHeader({ eyebrow: 'Accounts', title: 'Deal not found' }) + emptyCard({ icon: 'search-x', title: 'This record was not found or you cannot see it.', text: 'Look the deal up by its exact reference on To check.', action: ui.button('Back to To check', { href: '/app/accounts' }) }));
       const next = nextOf(d);
-      const tab = TABS.some(([k]) => k === q.tab) ? q.tab : next.tab || 'money';
+      const asked = TAB_ALIAS[q.tab] || q.tab;
+      const tab = DEAL_TABS.some(([k]) => k === asked) ? asked : next.tab || 'receipts';
       const hrefOf = (t) => `/app/accounts/deals/${d.id}?tab=${t}`;
-      const primary = next.tab && next.label && next.tab !== tab && (tab === 'money' || tab === 'documents') ? `<div data-slot="accounts-deal-primary">${ui.button(next.label, { variant: 'primary', href: hrefOf(next.tab) })}</div>` : '';
-      const head = financeHeader({ eyebrow: 'Accounts · Jodhpur', title: `<span class="block wrap-anywhere">${esc(d.id)} · ${esc(d.title)}</span>`, status: (d.submittedAt ? reviewPill(d) : '') + billingPill(A.billing[d.id]), actions: primary,
-        lines: `<p data-slot="accounts-deal-next">${next.nothing ? 'Nothing waiting.' : `<span class="font-semibold text-ink">Next:</span> ${next.text}`}</p><p class="text-sm"><a class="${LINK}" href="#/app/accounts">Back to To check</a></p>` });
-      const tabs = ui.tabs({ label: 'Accounts deal sections', cls: 'mb-4', items: TABS.map(([k, l]) => ({ href: hrefOf(k), label: l, current: k === tab })) });
+      const waiting = receiptsOf(d.id).filter((r) => r.status === 'recorded').length;
+      const tabs = ui.tabs({ label: 'Accounts deal sections', cls: 'mb-4', items: DEAL_TABS.map(([k, l]) => ({ href: hrefOf(k), label: l, current: k === tab, count: k === 'receipts' && waiting ? waiting : undefined })) });
+      const head = dealHeader(d, tab);
       let body;
-      if (tab === 'money') body = `<section class="fin-card" aria-labelledby="fin-money-heading"><h2 id="fin-money-heading">Money for this deal</h2>${moneyFigures(money(d.id))}</section>${claimsSection(d)}<p class="m-0 mt-5 font-sans text-sm text-quiet">Also for this deal: <a class="${LINK}" href="#/app/accounts/dues">Customer dues</a> · <a class="${LINK}" href="#/app/accounts/supplier-payments">Supplier payments</a> · <a class="${LINK}" href="#/app/accounts/documents">Invoices and vouchers</a></p>`;
+      if (tab === 'receipts') {
+        const help = 'verify-help-' + d.id;
+        const recordBtn = headNext(d, tab).button && headNext(d, tab).button.act === 'acct-record-open' ? '' : ui.button('Record a receipt', { act: 'acct-record-open', data: { id: d.id }, icon: 'plus', attrs: { 'aria-haspopup': 'dialog' } });
+        body = `${takeFlash('receipts-' + d.id)}<section aria-labelledby="fin-money-heading" class="mb-4"><h2 id="fin-money-heading" class="sr-only">Money for this deal</h2>${moneyFigures(money(d.id))}</section>`
+          + `<div class="mb-3 flex flex-col gap-3 font-sans sm:flex-row sm:items-end sm:justify-between"><div class="min-w-0"><h2 id="fin-receipts" class="m-0 text-lg font-semibold text-ink">Customer receipts</h2><p id="${help}" class="m-0 mt-1 text-sm text-quiet">A second Accounts person verifies each receipt; verifying confirms the money arrived, matching the proof. Receipt numbers are internal. They are not tax invoices.</p></div>${recordBtn}</div>`
+          + receiptTable(d, help) + `<div class="mt-6">${claimsSection(d)}</div>`;
+      } else if (tab === 'dues') body = duesTab(d);
+      else if (tab === 'refunds') body = refundsTab(d);
       else if (tab === 'review') body = `<div class="fin-grid">${readiness(d)}${bookingFacts(d)}</div>${goAheadCard(d)}${billingSection(d)}`;
-      else if (tab === 'receipts') {
-        const list = receiptsOf(d.id);
-        body = `<section class="fin-card" aria-labelledby="fin-receipts"><h2 id="fin-receipts">Customer receipts</h2>${takeFlash('receipts-' + d.id)}<p class="hint">Each receipt needs a second Accounts person to verify it. Nothing here refunds the customer or creates an invoice. Available: Bank transfer, UPI, Cash, Cheque.</p>${list.length ? `<ol class="fin-receipt-list" aria-label="Receipts, newest first">${list.map(receiptCard).join('')}</ol>` : '<p>No receipts recorded for this deal yet.</p>'}</section><section class="fin-card" aria-labelledby="fin-record"><h2 id="fin-record">Record a receipt</h2>${receiptForm(d)}</section>`;
-      } else body = documentsTab(d);
-      return head + tabs + `<div data-slot="accounts-deal-tab" data-tab="${tab}">${body}</div>`;
+      else body = documentsTab(d);
+      return ui.page(head + tabs + `<div data-slot="accounts-deal-tab" data-tab="${tab}">${body}</div>`);
     },
   });
 
@@ -849,16 +1186,35 @@
      Reported payments  ·  #/app/accounts/claims
      ===================================================================== */
   const CF = [['reported', 'To process'], ['linked', 'Linked to a receipt'], ['closed', 'Closed'], ['all', 'All']];
+  const CLAIM_SORTS = {
+    oldest: { label: 'Oldest waiting first', cmp: (a, b) => (a.reportedAt || a.date).localeCompare(b.reportedAt || b.date) },
+    newest: { label: 'Newest first', cmp: (a, b) => (b.reportedAt || b.date).localeCompare(a.reportedAt || a.date) },
+    amount: { label: 'Largest amount first', cmp: (a, b) => b.amount - a.amount },
+  };
+  const claimIn = (c, f) => f === 'all' || (f === 'closed' ? ['not_received', 'withdrawn'].includes(c.status) : c.status === f);
   TN.page('/app/accounts/claims', {
     nav: '/app/accounts/claims', roles: ROLES, title: 'Reported payments',
     render(_, q) {
       const filter = CF.some(([k]) => k === q.filter) ? q.filter : 'reported';
-      const label = CF.find(([k]) => k === filter)[1];
-      const list = D.paymentReports.filter((c) => filter === 'all' || (filter === 'closed' ? ['not_received', 'withdrawn'].includes(c.status) : c.status === filter));
-      const items = list.map((c) => { const d = TN.deal(c.deal); const ref = c.mode === 'Cheque' ? `cheque ${c.ref}` : String(c.ref || '').replace(/^(UTR|UPI) /, ''); return `<li class="m-0 flex flex-col gap-2 rounded-card border border-line bg-card px-4 py-3 shadow-card sm:flex-row sm:items-center sm:justify-between"><div class="min-w-0"><p class="m-0 font-semibold text-ink"><a class="${LINK_LIST}" href="#/app/accounts/deals/${esc(d.id)}?tab=money">${esc(d.id)}</a> <span class="font-normal wrap-anywhere text-copy">· ${esc(d.title)}</span></p><p class="m-0 text-sm text-copy tabular-nums">${inr(c.amount)} · ${esc(c.mode)} · paid ${fdate(c.date)} by ${esc(c.payer)} · ${esc(ref)}</p><p class="m-0 text-sm text-quiet">Jodhpur · reported by ${esc(pname(c.by))} on ${fdate(c.reportedAt || c.date)}</p></div>${claimBadge(c)}</li>`; }).join('');
-      const body = list.length ? `<ol class="m-0 flex list-none flex-col gap-3 p-0" aria-label="${label}, oldest first">${items}</ol>` : `<div class="rounded-card border border-line bg-card shadow-card">${ui.emptyState({ icon: 'inbox', level: 2, title: filter === 'reported' ? 'No claims to process' : 'Nothing here', description: filter === 'reported' ? 'When Sales reports a payment, it appears here for you to record or link the receipt.' : 'Nothing matches this filter.' })}</div>`;
-      return ui.page(ui.pageHeader({ eyebrow: 'Accounts', title: 'Reported payments', description: 'Reported by Sales. Not money until a receipt is recorded and checked by a second Accounts person. Record the real receipt from it, or link a receipt already recorded.' })
-        + ui.tabs({ label: 'Claim filters', cls: 'mb-4', items: CF.map(([k, l]) => ({ href: '/app/accounts/claims?filter=' + k, label: l, current: k === filter, count: k === filter ? list.length : undefined })) }) + body);
+      const r = applyQuery(D.paymentReports.filter((c) => claimIn(c, filter)), q, { text: (c) => [c.deal, (TN.deal(c.deal) || {}).title, c.payer, c.ref, c.mode].join(' '), sorts: CLAIM_SORTS, def: 'oldest' });
+      const bar = toolbar({ id: 'cl', label: 'Find a reported payment', search: { name: 'q', value: q.q, placeholder: 'Deal reference, payer or bank reference', label: 'Find a reported payment' }, chipsLabel: 'Reported payment filters',
+        chips: CF.map(([k, l]) => ({ href: '/app/accounts/claims?filter=' + k, label: l, count: D.paymentReports.filter((c) => claimIn(c, k)).length, current: k === filter })),
+        sort: { name: 'sort', value: r.sort, options: sortOptions(CLAIM_SORTS) } });
+      const body = r.list.length ? ui.table({ label: 'Reported payments', top: true,
+        columns: ['Payment', 'Paid on', { label: 'Amount', numeric: true }, 'Status', 'Next step', 'Reported by'],
+        rows: r.list.map((c) => {
+          const d = TN.deal(c.deal); const ref = c.mode === 'Cheque' ? `cheque ${c.ref}` : String(c.ref || '').replace(/^(UTR|UPI) /, '');
+          const [tone, word] = CLAIM_STATUS[claimDisplay(c)];
+          const next = c.status === 'reported' ? (c.by === me() ? '<span class="text-sm text-quiet">Another Accounts person handles it.</span>' : `<div class="flex flex-col items-start gap-1.5"><span class="text-sm text-copy">Record or link the receipt</span>${ui.button('Open', { size: 'sm', href: `/app/accounts/deals/${d.id}?tab=receipts`, srLabel: ` ${esc(d.id)} to record or link the receipt` })}</div>`) : '<span class="text-sm text-quiet">Nothing to do</span>';
+          return [
+            `${ui.rowLink(`/app/accounts/deals/${d.id}?tab=receipts`, esc(d.id))} <span class="text-copy">· ${esc(c.mode)}</span><span class="block text-sm text-quiet">${esc(c.payer)} · ${esc(ref)}</span>`,
+            `<span class="whitespace-nowrap">${fdate(c.date)}</span>`,
+            inr(c.amount), st(word, tone), next,
+            `${esc(pname(c.by))}<span class="block text-sm whitespace-nowrap text-quiet">${fdate(c.reportedAt || c.date)}</span>`,
+          ];
+        }), footer: pagerFor(r.list.length, 'payment') })
+        : emptyCard({ icon: 'inbox', title: filter === 'reported' && !r.needle ? 'No claims to process' : 'Nothing here', text: filter === 'reported' && !r.needle ? 'When Sales reports a payment, it appears here for you to record or link the receipt.' : 'Nothing matches this filter.' });
+      return ui.page(listHeader('check', 'Reported payments', 'Reported by Sales. Not money until a receipt is recorded and checked by a second Accounts person.') + sectionTabs('check', '/app/accounts/claims') + bar + body);
     },
   });
 
@@ -868,56 +1224,71 @@
   const EF = [['submitted', 'To review'], ['returned', 'Returned'], ['accepted', 'Accepted'], ['all', 'All']];
   const DEPT = { purchase: 'Purchase', flight: 'Flight team', visa: 'Visa &amp; Passport desk' };
   const EXP = { submitted: ['info', 'Waiting for Accounts review'], accepted: ['success', 'Accepted (recorded only; not approved for payment)'], returned: ['danger', 'Returned by Accounts'] };
-  function expenseCard(e) {
-    const own = e.submittedBy === me();
-    const rows = [
-      { label: 'Amount', value: inr(e.amount), numeric: true },
+  const EXP_SORTS = {
+    oldest: { label: 'Oldest waiting first', cmp: (a, b) => (a.submittedAt || '').localeCompare(b.submittedAt || '') },
+    newest: { label: 'Newest first', cmp: (a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || '') },
+    amount: { label: 'Largest amount first', cmp: (a, b) => b.amount - a.amount },
+  };
+  function expenseFacts(e) {
+    return ui.summaryList([
       { label: 'Paid by, how, when', value: `${COST_PAID[e.paidBy] || esc(e.paidBy)}${e.mode ? ` · ${COST_MODE[e.mode] || esc(e.mode)}` : ''}${e.paidOn ? ` · ${fdate(e.paidOn)}` : ''}${e.reference ? ` · reference ${esc(e.reference)}` : ''}` },
       { label: 'Sent', value: `${esc(pname(e.submittedBy) || 'Department')}${e.submittedAt ? ` · ${fdate(e.submittedAt)}` : ''}` },
       { label: 'Receipt', value: costFiles(e).length ? `<ul class="m-0 flex list-none flex-col gap-1 p-0">${costFiles(e).map((fl) => `<li><a href="#" data-act="acct-open-file" class="${LINK_PLAIN}" rel="noopener">${esc(fl.name)}</a></li>`).join('')}</ul>` : 'Not stored' },
       e.returnReason ? { label: 'Returned because', value: esc(e.returnReason) } : null,
       e.status === 'accepted' && e.reviewedBy ? { label: 'Accepted', value: `${esc(pname(e.reviewedBy))}${e.reviewedAt ? ' · ' + fdate(e.reviewedAt) : ''}` } : null,
-    ];
-    let actions = '';
-    if (e.status === 'submitted') {
-      actions = own ? '<ul class="m-0 flex list-none flex-col gap-1 p-0 text-sm text-quiet"><li>You recorded or sent this cost, so another Accounts person must review it.</li></ul>'
-        : `<div class="flex flex-col gap-3"><div data-result></div><div class="flex flex-wrap gap-2"><form noValidate="" data-act="acct-exp-accept" data-id="${e.id}"><button type="submit" class="${BTN_LG_PRIMARY_WRAP}" data-slot="button">Accept expense record</button></form><button type="button" class="${BTN_LG_SECONDARY}" data-slot="button" aria-expanded="false" data-act="acct-exp-toggle">Return to the department</button></div><form noValidate="" aria-label="Return the expense record" class="flex flex-col gap-3" data-act="acct-exp-return" data-id="${e.id}" hidden>${areaField('exp-' + e.id + '-reason', 'reason', 'Why are you returning it?', '10 to 500 characters. The department reads it.')}<div><button type="submit" class="${BTN_LG_DANGER_WRAP}" data-slot="button">Return with this reason</button></div></form></div>`;
-    } else if (e.status === 'returned') actions = '<ul class="m-0 flex list-none flex-col gap-1 p-0 text-sm text-quiet"><li>This expense record was already reviewed. Reload the page.</li></ul>';
-    return `<li class="m-0"><article class="flex flex-col gap-3 rounded-card border border-line bg-card px-4 py-3.5 shadow-card" aria-label="Expense ${esc(e.deal)} ${inr(e.amount)}"><div class="flex flex-wrap items-center justify-between gap-2"><p class="m-0 font-semibold text-ink"><a class="${LINK_PLAIN}" href="#/app/accounts/deals/${esc(e.deal)}">${esc(e.deal)}</a> <span class="font-normal text-copy">· ${DEPT[e.dept]} · ${COST_KIND[e.kind] || esc(e.kind)}${e.note ? ` (${esc(e.note)})` : ''}</span></p>${ui.badge(EXP[e.status][1], EXP[e.status][0], { wrap: true, sr: 'Expense record: ' })}</div>${ui.summaryList(rows)}${actions}</article></li>`;
+    ]);
   }
   TN.page('/app/accounts/expenses', {
     nav: '/app/accounts/expenses', roles: ROLES, title: 'Department costs',
     render(_, q) {
       const filter = EF.some(([k]) => k === q.filter) ? q.filter : 'submitted';
-      const list = COSTS().filter((e) => filter === 'all' || e.status === filter);
-      const body = list.length ? `<ol class="m-0 flex list-none flex-col gap-3 p-0" aria-label="${EF.find(([k]) => k === filter)[1]}">${list.map(expenseCard).join('')}</ol>` : `<div class="rounded-card border border-line bg-card shadow-card">${ui.emptyState({ icon: 'inbox', level: 2, title: filter === 'submitted' ? 'No department costs to review' : 'Nothing here', description: filter === 'submitted' ? 'When a department sends a company-paid cost, it appears here.' : 'Nothing matches this filter.' })}</div>`;
-      return ui.page(ui.pageHeader({ eyebrow: 'Accounts', title: 'Department costs', description: 'An expense record is what a department paid or will pay. Accepting it records it for Accounts only: it never approves, makes or schedules a payment.' })
-        + takeFlash('expenses')
-        + ui.tabs({ label: 'Department cost filters', cls: 'mb-4', items: EF.map(([k, l]) => ({ href: '/app/accounts/expenses?filter=' + k, label: l, current: k === filter, count: k === filter ? list.length : undefined })) }) + body);
+      const r = applyQuery(COSTS().filter((e) => filter === 'all' || e.status === filter), q, { text: (e) => [e.deal, e.note, DEPT[e.dept], COST_KIND[e.kind], e.reference].join(' '), sorts: EXP_SORTS, def: 'oldest' });
+      const bar = toolbar({ id: 'ex', label: 'Find a department cost', search: { name: 'q', value: q.q, placeholder: 'Deal reference, department or note', label: 'Find a department cost' }, chipsLabel: 'Department cost filters',
+        chips: EF.map(([k, l]) => ({ href: '/app/accounts/expenses?filter=' + k, label: l, count: COSTS().filter((e) => k === 'all' || e.status === k).length, current: k === filter })),
+        sort: { name: 'sort', value: r.sort, options: sortOptions(EXP_SORTS) } });
+      const rows = [];
+      r.list.forEach((e) => {
+        const own = e.submittedBy === me();
+        const sr = `the ${COST_KIND[e.kind] || 'cost'} on ${esc(e.deal)}`;
+        const next = e.status !== 'submitted' ? '<span class="text-sm text-quiet">Nothing to do</span>'
+          : own ? '<span class="text-sm text-quiet">You recorded or sent this cost, so another Accounts person must review it.</span>'
+            : rowActions({ id: e.id, approveAct: 'acct-exp-accept', returnAct: 'acct-exp-return-open', approveLabel: 'Accept', returnLabel: 'Return', sr });
+        rows.push([
+          `<span class="font-semibold text-ink">${DEPT[e.dept]} · ${COST_KIND[e.kind] || esc(e.kind)}</span>${e.note ? `<span class="block text-sm text-quiet">${esc(e.note)}</span>` : ''}<span class="block text-sm text-quiet">Sent by ${esc(pname(e.submittedBy) || 'Department')}</span>${detailToggle('e-' + e.id, sr)}`,
+          `<span class="whitespace-nowrap">${e.paidOn ? fdate(e.paidOn) : '—'}</span>`,
+          inr(e.amount), st(EXP[e.status][1], EXP[e.status][0]), next,
+          ui.rowLink(`/app/accounts/deals/${e.deal}`, esc(e.deal)),
+        ]);
+        rows.push(detailRow('e-' + e.id, 6, expenseFacts(e)));
+      });
+      const body = r.list.length ? ui.table({ label: 'Department costs', top: true, columns: ['Cost', 'Paid on', { label: 'Amount', numeric: true }, 'Status', 'Next step', 'Deal'], rows, footer: pagerFor(r.list.length, 'cost') })
+        : emptyCard({ icon: 'inbox', title: filter === 'submitted' && !r.needle ? 'No department costs to review' : 'Nothing here', text: filter === 'submitted' && !r.needle ? 'When a department sends a company-paid cost, it appears here.' : 'Nothing matches this filter.' });
+      return ui.page(listHeader('out', 'Department costs', 'Accepting a cost records it for Accounts only: it never approves, makes or schedules a payment.')
+        + sectionTabs('out', '/app/accounts/expenses') + takeFlash('expenses') + bar + body);
     },
   });
-  TN.act('acct-exp-toggle', (el) => { const f = el.closest('article').querySelector('[data-act="acct-exp-return"]'); const open = el.getAttribute('aria-expanded') !== 'true'; el.setAttribute('aria-expanded', String(open)); f.hidden = !open; if (open) f.querySelector('textarea').focus(); });
-  TN.act('acct-exp-accept', (f) => {
-    const e = D.departmentCosts.find((x) => x.id === f.dataset.id);
-    const box = f.closest('article').querySelector('[data-result]');
-    if (e.submittedBy === me()) return refuseB11(box, 'You recorded or sent this cost, so another Accounts person must review it.');
-    if (!costFiles(e).length) return refuseB11(box, 'The fee receipt (or, for a flight, the direct-payment proof) must be stored before this expense record can be accepted.');
+  TN.act('acct-exp-accept', (el) => {
+    const e = D.departmentCosts.find((x) => x.id === el.dataset.id);
+    if (e.submittedBy === me()) return TN.toast('Not saved', 'danger', 'You recorded or sent this cost, so another Accounts person must review it.');
+    if (!costFiles(e).length) return TN.toast('Not saved', 'danger', 'The fee receipt (or, for a flight, the direct-payment proof) must be stored before this expense record can be accepted.');
     Object.assign(e, { status: 'accepted', reviewedBy: me(), reviewedAt: nowStamp() });
     costHistory(e, 'Accounts accepted the cost');
     notify([e.dept], `Accounts accepted your cost of ${inr(e.amount)} on ${e.deal}. Recorded only; no payment was approved or made.`, { deal: e.deal });
     flash('expenses', ui.notice('<p>Accepted. Recorded for Accounts only: no payment was approved or made.</p>', { tone: 'success', role: 'status', cls: 'mb-4' }));
-    TN.refresh();
+    settle();
+  });
+  TN.act('acct-exp-return-open', (el) => {
+    const e = D.departmentCosts.find((x) => x.id === el.dataset.id);
+    reasonDialog({ title: 'Return to the department?', effect: `${DEPT[e.dept]} · ${COST_KIND[e.kind] || esc(e.kind)} · ${inr(e.amount)} on ${esc(e.deal)}. The department reads your reason and sends it again.`, label: 'Why are you returning it?', hint: '10 to 500 characters. The department reads it.', act: 'acct-exp-return', id: e.id, confirmLabel: 'Return with this reason', danger: true });
   });
   TN.act('acct-exp-return', (f) => {
     const e = D.departmentCosts.find((x) => x.id === f.dataset.id);
-    const reason = String(new FormData(f).get('reason') || '').trim();
-    const box = f.closest('article').querySelector('[data-result]');
-    if (!text10(reason)) { const t = f.querySelector('textarea'); t.setAttribute('aria-invalid', 'true'); t.focus(); return refuseB11(box, 'Write 10 to 500 characters.'); }
+    const reason = dialogReason(f); if (!reason) return;
     Object.assign(e, { status: 'returned', returnReason: reason, reviewedBy: me(), reviewedAt: nowStamp() });
     costHistory(e, 'Accounts returned the cost', 'Reason: ' + reason);
     notify([e.dept], `Accounts returned your cost of ${inr(e.amount)} on ${e.deal}: ${reason}`, { deal: e.deal });
     flash('expenses', ui.notice('<p>Returned to the department with your reason.</p>', { tone: 'success', role: 'status', cls: 'mb-4' }));
-    TN.refresh();
+    settle();
   });
 
   /* =====================================================================
@@ -943,6 +1314,14 @@
     return { inHand, waitingDeposit, unverified, problems };
   }
   const sum = (l) => l.reduce((t, r) => t + r.amount, 0);
+  function depositForm(s) {
+    return `<form noValidate="" aria-label="Record a bank deposit for Jodhpur" data-act="acct-deposit">${status()}<fieldset class="group" aria-describedby="dep-help"><legend>Cash receipts in this deposit</legend><span id="dep-help" class="hint">The deposit total is the exact sum of the receipts you tick. Another Accounts person verifies it against the slip.</span><ul class="fin-check-list">${s.waitingDeposit.map((r) => `<li><label class="choice"><input type="checkbox" name="receiptIds" checked="" value="${r.id}"/> ${r.id} · ${inr(r.amount)} · received ${r.date} · ${r.deal}</label></li>`).join('')}</ul></fieldset><div class="form-grid">${lfield({ id: 'dep-on', label: 'Deposited on', name: 'depositedOn', type: 'date', required: true })}${lfield({ id: 'dep-ref', label: 'Bank reference on the slip', name: 'bankReference', max: 60, required: true })}<div class="field"><label for="dep-file">Deposit slip</label><span id="dep-file-hint" class="hint">${FILE_HINT}</span><input id="dep-file" aria-describedby="dep-file-hint" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" required="" name="file"/></div></div><button type="submit" class="button" aria-disabled="false">Record deposit</button></form>`;
+  }
+  function countForm() {
+    return `<form noValidate="" aria-label="Record a daily cash count for Jodhpur" data-act="acct-count">${status()}<p class="hint">Count the cash physically at the branch. The CRM compares it with verified cash in hand up to that date. Any difference needs a note.</p><div class="form-grid">${lfield({ id: 'cnt-date', label: 'Business date', name: 'businessDate', type: 'date', required: true })}${lfield({ id: 'cnt-amt', label: 'Cash counted (₹)', name: 'countedRupees', inputMode: 'decimal', required: true })}</div>${lfield({ id: 'cnt-note', label: 'Note (needed when the count differs)', name: 'note', textarea: true, hint: '10 to 500 characters.', wide: true })}<button type="submit" class="button secondary" aria-disabled="false">Record cash count</button></form>`;
+  }
+  TN.act('acct-deposit-open', () => TN.drawer({ wide: true, title: 'Record a bank deposit', description: 'Jodhpur branch cash', body: depositForm(cashState()) }));
+  TN.act('acct-count-open', () => TN.drawer({ wide: true, title: 'Record a daily cash count', description: 'Jodhpur branch cash', body: countForm() }));
   TN.page('/app/accounts/cash', {
     nav: '/app/accounts/cash', roles: ROLES, title: 'Branch cash',
     render() {
@@ -952,7 +1331,7 @@
         ? `<ul class="problem-list" aria-label="Unresolved cash work at Jodhpur">${s.problems.map(([tone, g, title, items, text, isDate]) => `<li class="problem problem-${tone}"><span class="problem-glyph" aria-hidden="true">${g}</span><div class="problem-body"><p class="problem-title m-0">${title}</p><p class="problem-sentence m-0">${isDate ? TN.fmt.plural(items.length, 'date') : TN.fmt.plural(items.length, 'receipt')} · oldest ${fdate(isDate ? [...items].sort()[0] : [...items].sort((a, b) => a.date.localeCompare(b.date))[0].date)}</p><p class="m-0">${text}</p><ul class="mt-4 m-0" aria-label="${title}: listed items">${items.map((it) => `<li>${isDate ? fdate(it) : `${it.id} · ${fdate(it.date)} · ${inr(it.amount)}`}</li>`).join('')}</ul></div></li>`).join('')}</ul>`
         : '<p class="fin-all-clear"><span aria-hidden="true">✓ </span>Nothing unresolved at this branch.</p>';
       const waitTbl = s.waitingDeposit.length
-        ? `<div class="table-scroll"><table class="stack-table"><caption class="visually-hidden">Verified cash waiting for deposit at Jodhpur</caption><thead><tr><th scope="col">Receipt</th><th scope="col">Deal</th><th scope="col">Received</th><th scope="col">Amount</th></tr></thead><tbody>${s.waitingDeposit.map((r) => `<tr><td data-label="Receipt">${r.id}</td><td data-label="Deal">${r.deal}</td><td data-label="Received">${fdate(r.date)}</td><td data-label="Amount" class="fin-num">${inr(r.amount)}</td></tr>`).join('')}</tbody></table></div><details class="form-section work-form"><summary><span class="form-section-title">Record a bank deposit<span class="visually-hidden"> for Jodhpur</span></span></summary><form noValidate="" aria-label="Record a bank deposit for Jodhpur" data-act="acct-deposit">${status()}<fieldset class="group" aria-describedby="dep-help"><legend>Cash receipts in this deposit</legend><span id="dep-help" class="hint">The deposit total is the exact sum of the receipts you tick. Another Accounts person verifies it against the slip.</span><ul class="fin-check-list">${s.waitingDeposit.map((r) => `<li><label class="choice"><input type="checkbox" name="receiptIds" checked="" value="${r.id}"/> ${r.id} · ${inr(r.amount)} · received ${r.date} · ${r.deal}</label></li>`).join('')}</ul></fieldset><div class="form-grid">${lfield({ id: 'dep-on', label: 'Deposited on', name: 'depositedOn', type: 'date', required: true })}${lfield({ id: 'dep-ref', label: 'Bank reference on the slip', name: 'bankReference', max: 60, required: true })}<div class="field"><label for="dep-file">Deposit slip</label><span id="dep-file-hint" class="hint">${FILE_HINT}</span><input id="dep-file" aria-describedby="dep-file-hint" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" required="" name="file"/></div></div><button type="submit" class="button" aria-disabled="false">Record deposit</button></form></details>`
+        ? `<div class="table-scroll"><table class="stack-table"><caption class="visually-hidden">Verified cash waiting for deposit at Jodhpur</caption><thead><tr><th scope="col">Receipt</th><th scope="col">Deal</th><th scope="col">Received</th><th scope="col">Amount</th></tr></thead><tbody>${s.waitingDeposit.map((r) => `<tr><td data-label="Receipt">${r.id}</td><td data-label="Deal">${r.deal}</td><td data-label="Received">${fdate(r.date)}</td><td data-label="Amount" class="fin-num">${inr(r.amount)}</td></tr>`).join('')}</tbody></table></div>`
         : '<p class="hint">No verified cash is waiting to be deposited at Jodhpur.</p>';
       const deps = A.deposits.length ? `<ul class="fin-plain-list" aria-label="Bank deposits at Jodhpur">${A.deposits.map((x) => {
         const amt = x.receipts.reduce((t, id) => t + (rcpt(id) ? rcpt(id).amount : 0), 0);
@@ -970,8 +1349,9 @@
         return `<li class="fin-row-card"><div class="panel-header m-0"><p class="m-0"><strong>${fdate(c.date)}</strong></p>${st}</div><dl class="facts fin-rec-facts"><dt>Counted</dt><dd>${inr(c.counted)}</dd><dt>Expected (verified cash in hand)</dt><dd>${inr(c.expected)}</dd><dt>Difference</dt><dd><strong>${diff === 0 ? 'None' : inr(diff)}</strong></dd><dt>Recorded, unverified cash up to that date</dt><dd>${inr(c.unverified)} (shown so a difference can be explained)</dd>${c.note ? `<dt>Note</dt><dd class="prewrap">${esc(c.note)}</dd>` : ''}</dl><p class="offer-meta">Recorded by ${esc(pname(c.recordedBy))}${c.verifiedBy ? ` · verified by ${esc(pname(c.verifiedBy))}` : ''}</p>${act}</li>`;
       }).join('')}</ul>` : '<p class="hint">No cash counts recorded.</p>';
       const branchPill = s.problems.length ? pill('danger', '!', 'Branch cash:', `${s.problems.reduce((t, p) => t + p[3].length, 0)} unresolved`) : pill('ok', '●', 'Branch cash:', 'Up to date');
-      return financeHeader({ title: 'Branch cash', lines: '<p>Cash must be deposited within 1 working day (Monday to Saturday). A daily cash count is required for each business date with cash activity.</p>' })
-        + `<section class="fin-card" aria-labelledby="cash-jodhpur"><div class="panel-header m-0"><h2 id="cash-jodhpur" class="m-0">Jodhpur</h2>${branchPill}</div>${takeFlash('cash')}<dl class="fin-money is-two"><div class="fin-money-item is-available"><dt>Verified cash in hand</dt><dd>${inr(sum(s.inHand))}</dd><dd class="fin-money-hint">Verified cash receipts not yet in a verified bank deposit. Physical cash held for reversed receipts is not included; it is listed as a custody item under Unresolved.</dd></div><div class="fin-money-item is-waiting"><dt>Cash recorded, not verified</dt><dd>${inr(sum(s.unverified))}</dd><dd class="fin-money-hint">Shown separately; not part of cash in hand.</dd></div></dl><h3>Unresolved</h3>${prob}<h3>Verified cash waiting for deposit</h3>${waitTbl}<h3>Bank deposits</h3>${deps}<h3>Daily cash counts</h3>${counts}<details class="form-section work-form"><summary><span class="form-section-title">Record a daily cash count<span class="visually-hidden"> for Jodhpur</span></span></summary><form noValidate="" aria-label="Record a daily cash count for Jodhpur" data-act="acct-count">${status()}<p class="hint">Count the cash physically at the branch. The CRM compares it with verified cash in hand up to that date. Any difference needs a note.</p><div class="form-grid">${lfield({ id: 'cnt-date', label: 'Business date', name: 'businessDate', type: 'date', required: true })}${lfield({ id: 'cnt-amt', label: 'Cash counted (₹)', name: 'countedRupees', inputMode: 'decimal', required: true })}</div>${lfield({ id: 'cnt-note', label: 'Note (needed when the count differs)', name: 'note', textarea: true, hint: '10 to 500 characters.', wide: true })}<button type="submit" class="button secondary" aria-disabled="false">Record cash count</button></form></details></section>`;
+      const actions = (s.waitingDeposit.length ? ui.button('Record deposit', { variant: 'primary', act: 'acct-deposit-open', attrs: { 'aria-haspopup': 'dialog' } }) : '') + ui.button('Record cash count', { variant: s.waitingDeposit.length ? 'secondary' : 'primary', act: 'acct-count-open', attrs: { 'aria-haspopup': 'dialog' } });
+      return ui.page(listHeader('cash', 'Branch cash', 'Deposit cash within 1 working day (Monday to Saturday); count it every business date with cash activity.', actions) + sectionTabs('cash', '/app/accounts/cash'))
+        + `<section class="fin-card" aria-labelledby="cash-jodhpur"><div class="panel-header m-0"><h2 id="cash-jodhpur" class="m-0">Jodhpur</h2>${branchPill}</div>${takeFlash('cash')}<dl class="fin-money is-two"><div class="fin-money-item is-available"><dt>Verified cash in hand</dt><dd>${inr(sum(s.inHand))}</dd><dd class="fin-money-hint">Verified cash receipts not yet in a verified bank deposit. Physical cash held for reversed receipts is not included; it is listed as a custody item under Unresolved.</dd></div><div class="fin-money-item is-waiting"><dt>Cash recorded, not verified</dt><dd>${inr(sum(s.unverified))}</dd><dd class="fin-money-hint">Shown separately; not part of cash in hand.</dd></div></dl><h3>Unresolved</h3>${prob}<h3>Verified cash waiting for deposit</h3>${waitTbl}<h3>Bank deposits</h3>${deps}<h3>Daily cash counts</h3>${counts}</section>`;
     },
   });
   TN.act('acct-deposit', (f) => {
@@ -984,7 +1364,7 @@
     A.deposits.unshift({ id: 'DEP-' + String(A.deposits.length + 4).padStart(4, '0'), on: fd.get('depositedOn'), ref: String(fd.get('bankReference')).trim(), receipts: ids, recordedBy: me(), status: 'recorded', file: file.name });
     notify([otherRole()], `Cash deposit recorded by ${pname(me())} at Jodhpur. A different person must verify it against the slip.`, { href: '#/app/accounts/cash' });
     flash('cash', doneMsg('Deposit recorded. Another Accounts person verifies it against the slip.'));
-    TN.refresh();
+    settle();
   });
   TN.act('acct-dep-verify', (f) => { const x = A.deposits.find((y) => y.id === f.dataset.id); if (x.recordedBy === me()) return refuse(f, 'You recorded this deposit. Another Accounts person must do this step.'); Object.assign(x, { status: 'verified', verifiedBy: me() }); flash('cash', doneMsg('Deposit verified. The cash moved from the branch to the bank; customer funds did not change.')); TN.refresh(); });
   TN.act('acct-dep-reject', (f) => { const x = A.deposits.find((y) => y.id === f.dataset.id); const reason = String(new FormData(f).get('reason') || '').trim(); if (!text10(reason)) return refuse(f, 'Some details are missing or not in the expected format. Check the highlighted fields.', [['reason', 'Write 10 to 500 characters.']]); Object.assign(x, { status: 'rejected', reason, verifiedBy: null }); flash('cash', doneMsg('Deposit rejected. Its receipts can go into a new deposit.')); TN.refresh(); });
@@ -1002,7 +1382,7 @@
     A.counts.push({ date, counted: amt, expected, unverified, note: note || null, recordedBy: me(), status: 'recorded' });
     notify([otherRole()], `Daily cash count for ${fdate(date)} recorded by ${pname(me())}. A different person must verify it.`, { href: '#/app/accounts/cash' });
     flash('cash', doneMsg('Cash count recorded. Another Accounts person verifies it.'));
-    TN.refresh();
+    settle();
   });
   TN.act('acct-count-verify', (f) => { const c = A.counts.find((x) => x.date === f.dataset.id); if (c.recordedBy === me()) return refuse(f, 'You recorded this cash count. Another Accounts person must do this step.'); Object.assign(c, { status: 'verified', verifiedBy: me() }); flash('cash', doneMsg('Cash count verified.')); TN.refresh(); });
 
@@ -1037,15 +1417,26 @@
     const hist = `<details class="form-section work-form"><summary><span class="form-section-title">Version history (${dst.versions.length})<span class="visually-hidden"> for ${esc(dst.label)}</span></span></summary><div><p class="hint">Versions are never changed after they are submitted. Receipts keep the version they were recorded against.</p><ol class="cost-timeline" aria-label="Versions of ${esc(dst.label)}, newest first">${[...dst.versions].reverse().map((v) => { const vs = v.status === 'waiting' ? pill('info', '◐', 'Version status:', 'Waiting for approval') : v.status === 'returned' ? pill('warn', '↩', 'Version status:', 'Returned') : v.replaced ? pill('neutral', '–', 'Version status:', 'Replaced') : pill('ok', '●', 'Version status:', 'Approved, current'); return `<li class="cost-step${v.status === 'waiting' ? ' is-latest' : v.status === 'approved' && !v.replaced ? ' is-committed' : ''}"><span class="cost-dot" aria-hidden="true">${v.no}</span><div><p class="m-0"><strong>Version ${v.no}</strong> ${vs}</p><p class="offer-meta">${esc(verLine(dst, v))}</p><p class="offer-meta">Submitted ${fdt(v.submittedAt)} by ${esc(pname(v.submittedBy))}${v.no > 1 ? ` · follows version ${v.no - 1}` : ''}${v.decidedBy ? ` · ${v.status === 'returned' ? 'returned' : 'approved'} ${fdt(v.decidedAt)} by ${esc(pname(v.decidedBy))}` : ''}</p><div>${show(v)}</div></div></li>`; }).join('')}</ol></div></details>`;
     return `<li class="fin-receipt" aria-labelledby="dest-${dst.id}"><div class="fin-receipt-head"><div><h3 id="dest-${dst.id}" class="m-0">${esc(dst.label)}</h3><p class="offer-meta">${dst.kind === 'bank' ? 'Bank account' : 'UPI ID'} · added ${fdt(dst.addedAt)} by ${esc(pname(dst.addedBy))}</p></div></div><p class="m-0 button-row">${st}</p><dl class="facts fin-receipt-facts">${facts}</dl>${decision}${changes}${hist}</li>`;
   }
+  TN.act('acct-dest-add-open', () => TN.drawer({ wide: true, title: 'Add a company account', description: 'Where customers pay the company. A different Accounts person approves it.', body: `<form noValidate="" aria-label="Add a company account" data-act="acct-dest-add">${status()}<fieldset class="group fin-modes" aria-describedby="dest-new-kind-help"><legend>What kind of company account?</legend><span id="dest-new-kind-help" class="hint">Where customers pay the company. Bank transfer receipts select a bank account; UPI receipts select a UPI ID.</span><div class="fin-segment"><label class="fin-segment-option"><input type="radio" name="destinationKind" value="bank" data-change="acct-dest-kind"/><span class="fin-segment-label">Bank account</span></label><label class="fin-segment-option"><input type="radio" name="destinationKind" value="upi" data-change="acct-dest-kind"/><span class="fin-segment-label">UPI ID</span></label></div></fieldset>${lfield({ id: 'dest-new-label', label: 'Internal name', name: 'label', hint: 'A short name staff will recognise, like “Main current account”. Up to 80 characters. Do not type account numbers or UPI IDs here.', max: 80, required: true, wide: true })}<p class="hint" data-kind-none>Choose bank account or UPI ID to see the details to enter.</p><div data-kind="bank" hidden>${destFields({ id: 'new-bank', kind: 'bank' })}</div><div data-kind="upi" hidden>${destFields({ id: 'new-upi', kind: 'upi' })}</div><p id="dest-new-help" class="hint">Submitting sends this exact version for approval by a different Accounts person. ${APPROVAL_NOTE}</p><button type="submit" class="button" aria-disabled="false" aria-describedby="dest-new-help">Submit for approval</button></form>` }));
   TN.page('/app/accounts/destinations', {
     nav: '/app/accounts/destinations', roles: ROLES, title: 'Company accounts',
     render() {
       const inUse = A.destinations.filter((x) => !x.retired && currentVer(x)).length;
       const waiting = A.destinations.filter((x) => !x.retired && x.versions.some((v) => v.status === 'waiting')).length;
-      return financeHeader({ title: 'Company accounts', lines: '<p>Company bank accounts and UPI IDs customers pay into. A second Accounts person approves each one.</p>' })
-        + ui.notice('<p>Account numbers and UPI IDs are masked on this page. “Show full details” opens one version; each opening is recorded with your name and the time.</p><p>Approval confirms the company details as entered. It does not check that the bank account belongs to the company, and it is not a payment.</p>', { tone: 'restricted', cls: 'mb-4' })
-        + `<section class="fin-card mt-6" aria-labelledby="dest-list-heading"><h2 id="dest-list-heading">Accounts</h2>${takeFlash('dest')}<p class="hint">${TN.fmt.plural(A.destinations.length, 'account')} · ${inUse} in use by new receipts · ${waiting} waiting for approval</p><ol class="fin-receipt-list" aria-label="Company accounts">${A.destinations.map(destItem).join('')}</ol></section>`
-        + `<section class="fin-card" aria-labelledby="dest-add-heading"><h2 id="dest-add-heading">Add a company account</h2><details class="form-section work-form"><summary><span class="form-section-title">Add a bank account or UPI ID</span></summary><form noValidate="" aria-label="Add a company account" data-act="acct-dest-add">${status()}<fieldset class="group fin-modes" aria-describedby="dest-new-kind-help"><legend>What kind of company account?</legend><span id="dest-new-kind-help" class="hint">Where customers pay the company. Bank transfer receipts select a bank account; UPI receipts select a UPI ID.</span><div class="fin-segment"><label class="fin-segment-option"><input type="radio" name="destinationKind" value="bank" data-change="acct-dest-kind"/><span class="fin-segment-label">Bank account</span></label><label class="fin-segment-option"><input type="radio" name="destinationKind" value="upi" data-change="acct-dest-kind"/><span class="fin-segment-label">UPI ID</span></label></div></fieldset>${lfield({ id: 'dest-new-label', label: 'Internal name', name: 'label', hint: 'A short name staff will recognise, like “Main current account”. Up to 80 characters. Do not type account numbers or UPI IDs here.', max: 80, required: true, wide: true })}<p class="hint" data-kind-none>Choose bank account or UPI ID to see the details to enter.</p><div data-kind="bank" hidden>${destFields({ id: 'new-bank', kind: 'bank' })}</div><div data-kind="upi" hidden>${destFields({ id: 'new-upi', kind: 'upi' })}</div><p id="dest-new-help" class="hint">Submitting sends this exact version for approval by a different Accounts person. ${APPROVAL_NOTE}</p><button type="submit" class="button" aria-disabled="false" aria-describedby="dest-new-help">Submit for approval</button></form></details></section>`;
+      const rows = A.destinations.map((x) => {
+        const cur = currentVer(x); const pending = x.versions.find((v) => v.status === 'waiting');
+        const last = x.versions[x.versions.length - 1];
+        const word = x.retired ? ['Retired', 'neutral'] : pending ? ['Waiting for approval', 'info'] : last.status === 'returned' ? ['Returned for correction', 'warn'] : ['Approved, in use', 'ok'];
+        const next = x.retired ? '<span class="text-sm text-quiet">Nothing to do</span>'
+          : pending ? (pending.submittedBy === me() ? `<span class="text-sm text-quiet">${DEST_OWN}</span>` : ui.button(`Approve or return version ${pending.no}`, { size: 'sm', act: 'acc-jump', data: { target: 'dest-' + x.id } }))
+            : last.status === 'returned' ? ui.button('Submit a corrected version', { size: 'sm', act: 'acc-jump', data: { target: 'dest-' + x.id } }) : '<span class="text-sm text-quiet">Nothing to do</span>';
+        return [`<button type="button" class="cursor-pointer rounded-chip border-0 bg-transparent p-0 text-left font-semibold text-brand-strong underline-offset-4 hover:underline ${ui.FOCUS}" data-act="acc-jump" data-target="dest-${x.id}">${esc(x.label)}</button><span class="block text-sm text-quiet">${x.kind === 'bank' ? 'Bank account' : 'UPI ID'}</span>`, cur ? `Version ${cur.no} · ${esc(maskedDest(x, cur))}` : '<span class="text-quiet">Not yet approved</span>', st(word[0], word[1]), next];
+      });
+      return ui.page(listHeader('cash', 'Company accounts', 'Bank accounts and UPI IDs customers pay into. A second Accounts person approves each one.', ui.button('Add a company account', { variant: 'primary', act: 'acct-dest-add-open', attrs: { 'aria-haspopup': 'dialog' } })) + sectionTabs('cash', '/app/accounts/destinations'))
+        + takeFlash('dest')
+        + ui.table({ label: 'Company accounts', top: true, columns: ['Account', 'Used by new receipts', 'Status', 'Next step'], rows, caption: `${TN.fmt.plural(A.destinations.length, 'account')} · ${inUse} in use by new receipts · ${waiting} waiting for approval` })
+        + `<p class="m-0 mt-3 mb-6 font-sans text-sm text-quiet">Account numbers and UPI IDs are masked. “Show full details” opens one version; each opening is recorded with your name and the time. Approval confirms the company details as entered. It does not check that the bank account belongs to the company, and it is not a payment.</p>`
+        + `<section class="fin-card" aria-labelledby="dest-list-heading"><h2 id="dest-list-heading">Account details</h2><ol class="fin-receipt-list" aria-label="Company accounts">${A.destinations.map(destItem).join('')}</ol></section>`;
     },
   });
   TN.act('acct-dest-kind', (el) => { const f = el.form; f.querySelectorAll('.fin-segment-option').forEach((l) => l.classList.toggle('is-selected', l.contains(el))); f.querySelector('[data-kind-none]').hidden = true; f.querySelectorAll('[data-kind]').forEach((n) => (n.hidden = n.dataset.kind !== el.value)); });
@@ -1071,7 +1462,7 @@
     A.destinations.push({ id: 'dest-' + (++uid), label, kind, addedAt: nowStamp(), addedBy: me(), retired: false, versions: [{ no: 1, ...vals, status: 'waiting', submittedAt: nowStamp(), submittedBy: me() }] });
     notify([otherRole()], `New company account “${label}” submitted by ${pname(me())}. A different Accounts person must approve it.`, { href: '#/app/accounts/destinations' });
     flash('dest', doneMsg('Details submitted. Another Accounts person must approve this exact version before it can be used.'));
-    TN.refresh();
+    settle();
   });
   TN.act('acct-dest-new-ver', (f) => {
     const dst = destOf(f.dataset.id); const fd = new FormData(f); const bad = [];
@@ -1115,22 +1506,29 @@
   const PF = [['not_checked', 'Not checked'], ['returned', 'Returned'], ['checked', 'Checked by Accounts']];
   const PEMPTY = { not_checked: ['No customers to check', 'New and imported customers appear here until Accounts checks them.'], returned: ['No returned customers', 'Customers you return to Sales with a reason appear here until they are fixed.'], checked: ['No checked customers yet', 'Customers you check appear here.'] };
   const STATES = { '08': 'Rajasthan', '24': 'Gujarat', '07': 'Delhi' };
+  const PARTY_SORTS = {
+    oldest: { label: 'Oldest added first', cmp: (a, b) => (a.addedAt || '').localeCompare(b.addedAt || '') },
+    name: { label: 'Name A to Z', cmp: (a, b) => a.name.localeCompare(b.name) },
+  };
   TN.page('/app/accounts/customers', {
     nav: '/app/accounts/customers', roles: ROLES, title: 'Customers to check',
     render(_, q) {
       const filter = PF.some(([k]) => k === q.filter) ? q.filter : 'not_checked';
-      const list = A.parties.filter((p) => p.status === filter);
-      const tabs = ui.tabs({ label: 'Customer check status', cls: 'mb-4', items: PF.map(([k, l]) => ({ href: '/app/accounts/customers?filter=' + k, label: l, current: k === filter, count: A.parties.filter((p) => p.status === k).length })) });
-      const body = list.length
-        ? ui.table({ label: 'Customers', columns: ['Customer', 'Contact', 'GST', 'Source', 'Status'], caption: TN.fmt.plural(list.length, 'customer'), rows: list.map((p) => [
-          `<a href="#/app/accounts/customers/${p.id}" class="font-semibold text-brand-strong underline-offset-4 hover:underline ${ui.FOCUS}">${esc(p.name)}<span class="sr-only"> (open the customer check)</span></a><span class="block text-sm text-quiet">${p.type === 'business' ? 'Business' : 'Personal'}${p.city ? ' · ' + esc(p.city) : ''}</span>`,
+      const r = applyQuery(A.parties.filter((p) => p.status === filter), q, { text: (p) => [p.name, p.contact, p.phone, p.email, p.gstin, p.city].join(' '), sorts: PARTY_SORTS, def: 'oldest' });
+      const bar = toolbar({ id: 'pc', label: 'Find a customer', search: { name: 'q', value: q.q, placeholder: 'Name, phone, e-mail or GSTIN', label: 'Find a customer' }, chipsLabel: 'Customer check status',
+        chips: PF.map(([k, l]) => ({ href: '/app/accounts/customers?filter=' + k, label: l, count: A.parties.filter((p) => p.status === k).length, current: k === filter })),
+        sort: { name: 'sort', value: r.sort, options: sortOptions(PARTY_SORTS) } });
+      const body = r.list.length
+        ? ui.table({ label: 'Customers', top: true, columns: ['Customer', 'Contact', 'GST', 'Source', 'Status', 'Next step'], footer: pagerFor(r.list.length, 'customer'), rows: r.list.map((p) => [
+          `${ui.rowLink(`/app/accounts/customers/${p.id}`, `${esc(p.name)}<span class="sr-only"> (open the customer check)</span>`)}<span class="block text-sm text-quiet">${p.type === 'business' ? 'Business' : 'Personal'}${p.city ? ' · ' + esc(p.city) : ''}</span>`,
           esc([p.phone, p.email].filter(Boolean).join(' · ')) || ui.notEntered(),
           p.gstin ? 'GSTIN ' + esc(p.gstin) : p.type === 'business' ? ui.notEntered() : '—',
-          `<span class="block">${esc(p.source || 'Added in the CRM')}</span><span class="block text-sm text-quiet">${fdate(p.addedAt)}${p.addedBy ? ' · ' + esc(pname(p.addedBy)) : ''}</span>`,
-          partyBadge(p),
+          `<span class="block">${esc(p.source || 'Added in the CRM')}</span><span class="block text-sm whitespace-nowrap text-quiet">${fdate(p.addedAt)}${p.addedBy ? ' · ' + esc(pname(p.addedBy)) : ''}</span>`,
+          st(PS[p.status][1], PS[p.status][0]),
+          p.status === 'checked' ? '<span class="text-sm text-quiet">Nothing to do</span>' : p.status === 'returned' ? '<span class="text-sm text-quiet">Sales fixes the details</span>' : ui.button('Check', { size: 'sm', href: `/app/accounts/customers/${p.id}`, srLabel: ' ' + esc(p.name) }),
         ]) })
-        : ui.card(ui.emptyState({ icon: 'users-round', level: 2, title: PEMPTY[filter][0], description: PEMPTY[filter][1] })).replace('<div class="px-4.5 py-4">', '<div>');
-      return ui.page(ui.pageHeader({ eyebrow: 'Accounts', title: 'Customers to check', description: 'Check new and imported customers before they are used for billing.', cls: 'mb-3' }) + tabs + body);
+        : emptyCard({ icon: 'users-round', title: r.needle ? 'No customer matches' : PEMPTY[filter][0], text: r.needle ? 'Nothing in this list matches your search.' : PEMPTY[filter][1] });
+      return ui.page(listHeader('check', 'Customers to check', 'Check new and imported customers before they are used for billing.') + sectionTabs('check', '/app/accounts/customers') + bar + body);
     },
   });
   TN.page('/app/accounts/customers/:id', {

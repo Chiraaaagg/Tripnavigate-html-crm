@@ -137,7 +137,8 @@
   /* ------------------------------------------------------------------
      Small markup helpers (live components)
      ------------------------------------------------------------------ */
-  const inr = (n) => (n == null || n === '' ? '—' : TN.fmt.inr(n) + '.00'); // live shows paise (".00")
+  // Live shows paise (".00"). TN.fmt.inr already adds them now; adding them again showed "₹75,400.00.00".
+  const inr = (n) => { if (n == null || n === '') return '—'; const s = TN.fmt.inr(n); return /\.\d\d$/.test(s) ? s : s + '.00'; };
   const badge = (tone, text, { wrap = false, icon, sr } = {}) => {
     const base = wrap
       ? `inline-flex max-w-full gap-1.5 border py-0.5 pr-2.5 pl-2 font-sans text-sm leading-5 font-semibold [&amp;_svg]:size-3.5 [&amp;_svg]:shrink-0 ${TONE[tone]} items-start rounded-control whitespace-normal [&amp;_svg]:mt-0.75`
@@ -167,8 +168,8 @@
     `<div class="flex flex-col gap-1.5${cls ? ' ' + cls : ''}" data-slot="field"><label class="${C.label}" for="${id}">${label}${optional ? '<span class="font-normal text-quiet"> (optional)</span>' : ''}</label>${control}${hint ? `<p class="${C.hint}" id="${id}-hint">${hint}</p>` : ''}${error ? fieldError(id, error) : ''}</div>`;
   const textInput = (id, name, value, { type = 'text', max, invalid, describe } = {}) =>
     `<input type="${type}" class="${C.input}" data-slot="input" id="${id}" autocomplete="off"${max ? ` maxlength="${max}"` : ''} name="${name}" value="${esc(value || '')}"${invalid ? ` aria-invalid="true" aria-describedby="${id}-error"` : describe ? ` aria-describedby="${describe}"` : ''}>`;
-  const tabsNav = (label, items, cls) =>
-    `<nav aria-label="${label}" class="${cls}" data-slot="tabs"><ul class="${C.tabsUl}">${items.map((t) => `<li class="m-0 shrink-0"><a${t.current ? ' aria-current="page"' : ''} class="${C.tab}" href="${t.href}">${t.label}${t.count != null ? `<span class="sr-only">:</span><span class="${C.tabCount}">${t.count}</span>` : ''}</a></li>`).join('')}</ul></nav>`;
+  // C5: shared tab strip (links, aria-current); same items as before.
+  const tabsNav = (label, items, cls) => TN.ui.tabs({ label, cls: cls.replace('font-sans ', ''), items });
   const timeline = (label, items, showState) =>
     `<ol aria-label="${label}" class="${C.timeline}" data-slot="timeline">${items.map((it, i) => {
       const last = i === items.length - 1;
@@ -383,19 +384,23 @@
   const ownerName = (dealId) => { const d = TN.deal(dealId); return d ? TN.person(d.owner).name : 'Sales'; };
   const familyName = (dealId) => { const d = TN.deal(dealId); return d ? d.title.split(' · ')[0] : dealId; };
 
+  // C3: the task status word takes its tone from the shared table (TN.ui.status) when it exists.
+  // "…not marked done" would read as done by the shared rules; it is work in progress (info).
+  if (TN.ui.statusTone && TN.ui.statusTone.add) TN.ui.statusTone.add('In progress · ticket recorded, not marked done', 'info', 'pencil-line');
+  const sharedStatus = (word, tone, icon) => (TN.ui.status ? TN.ui.status(esc(word), { sr: 'Task status: ', wrap: true }) : badge(tone, word, { wrap: true, icon, sr: 'Task status: ' }));
   function flightStatus(s) {
     const k = statusKey(s);
-    if (k === 'not_started') return badge('neutral', 'Waiting to be taken', { wrap: true, icon: 'hourglass', sr: 'Task status: ' });
-    if (k === 'completed') return badge('success', 'Done · ticket issued', { wrap: true, icon: 'circle-check', sr: 'Task status: ' });
-    if (k === 'supplier_confirmed') return badge('success', 'Confirmed by supplier', { wrap: true, icon: 'circle-check', sr: 'Task status: ' });
+    if (k === 'not_started') return sharedStatus('Waiting to be taken', 'neutral', 'hourglass');
+    if (k === 'completed') return sharedStatus('Done · ticket issued', 'success', 'circle-check');
+    if (k === 'supplier_confirmed') return sharedStatus('Confirmed by supplier', 'success', 'circle-check');
     const recorded = s.pnr && filesOf(idOf(s)).some((f) => f.kind === 'e_ticket');
-    return badge('info', recorded ? 'In progress · ticket recorded, not marked done' : 'In progress · ticket not recorded in the CRM', { wrap: true, icon: 'pencil-line', sr: 'Task status: ' });
+    return sharedStatus(recorded ? 'In progress · ticket recorded, not marked done' : 'In progress · ticket not recorded in the CRM', 'info', 'pencil-line');
   }
   function visaStatus(s) {
     const k = statusKey(s);
-    if (k === 'not_started') return badge('neutral', 'Waiting to be taken', { wrap: true, icon: 'hourglass', sr: 'Task status: ' });
-    if (k === 'completed') return badge('success', 'Completed', { wrap: true, icon: 'circle-check', sr: 'Task status: ' });
-    return badge('info', 'In progress', { wrap: true, icon: 'pencil-line', sr: 'Task status: ' });
+    if (k === 'not_started') return sharedStatus('Waiting to be taken', 'neutral', 'hourglass');
+    if (k === 'completed') return sharedStatus('Completed', 'success', 'circle-check');
+    return sharedStatus('In progress', 'info', 'pencil-line');
   }
   const idOf = (s) => Object.keys(S).find((k) => S[k] === s);
 
@@ -423,7 +428,7 @@
   const backLink = (href, text) => `<p class="m-0 mb-3"><a class="${C.back}" href="${href}">${ic('chevron-left', 'size-4')}${text}</a></p>`;
   const flashLine = (id) => { const f = UI.flash[id]; delete UI.flash[id]; return f ? notice('success', esc(f), { role: 'status', cls: 'mb-4' }) : '<div role="status" aria-live="polite" class="mb-4"></div>'; };
   const nextLine = (text, extra = '') => `<div class="mb-4 flex flex-col gap-1.5"><p class="m-0 text-copy" data-slot="task-next">${text === 'Nothing waiting.' ? text : `<span class="font-semibold text-ink">Next:</span> ${text}`}</p>${extra}</div>`;
-  const taskTabs = (base, current) => tabsNav('Task sections', [['details', 'Details', base], ['work', 'Work', base + '?tab=work'], ['files', 'Files', base + '?tab=files'], ['history', 'History', base + '?tab=history']].map(([k, l, h]) => ({ label: l, href: '#' + h, current: k === current })), C.tabsNav);
+  const taskTabs = (base, current) => tabsNav('Task sections', [['details', 'Details', base + '?tab=details'], ['work', 'Work', base + '?tab=work'], ['files', 'Files', base + '?tab=files'], ['history', 'History', base + '?tab=history']].map(([k, l, h]) => ({ label: l, href: '#' + h, current: k === current })), C.tabsNav);
 
   function historyPanel(id) {
     const items = (H[id] || []).slice().reverse().map((e) => ({ title: esc(e.title), meta: `${TN.fmt.dateTime(e.at)}${e.by ? ` · by ${esc(personName(e.by))}` : ''}`, detail: e.detail ? esc(e.detail) : '', state: 'done' }));
@@ -617,7 +622,19 @@
     return `<div class="flex flex-wrap items-center justify-between gap-2"><p class="m-0 text-sm text-copy">Payment request ${esc(sp.id)} · ${esc(TN.supplier(sp.supplier).name)} · pay by ${TN.fmt.date(sp.dueBy)}</p>${badge(tone, word, { sr: 'Payment request: ' })}</div>`;
   }
 
+  const DK = TN.desk;
+  /** O9: a finished cost line (accepted by Accounts, or paid through a checked payment request) folds to one line. */
+  const costFinished = (c) => c.status === 'accepted' || (c.paymentRequest && ((TN.DATA.supplierPayments.find((p) => p.id === c.paymentRequest) || {}).status === 'verified'));
   function costItem(c, id, dept, work) {
+    const [tone, word, icon] = c.status ? EXPENSE[c.status] : [];
+    const editing = UI.open[`edit-${c.id}`];
+    if (dept === 'flight' && costFinished(c) && !editing) {
+      const words = c.status ? EXPENSE[c.status][1] : 'Paid and checked';
+      return `<li class="m-0">${DK.fold({ cls: 'shadow-none', summary: `<span class="tabular-nums">${COST_KIND[c.kind]}${c.note ? ` (${esc(c.note)})` : ''} · ${inr(c.amount)} · ${esc(words)}</span><span class="sr-only">. Show details</span>`, body: `<ul class="m-0 list-none p-0">${costItemFull(c, id, dept, work)}</ul>` })}</li>`;
+    }
+    return costItemFull(c, id, dept, work);
+  }
+  function costItemFull(c, id, dept, work) {
     const [tone, word, icon] = c.status ? EXPENSE[c.status] : [];
     const editing = UI.open[`edit-${c.id}`];
     const paid = c.paidBy === 'company' ? `Paid by: Company · ${MODE[c.mode] || 'how not given'} · ${TN.fmt.date(c.paidOn)}${c.reference ? ` · reference ${esc(c.reference)}` : ''}` : `Paid by: ${PAID_BY[c.paidBy]}${c.reference ? ` · reference ${esc(c.reference)}` : ''}`;
@@ -648,7 +665,7 @@
       ${costs.length ? `<ol class="m-0 flex list-none flex-col gap-3 p-0" aria-label="Costs recorded">${costs.map((c) => costItem(c, id, dept, work)).join('')}</ol>` : '<p class="m-0 text-quiet">No cost recorded yet.</p>'}
       ${proofs.length ? `<ul class="m-0 flex list-none flex-col gap-1 p-0 text-sm" aria-label="Company payment proofs stored">${proofs.map((f) => `<li><a href="#" data-act="fv-open-file" rel="noopener" class="${C.link}">${esc(f.name)}</a> <span class="text-quiet">· ${f.kind === 'fee_receipt' ? 'fee receipt' : 'direct-payment proof'}</span></li>`).join('')}</ul>` : ''}
       ${work && dept === 'flight' ? `<details class="${C.details}"${UI.open[`up-${id}-proof`] ? ' open' : ''}><summary class="${C.summary}">Upload the direct-payment proof</summary><div class="${C.detailsBody}">${fileUpload(`up-${id}-proof`, 'Upload the direct-payment proof', `<input type="hidden" name="task" value="${id}">`, [['direct_payment_proof', 'Direct payment proof']])}</div></details>` : ''}
-      ${work ? (adding ? costForm(id, dept, null) : `<div><button type="button" class="${B.secondaryMd}" data-slot="button" data-act="fv-cost-new" data-id="${id}">${ic('plus')} Record a cost</button></div>`) : ''}`;
+      ${work ? (adding ? costForm(id, dept, null) : `<div><button type="button" class="${B.secondaryMd}" data-slot="button" id="fv-cost-new-${id}" data-act="fv-cost-new" data-id="${id}">${ic('plus')} Record a cost</button></div>`) : ''}`;
     return card({ id: `cost-${id}-heading`, title: dept === 'visa' ? 'Fees and costs' : 'Cost', desc: 'What the department paid, by whom and how.', body, bodyCls: C.bodyCol4 });
   }
 
@@ -656,32 +673,74 @@
      FLIGHT
      ------------------------------------------------------------------ */
   const flightRoles = ['flight', 'manager'];
+  /* Shared queue parts for Flight and Visa (C2, 16 Nov 2026). */
+  function deskTabs(dept, label, show, counts, taker, keep) {
+    const k = DK.qs({ q: keep.q, sort: keep.sort }); const amp = k ? '&' + k.slice(1) : '';
+    const def = taker ? 'not_taken' : 'all';
+    return tabsNav(label, (taker ? ['not_taken', 'mine', 'all'] : ['not_taken', 'all']).map((x) => ({ label: { not_taken: 'Not taken', mine: 'Mine', all: 'All' }[x], href: `#/app/${dept}` + (x === def ? k : `?show=${x}${amp}`), current: x === show, count: counts[x] })), C.tabsNavList);
+  }
+  function deskChips(dept, chipDefs, searched, q, show, taker) {
+    const cur = { show: show === (taker ? 'not_taken' : 'all') ? null : show, q: q.q, sort: q.sort, chip: q.chip };
+    const chip = chipDefs.find((c) => c.key === q.chip);
+    return { chip, cur, chips: chipDefs.map((c) => ({ label: esc(c.label), count: searched.filter(c.test).length, current: chip && chip.key === c.key, href: DK.withQuery(`#/app/${dept}`, cur, { chip: chip && chip.key === c.key ? null : c.key }) })).filter((c) => c.count || c.current) };
+  }
+  const rowNextCell = (dept, id, s, n) => {
+    let btn = '';
+    if (n.take) btn = DK.rowAct(`Take<span class="sr-only"> this task</span>`, 'fv-take', { task: id });
+    else if (isMine(s) && canWorkDept(dept) && !n.none && !n.who) btn = DK.rowButton(`Continue<span class="sr-only"> this task</span>`, `href="#/app/${dept}/${id}?tab=work"`);
+    return { html: `<span class="desk-next flex flex-col items-start gap-2 max-sm:items-end"><span class="text-sm text-copy">${esc(n.none ? 'Nothing waiting' : n.plain.charAt(0).toUpperCase() + n.plain.slice(1))}</span>${btn}</span>` };
+  };
+  const queueEmpty = (icon, filtered, base, emptyAll, emptyTab) => DK.state({ kind: 'empty', icon: filtered ? 'search-x' : icon, title: filtered ? 'Nothing matches' : emptyTab[0], text: filtered ? 'No task on this tab matches the search or filter. Clear them to see every task.' : emptyTab[1], action: filtered ? `<a class="${B.secondaryMd}" data-slot="button" href="${base}">Clear search and filter</a>` : '' });
+
+  /** What happens next on a flight task, in the same words in the header and the queue row. */
+  function flightNext(id, s) {
+    const taker = canWorkDept('flight');
+    if (s.taskStatus === 'done') return { none: true };
+    if (!s.assignee) return taker && s.taskStatus === 'new' ? { plain: 'take this task', take: true } : { plain: 'Flight takes this task', who: true };
+    if (!isMine(s)) return { plain: `${TN.person(s.assignee).name} works on this task`, who: true };
+    if (readyToFinish(id)) return { plain: 'mark the flight done on the Work tab', jump: `fv-done-btn-${id}`, label: 'Mark flight done' };
+    return { plain: 'issue the ticket, then record the fare on the Work tab', jump: s.pnr ? `finish-${id}-heading` : (UI.open[`new-${id}`] ? `cost-new-${id}-kind` : `fv-cost-new-${id}`), label: s.pnr ? 'Finish this flight' : 'Record the fare' };
+  }
+  const FLIGHT_CHIPS = [
+    { key: 'ready', label: 'Ready to mark done', test: (t) => t.s.taskStatus !== 'done' && !!t.s.assignee && readyToFinish(t.id) },
+    { key: 'returned', label: 'Cost returned', test: (t) => costsOf(t.id).some((c) => c.status === 'returned') },
+    { key: 'open', label: 'Ticket not recorded', test: (t) => !!t.s.assignee && t.s.taskStatus !== 'done' && !t.s.pnr },
+    { key: 'done', label: 'Done', test: (t) => t.s.taskStatus === 'done' },
+  ];
+  const flightStart = (t) => ((t.s.segments || [])[0] || {}).date || t.s.start;
+  const flightEnd = (s) => { const g = s.segments || []; return g.length ? g[g.length - 1].date : s.end; };
   function flightQueue(params, q) {
     const taker = canWorkDept('flight');
     const show = ['not_taken', 'mine', 'all'].includes(q.show) && (taker || q.show !== 'mine') ? q.show : taker ? 'not_taken' : 'all';
     const all = deptTasks('flight');
     const notTaken = all.filter((t) => !t.s.assignee && t.s.taskStatus === 'new');
     const mine = all.filter((t) => isMine(t.s));
-    const list = show === 'mine' ? mine : show === 'not_taken' ? notTaken : all;
-    const tabs = (taker ? ['not_taken', 'mine', 'all'] : ['not_taken', 'all']).map((k) => ({ label: { not_taken: 'Not taken', mine: 'Mine', all: 'All' }[k], href: '#/app/flight' + (k === (taker ? 'not_taken' : 'all') ? '' : '?show=' + k), current: k === show, count: { not_taken: notTaken.length, mine: mine.length, all: all.length }[k] }));
+    const base = show === 'mine' ? mine : show === 'not_taken' ? notTaken : all;
+    const sort = DK.SORTS.some((x) => x.value === q.sort) ? q.sort : 'soonest';
+    const searched = q.q ? base.filter((t) => { const d = TN.deal(t.s.deal) || {}; return DK.matches(q.q, [routeOf(t.s), (t.s.segments || []).map((g) => g.flight || '').join(' '), t.s.deal, d.title, d.destination, takenBy(t.s), t.s.pnr].join(' ')); }) : base;
+    const { chip, chips } = deskChips('flight', FLIGHT_CHIPS, searched, q, show, taker);
+    const list = DK.sortBy(chip ? searched.filter(chip.test) : searched, sort, flightStart, (t) => t.s.deal);
     const rows = list.map(({ id, s }) => {
       const d = TN.deal(s.deal);
-      return [
-        { html: `<a class="rounded-chip font-semibold text-brand-strong underline-offset-4 hover:text-brand-deep ${FOCUS}" href="#/app/flight/${id}">${esc(routeOf(s))}<span class="sr-only"> — open task</span></a>` },
-        { cls: 'text-sm', html: `<ul class="m-0 list-none p-0">${(s.segments || []).map((g) => `<li class="m-0 whitespace-nowrap">${esc(segText(g))}</li>`).join('')}</ul>` },
-        { cls: 'tabular-nums', html: String((s.passengers || []).length || (d.adults + d.children + d.infants)) },
-        { cls: 'whitespace-nowrap tabular-nums', html: s.budget ? inr(s.budget) : 'Budget not set' },
-        { html: flightStatus(s) },
+      const pax = (s.passengers || []).length || (d.adults + d.children + d.infants);
+      const second = costsOf(id).some((c) => c.status === 'returned') ? 'Cost returned by Accounts' : s.pnr ? `PNR ${s.pnr}` : '';
+      return { cells: [
+        { html: `<span class="desk-what flex flex-col items-start gap-0.5"><a class="rounded-chip font-semibold text-brand-strong underline-offset-4 hover:text-brand-deep ${FOCUS}" href="#/app/flight/${id}">${esc(routeOf(s))}<span class="sr-only"> — open task</span></a><span class="text-sm text-quiet">${TN.fmt.plural((s.segments || []).length, 'segment')}</span></span>` },
+        { html: `<span class="block whitespace-nowrap">${esc(DK.range(flightStart({ s }), flightEnd(s)))}</span><span class="block text-sm text-quiet">${TN.fmt.plural(pax, 'passenger')}</span>` },
+        { html: s.budget ? inr(s.budget) : 'Budget not set', numeric: true, cls: 'whitespace-nowrap' },
+        { html: `<span class="desk-status flex flex-col items-start gap-1 max-sm:items-end">${flightStatus(s)}${second ? `<span class="text-sm text-copy">${esc(second)}</span>` : ''}</span>` },
+        rowNextCell('flight', id, s, flightNext(id, s)),
         { html: esc(takenBy(s)) },
-        { cls: 'text-sm', html: `${esc(s.deal)} · Jodhpur` },
-      ];
+        { html: `<span class="whitespace-nowrap">${esc(s.deal)}</span>`, cls: 'text-sm' },
+      ] };
     });
-    const empty = all.length === 0 ? emptyState('plane', 'No tasks here yet', 'Tasks appear after Sales submits a booking with a flight.') : emptyState('plane', show === 'mine' ? 'No tasks taken by you' : 'Nothing waiting to be taken', show === 'mine' ? 'Open the Not taken tab to pick one up.' : 'Open the All tab to see who has each task.');
+    const filtered = q.q || chip;
+    const emptyTab = all.length === 0 ? ['No tasks here yet', 'Tasks appear after Sales submits a booking with a flight.'] : show === 'mine' ? ['No tasks taken by you', 'Open the Not taken tab to pick one up.'] : ['Nothing waiting to be taken', 'Open the All tab to see who has each task.'];
     return `<div class="${C.page}">
-      <header class="${C.headerList}" data-slot="page-header"><div class="min-w-0"><p class="${C.eyebrow}">Flight team</p><h1 class="${C.h1}">Flight tasks</h1><p class="${C.headDesc}">Flight tasks from submitted bookings. Issue each ticket outside the CRM, then record the fare on the task.</p></div></header>
-      <div class="mb-4">${internalLine('Customer prices and proof files are never shown here.')}</div>
-      ${tabsNav('Flight task filters', tabs, C.tabsNavList)}
-      <div class="${C.card}" data-slot="card">${list.length ? table({ label: 'Flight tasks table', caption: `${list.length} flight ${list.length === 1 ? 'task' : 'tasks'}`, heads: ['Route', 'Segments', 'Passengers', 'Approved budget', 'Status', 'Taken by', 'Deal'], rows }) : `<div role="status">${empty}</div>`}</div>
+      <header class="${C.headerList}" data-slot="page-header"><div class="min-w-0"><h1 class="${C.h1}">Flight tasks</h1><p class="${C.headDesc}">Issue each ticket outside the CRM, then record the fare on the task.</p></div></header>
+      ${deskTabs('flight', 'Flight task filters', show, { not_taken: notTaken.length, mine: mine.length, all: all.length }, taker, q)}
+      ${DK.queueToolbar({ id: 'flight-queue', act: 'desk-queue', search: { name: 'q', value: q.q || '', placeholder: 'Deal, route, airline or PNR' }, chips, sort: { name: 'sort', value: sort, options: DK.SORTS } })}
+      ${list.length ? TN.ui.table({ label: 'Flight tasks', top: true, columns: DK.cols(['What', 'Dates', { label: 'Approved budget', numeric: true }, 'Status', 'Next step', 'Who', 'Deal']), rows, caption: `${list.length} flight ${list.length === 1 ? 'task' : 'tasks'}${filtered ? ` of ${base.length} on this tab` : ''}` }) : queueEmpty('plane', filtered, '#/app/flight' + (show === (taker ? 'not_taken' : 'all') ? '' : '?show=' + show), all.length === 0, emptyTab)}
     </div>`;
   }
 
@@ -738,7 +797,7 @@
         <div role="progressbar" aria-labelledby="check-${id}-heading" aria-valuemin="0" aria-valuemax="${items.length}" aria-valuenow="${done}" aria-valuetext="${done} of ${items.length} done" class="mt-2.5 mb-3.5 h-2 overflow-hidden rounded-full bg-wash"><div class="h-full rounded-full bg-brand transition-[width] duration-(--ui-duration-base) motion-reduce:transition-none ${W[Math.round(pct / 5)]}"></div></div>
         <ul class="m-0 grid list-none grid-cols-1 gap-x-4.5 gap-y-1.5 p-0 sm:grid-cols-2">${items.map((it) => `<li class="m-0"><button type="button" data-act="fv-jump" data-target="${it.target}" class="group flex w-full cursor-pointer items-start gap-2 border-0 bg-transparent py-1.25 text-left text-sm text-copy ${FOCUS}">${it.done ? ic('circle-check', 'mt-0.5 size-4 shrink-0 text-status-success') : ic('circle', 'mt-0.5 size-4 shrink-0 text-quiet')}<span class="min-w-0"><span class="font-semibold group-hover:underline">${it.label}</span><span class="sr-only">${it.done ? ': done' : ': not done'}</span>${!it.done && it.why ? `<span class="text-quiet"> · ${esc(it.why)}</span>` : ''}</span></button></li>`).join('')}</ul>
       </section>
-      <div class="flex flex-col gap-2"><div><button type="button" class="${B.primary}" data-slot="button" data-act="fv-done" data-id="${id}">Mark flight done</button></div><p class="m-0 text-sm text-quiet">Sales and Accounts get a notice that the ticket is issued. The task then locks.</p></div>`;
+      <div class="flex flex-col gap-2"><div><button type="button" class="${B.primary}" data-slot="button" id="fv-done-btn-${id}" data-act="fv-done" data-id="${id}">Mark flight done</button></div><p class="m-0 text-sm text-quiet">Sales and Accounts get a notice that the ticket is issued. The task then locks.</p></div>`;
     return card({ id: `finish-${id}-heading`, title: 'Finish this flight', desc: 'Record the ticket, then mark the flight done.', body, bodyCls: C.bodyCol4 });
   }
 
@@ -756,60 +815,106 @@
     return `<div class="${C.card}" data-slot="card"><section aria-labelledby="inv-${id}-heading"><div class="${C.cardHead}"><div class="min-w-0"><h2 class="${C.cardTitle}" id="inv-${id}-heading">Flight lines for the invoice</h2><p class="${C.small}">These lines go on the customer’s Invoice. Sales sets the price; no price is shown here.</p></div>${ic('file-text', 'size-4 text-faint')}</div>${table({ label: 'Flight lines for the invoice', caption: `${rows.length} flight ${rows.length === 1 ? 'line' : 'lines'}`, heads: ['Route', 'Flight', 'Date', 'Passengers', 'PNR'], rows })}</section></div>`;
   }
 
+  /** C4 header for a desk task: back · record ID; title · status · owner; Next with one button; read-only line; Details fold. */
+  function deskHeader(dept, id, s, n, o) {
+    const base = `/app/${dept}/${id}`;
+    let button = null;
+    if (n.take) button = { label: 'Take this task', act: 'fv-take', data: { task: id } };
+    else if (n.jump) button = o.tab === 'work' ? { label: n.label, jump: n.jump } : { label: n.label, href: `#${base}?tab=work&focus=${n.jump}` };
+    const text = n.none ? 'Nothing waiting.' : n.take ? `take this task. ${o.takeHelp}` : esc(n.plain);
+    const viewer = TN.is('manager') ? `You can view this. ${o.team} can change it.` : s.assignee && !isMine(s) ? `You can view this. ${esc(TN.person(s.assignee).name)} can change it.` : '';
+    return DK.recordHeader({
+      back: { href: o.back, label: o.backLabel },
+      recordId: `${o.kind} · ${esc(s.deal)}`,
+      title: o.title,
+      status: o.status,
+      owner: `<span class="text-copy">Taken by: ${esc(takenBy(s))}</span>`,
+      next: n.who && !n.none ? null : { text, button },
+      nextWho: n.who && !n.none ? `${esc(n.plain)}.` : '',
+      readOnly: viewer,
+      details: o.details || '',
+    });
+  }
   function flightTask(params, q) {
     const id = params.taskId;
     const s = S[id];
     if (!s || s.dept !== 'flight') return notAvailable('#/app/flight', 'Back to Flight tasks');
     const base = `/app/flight/${id}`;
-    const tab = ['work', 'files', 'history'].includes(q.tab) ? q.tab : 'details';
     const taker = canWorkDept('flight');
     const mine = isMine(s);
     const done = s.taskStatus === 'done';
+    // D6: the person holding the task opens on Work; everyone else on Details.
+    const tab = ['details', 'work', 'files', 'history'].includes(q.tab) ? q.tab : (taker && mine ? 'work' : 'details');
     const work = taker && mine && !done;
-    const canClaim = taker && !s.assignee && s.taskStatus === 'new';
-    const actions = canClaim
-      ? `<form novalidate class="flex flex-col items-start gap-2 sm:items-end" data-act="fv-take"><input type="hidden" name="task" value="${id}"><p id="flight-claim-help" class="${C.small}">Shows colleagues you are handling it. It does not issue a ticket.</p><button type="submit" class="${B.takeLg}" data-slot="button" aria-describedby="flight-claim-help">Take this task</button><div role="status" aria-live="polite" class="w-full"></div></form>`
-      : work && tab !== 'work' ? `<a class="${B.linkLg}" href="#${base}?tab=work">${s.pnr ? 'Finish this flight' : 'Record the fare'}</a>` : '';
-    const next = done ? 'Nothing waiting.' : !s.assignee ? (canClaim ? 'take this task' : 'Flight takes this task') : mine ? (readyToFinish(id) ? 'mark the flight done on the Work tab' : 'issue the ticket, then record the fare on the Work tab') : `${TN.person(s.assignee).name} works on this task`;
     const internal = done
       ? `Internal task. Ticket issued and marked done on ${TN.fmt.dateTime(s.doneAt)}. No payment, bill or invoice was created by the CRM. Nothing has been sent to the airline or the customer by the CRM.`
       : `Internal task. Tickets are issued outside the CRM. ${mine ? 'Taking the task did not book the flight. ' : ''}Nothing has been sent to the airline or the customer by the CRM.`;
     let content;
-    if (tab === 'work') content = `<div class="flex flex-col gap-5">${costCard(id, 'flight', work)}${s.assignee ? finishCard(id, work) : ''}${s.assignee ? flightInvoiceLines(id) : ''}</div>`;
+    // O9: the steps on Work are one click away (jump links); finished cost lines fold to one line.
+    if (tab === 'work') content = `<div class="flex flex-col gap-5">${s.assignee ? DK.jumpLinks([{ href: `#cost-${id}-heading`, label: 'Cost' }, { href: `#finish-${id}-heading`, label: 'Finish this flight' }, { href: `#inv-${id}-heading`, label: 'Invoice lines' }]) : ''}${costCard(id, 'flight', work)}${s.assignee ? finishCard(id, work) : ''}${s.assignee ? flightInvoiceLines(id) : ''}</div>`;
     else if (tab === 'files') content = filesPanel(id);
     else if (tab === 'history') content = historyPanel(id);
     else content = flightDetails(id);
     return `<div class="${C.page}">
-      ${backLink('#/app/flight', 'Back to Flight tasks')}
-      <header class="${C.headerTask}" data-slot="page-header"><div class="min-w-0"><p class="${C.eyebrow}">Flight task · ${esc(s.deal)}</p><h1 class="${C.h1}"><span class="block wrap-anywhere">${esc(routeOf(s))}</span></h1><div class="${C.statusRow}">${flightStatus(s)}<span class="text-copy">Taken by: ${esc(takenBy(s))}</span></div></div>${actions ? `<div class="${C.actions}">${actions}</div>` : ''}</header>
+      ${deskHeader('flight', id, s, flightNext(id, s), { tab, back: '#/app/flight', backLabel: 'Back to Flight tasks', kind: 'Flight task', team: 'The Flight team', title: esc(routeOf(s)), status: flightStatus(s), takeHelp: 'It shows colleagues you are handling it; it does not issue a ticket.', details: internalLine(internal) })}
       ${UI.flash[id] ? flashLine(id) : ''}
-      ${nextLine(next, internalLine(internal))}
       ${taskTabs(base, tab)}
       ${content}
     </div>`;
   }
 
   TN.page('/app/flight', { nav: '/app/flight', roles: flightRoles, title: 'Flight tasks', render: flightQueue });
-  TN.page('/app/flight/:taskId', { nav: '/app/flight', roles: flightRoles, title: 'Flight task', render: flightTask });
+  TN.page('/app/flight/:taskId', { nav: '/app/flight', roles: flightRoles, title: 'Flight task', render: flightTask, mount: (root, p, q) => TN.desk.focusFromQuery(q) });
 
   /* ------------------------------------------------------------------
      VISA AND PASSPORT
      ------------------------------------------------------------------ */
   const visaRoles = ['visa', 'manager'];
+  const VISA_CHIPS = [
+    { key: 'result', label: 'Waiting for a result', test: (t) => (t.s.applicants || []).some((a) => a.state === 'submitted' || a.state === 'decision_pending') },
+    { key: 'docs', label: 'Documents pending', test: (t) => (t.s.applicants || []).some((a) => a.state === 'docs_pending') },
+    { key: 'returned', label: 'Cost returned', test: (t) => costsOf(t.id).some((c) => c.status === 'returned') },
+    { key: 'done', label: 'Completed', test: (t) => t.s.taskStatus === 'done' },
+  ];
+  /** What happens next on a visa task (header and queue row). */
+  function visaNext(id, s) {
+    const taker = canWorkDept('visa');
+    if (s.taskStatus === 'done') return { none: true };
+    if (!s.assignee) return taker && s.taskStatus === 'new' ? { plain: 'take this task', take: true } : { plain: 'the Visa and passport desk takes this task', who: true };
+    if (!isMine(s)) return { plain: `${TN.person(s.assignee).name} works on this task`, who: true };
+    const open = (s.applicants || []).find((a) => !isClosed(a));
+    return { plain: 'finish the open application steps', jump: open ? `app-${id}-${open.seq}-heading` : null, label: 'Continue the applications' };
+  }
   function visaQueue(params, q) {
     const taker = canWorkDept('visa');
     const show = ['not_taken', 'mine', 'all'].includes(q.show) && (taker || q.show !== 'mine') ? q.show : taker ? 'not_taken' : 'all';
     const all = deptTasks('visa');
     const notTaken = all.filter((t) => !t.s.assignee && t.s.taskStatus === 'new');
     const mine = all.filter((t) => isMine(t.s));
-    const list = show === 'mine' ? mine : show === 'not_taken' ? notTaken : all;
-    const tabs = (taker ? ['not_taken', 'mine', 'all'] : ['not_taken', 'all']).map((k) => ({ label: { not_taken: 'Not taken', mine: 'Mine', all: 'All' }[k], href: '#/app/visa' + (k === (taker ? 'not_taken' : 'all') ? '' : '?show=' + k), current: k === show, count: { not_taken: notTaken.length, mine: mine.length, all: all.length }[k] }));
-    const items = list.map(({ id, s }) => `<li class="m-0 flex flex-col gap-1.5 px-4.5 py-3.5 sm:flex-row sm:items-center sm:justify-between"><div class="min-w-0"><p class="m-0 font-semibold text-ink"><a class="rounded-chip text-brand-strong underline underline-offset-4 hover:text-brand-deep ${FOCUS}" href="#/app/visa/${id}">Visa · ${esc(visaTitle(s))}</a></p><p class="m-0 text-sm text-copy">${esc(visaFactsLine(s))}</p><p class="${C.small}">${esc(s.deal)} · Jodhpur · ${TN.fmt.plural(s.applicants.length, 'applicant')} · Taken by: ${esc(takenBy(s))}</p></div>${visaStatus(s)}</li>`).join('');
-    const empty = all.length === 0 ? emptyState('stamp', 'No tasks here yet', 'Tasks appear after Sales submits a booking with a visa or passport service.') : emptyState('stamp', show === 'mine' ? 'No tasks taken by you' : 'Nothing waiting to be taken', show === 'mine' ? 'Open the Not taken tab to pick one up.' : 'Open the All tab to see who has each task.');
+    const base = show === 'mine' ? mine : show === 'not_taken' ? notTaken : all;
+    const sort = DK.SORTS.some((x) => x.value === q.sort) ? q.sort : 'soonest';
+    const searched = q.q ? base.filter((t) => { const d = TN.deal(t.s.deal) || {}; return DK.matches(q.q, [visaTitle(t.s), t.s.deal, d.title, takenBy(t.s)].join(' ')); }) : base;
+    const { chip, chips } = deskChips('visa', VISA_CHIPS, searched, q, show, taker);
+    const list = DK.sortBy(chip ? searched.filter(chip.test) : searched, sort, (t) => t.s.visa.travelDate, (t) => t.s.deal);
+    const rows = list.map(({ id, s }) => {
+      const issued = s.applicants.filter((a) => a.state === 'issued').length;
+      const second = s.assignee && s.taskStatus !== 'done' ? `${issued} of ${s.applicants.length} issued` : '';
+      return { cells: [
+        { html: `<span class="desk-what flex flex-col items-start gap-0.5"><a class="rounded-chip font-semibold text-brand-strong underline-offset-4 hover:text-brand-deep ${FOCUS}" href="#/app/visa/${id}">Visa · ${esc(visaTitle(s))}<span class="sr-only"> — open task</span></a>${s.visa.applyBy ? `<span class="text-sm text-quiet whitespace-nowrap">Apply by ${TN.fmt.date(s.visa.applyBy)}</span>` : ''}</span>` },
+        { html: `<span class="block whitespace-nowrap">Travel ${TN.fmt.date(s.visa.travelDate)}</span><span class="block text-sm text-quiet">${TN.fmt.plural(s.applicants.length, 'applicant')}</span>` },
+        { html: `<span class="desk-status flex flex-col items-start gap-1 max-sm:items-end">${visaStatus(s)}${second ? `<span class="text-sm text-copy">${esc(second)}</span>` : ''}</span>` },
+        rowNextCell('visa', id, s, visaNext(id, s)),
+        { html: esc(takenBy(s)) },
+        { html: `<span class="whitespace-nowrap">${esc(s.deal)}</span>`, cls: 'text-sm' },
+      ] };
+    });
+    const filtered = q.q || chip;
+    const emptyTab = all.length === 0 ? ['No tasks here yet', 'Tasks appear after Sales submits a booking with a visa or passport service.'] : show === 'mine' ? ['No tasks taken by you', 'Open the Not taken tab to pick one up.'] : ['Nothing waiting to be taken', 'Open the All tab to see who has each task.'];
     return `<div class="${C.page}">
-      <header class="${C.headerList}" data-slot="page-header"><div class="min-w-0"><p class="${C.eyebrow}">Visa and passport desk</p><h1 class="${C.h1}">Visa and passport tasks</h1><p class="${C.headDesc}">Visa and passport tasks from submitted bookings.</p></div></header>
-      ${tabsNav('Visa and passport task filters', tabs, C.tabsNavList)}
-      <div class="${C.card}" data-slot="card"><section aria-labelledby="visa-queue-heading"><div class="${C.cardHead}"><h2 class="${C.cardTitle}" id="visa-queue-heading">Tasks</h2><span class="text-sm text-quiet">${list.length} ${list.length === 1 ? 'task' : 'tasks'}</span></div>${list.length ? `<ol class="m-0 flex list-none flex-col divide-y divide-line p-0" aria-label="Visa and passport tasks">${items}</ol>` : `<div role="status">${empty}</div>`}</section></div>
+      <header class="${C.headerList}" data-slot="page-header"><div class="min-w-0"><h1 class="${C.h1}">Visa and passport tasks</h1><p class="${C.headDesc}">From submitted bookings, one application per traveller.</p></div></header>
+      ${deskTabs('visa', 'Visa and passport task filters', show, { not_taken: notTaken.length, mine: mine.length, all: all.length }, taker, q)}
+      ${DK.queueToolbar({ id: 'visa-queue', act: 'desk-queue', search: { name: 'q', value: q.q || '', placeholder: 'Deal, country or family name' }, chips, sort: { name: 'sort', value: sort, options: DK.SORTS } })}
+      ${list.length ? TN.ui.table({ label: 'Visa and passport tasks', top: true, columns: DK.cols(['What', 'Dates', 'Status', 'Next step', 'Who', 'Deal']), rows, caption: `${list.length} ${list.length === 1 ? 'task' : 'tasks'}${filtered ? ` of ${base.length} on this tab` : ''}` }) : queueEmpty('stamp', filtered, '#/app/visa' + (show === (taker ? 'not_taken' : 'all') ? '' : '?show=' + show), all.length === 0, emptyTab)}
     </div>`;
   }
 
@@ -891,16 +996,12 @@
     const s = S[id];
     if (!s || s.dept !== 'visa') return notAvailable('#/app', 'Back to Home');
     const base = `/app/visa/${id}`;
-    const tab = ['work', 'files', 'history'].includes(q.tab) ? q.tab : 'details';
     const taker = canWorkDept('visa');
     const mine = isMine(s);
     const done = s.taskStatus === 'done';
+    // D6: the person holding the task opens on Work; everyone else on Details.
+    const tab = ['details', 'work', 'files', 'history'].includes(q.tab) ? q.tab : (taker && mine ? 'work' : 'details');
     const canWork = taker && mine && !done;
-    const canClaim = taker && !s.assignee && s.taskStatus === 'new';
-    const actions = canClaim
-      ? `<form novalidate data-act="fv-take"><input type="hidden" name="task" value="${id}"><button type="submit" class="${B.primary}" data-slot="button">Take this task</button></form>`
-      : canWork && tab !== 'work' ? `<a class="${B.linkLg}" href="#${base}?tab=work">Continue the applications</a>` : '';
-    const next = done ? 'Nothing waiting.' : !s.assignee ? (canClaim ? 'take this task' : 'the Visa and passport desk takes this task') : mine ? 'finish the steps on the Work tab' : `${TN.person(s.assignee).name} works on this task`;
     const v = s.visa;
     const details = `<div class="flex flex-col gap-5">${card({ id: 'visa-details-heading', title: 'Service', bodyCls: C.bodyCol3, body: `<dl class="m-0 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 max-sm:grid-cols-1"><dt class="text-sm font-semibold text-quiet">Service</dt><dd class="m-0">${esc(visaFactsLine(s))}</dd><dt class="text-sm font-semibold text-quiet">Government fee paid by</dt><dd class="m-0">${v.feePaidBy === 'company' ? 'Company pays (expense record for Accounts; no approval bypass)' : v.feePaidBy === 'customer' ? 'Customer pays the government fee directly' : 'Not decided yet'}</dd><dt class="text-sm font-semibold text-quiet">From</dt><dd class="m-0">Accepted version ${s.versionNo || 1} · ${TN.fmt.date(s.savedAt)}</dd><dt class="text-sm font-semibold text-quiet">Applicants</dt><dd class="m-0">${s.applicants.length}</dd></dl>${notice('restricted', 'Private applicant documents: Visa &amp; Passport desk and branch Manager only.')}` })}${mine ? `<div>${idProofsCard(id, s.applicants)}</div>` : ''}</div>`;
     const taken = !!s.assignee;
@@ -911,17 +1012,15 @@
     else if (tab === 'files') content = filesPanel(id);
     else if (tab === 'history') content = historyPanel(id);
     return `<div class="${C.page}">
-      ${backLink('#/app/visa', 'Back to Visa and passport tasks')}
-      <header class="${C.headerTask}" data-slot="page-header"><div class="min-w-0"><p class="${C.eyebrow}">Visa task · ${esc(s.deal)}</p><h1 class="${C.h1}"><span class="block wrap-anywhere">${esc(visaTitle(s))}</span></h1><div class="${C.statusRow}">${visaStatus(s)}<span class="text-copy">Taken by: ${esc(takenBy(s))}</span></div></div>${actions ? `<div class="${C.actions}">${actions}</div>` : ''}</header>
+      ${deskHeader('visa', id, s, visaNext(id, s), { tab, back: '#/app/visa', backLabel: 'Back to Visa and passport tasks', kind: 'Visa task', team: 'The Visa and passport desk', title: esc(visaTitle(s)), status: visaStatus(s), takeHelp: 'One application per traveller appears; nothing is filed yet.' })}
       ${flashLine(id)}
-      ${nextLine(next)}
       ${taskTabs(base, tab)}
       ${content}
     </div>`;
   }
 
   TN.page('/app/visa', { nav: '/app/visa', roles: visaRoles, title: 'Visa and passport tasks', render: visaQueue });
-  TN.page('/app/visa/:taskId', { nav: '/app/visa', roles: visaRoles, title: 'Visa task', render: visaTask });
+  TN.page('/app/visa/:taskId', { nav: '/app/visa', roles: visaRoles, title: 'Visa task', render: visaTask, mount: (root, p, q) => TN.desk.focusFromQuery(q) });
 
   /* ------------------------------------------------------------------
      Actions
@@ -934,13 +1033,14 @@
   TN.act('fv-jump', (el) => focusLater(`#${el.dataset.target}`));
 
   TN.act('fv-take', (f) => {
-    const id = fd(f).task; const s = S[id];
+    const id = f.tagName === 'FORM' ? fd(f).task : f.dataset.task; const s = S[id];
+    if (!s || !canWorkDept(s.dept)) { TN.toast('You can’t take this task.', 'danger'); return; }
     if (s.assignee) { TN.toast('Someone at the desk took this task first.', 'danger'); TN.refresh(); return; }
     s.assignee = me(); s.taskStatus = 'in_progress'; s.takenAt = NOW();
     if (s.dept === 'visa') s.applicants.forEach((a) => { if (!a.state) { a.state = 'docs_pending'; a.documents = a.documents || docs(a.type === 'child' ? DOCS_CHILD : DOCS_ADULT, 'missing'); } });
     addH(id, 'Task taken');
     UI.flash[id] = s.dept === 'visa' ? 'The task is yours. Nothing has been filed yet.' : 'The task is yours. Taking it did not book the flight.';
-    TN.refresh();
+    TN.go(`/app/${s.dept}/${id}?tab=work`);
   });
 
   /* Costs */

@@ -244,7 +244,8 @@ const freshState=()=>({
   plan:[],
   acceptance:null,
   claimOpen:false,
-  save:{cust:'idle',pax:'idle',price:'idle',bill:'idle',plan:'idle'},
+  save:{cust:'idle',pax:'idle',price:'idle',bill:'idle',plan:'idle',sep:'idle'},
+  sep:{prices:{},split:false},  // billing 24 Nov 2026 (plan 3.1): selling price per separately billed service; flights one ticket booking or separate
   why:{},
   fare:{A:'',C:'',I:''},  // fix #18: total fare per person (adult, child, infant), typed only when the flights have no fares
   version:1,returned:'',from:''
@@ -287,7 +288,7 @@ function custIssues(){
   if(!t.type) out.push('Choose domestic or international.');
   if(n.a==null) out.push('Enter the number of adults.');
   else if(n.a<1) out.push('At least one adult travels.');
-  if(!c.confirmed) out.push('Check the mobile or email with the customer, then tick the box.');
+  // Owner 24 Nov 2026: no contact confirmation box; saved contact details count as confirmed.
   return out;
 }
 function paxIssues(){
@@ -391,7 +392,7 @@ function aside(){
    <div class="s-item">${ic('cal')}<div>Travel date<div class="s-val">${t.start?fmtD(t.start)+(tripNights()!=null?' · '+plural(tripNights(),'night'):''):'Not entered'}</div></div></div>
    <div class="s-item">${ic('users')}<div>Passengers<div class="s-val">${n.total!=null?paxText(n):'Not entered'}</div></div></div>
    ${cnt?`<div class="s-item">${ic('compass')}<div>Services<div class="s-val">${cnt}</div></div></div>`:''}
-   ${S.step===3?`<div class="s-item">${ic('receipt')}<div>Package selling total<div class="s-val">${ps.total!=null?inr(ps.total):'Not worked out yet'}</div></div></div>`:''}
+   ${S.step===3?`<div class="s-item">${ic('receipt')}<div>Package selling total<div class="s-val">${ps.total!=null?inr(ps.total):'Not worked out yet'}</div>${sepShown()?`<div class="hint" id="asideSep">Billed separately ${sepInr(sepState().sumP)}</div>`:''}</div></div>`:''}
   </aside>`;
 }
 const paxText=n=>`${plural(n.total,'traveller')} (${plural(n.a,'adult')}${n.c?', '+plural(n.c,'child','children'):''}${n.i?', '+plural(n.i,'infant'):''})`;
@@ -439,7 +440,7 @@ function step1(){
         <div class="g3">${stepperRow('adults','Adults')}${stepperRow('children','Children')}${stepperRow('infants','Infants')}</div>
         <div class="hint" style="margin-top:8px">${n.total!=null?`Total: ${n.total}. A passenger row appears for each one below.`:'Set how many travel. A passenger row appears for each one below.'}</div>
       </div>`}
-      <label class="check" style="margin-top:18px"><input type="checkbox" data-cust="confirmed" ${c.confirmed?'checked':''}><span><b style="color:var(--ink)">I confirmed the contact details with the customer</b><span class="hint" style="display:block">${b.on?'Ticking this also marks the mobile number and email from Bitrix as checked.':'Changing the phone or email asks again.'}</span></span></label>
+      
       <div class="err" id="why-cust" style="margin-top:12px;${S.save.cust==='fix'?'':'display:none'}">${ic('alert')}<span>${esc(S.why.cust)}</span></div>
     </div>
   </section>
@@ -545,6 +546,7 @@ function readyItems(){
     {k:'id',label:'ID proof for adults',done:S.pax.length>0&&S.pax.filter(p=>p.type==='Adult').every(p=>p.files.length),why:'Attach ID proof on step 1',go:1},
     {k:'s2',label:'Trip & services',done:!svcIssues().filter(x=>!x.startsWith('Flight')).length,why:svcIssues()[0]||'',go:2},
     {k:'price',label:'Package price',done:S.save.price==='saved'&&ps.total!=null,why:ps.block||'Fill the final sale per person',target:'sec-price'},
+    ...(sepShown()?[sepReady()]:[]),
     {k:'bill',label:'Bill To',done:S.save.bill==='saved',why:'Choose or add the customer to bill',target:'sec-bill'},
     {k:'plan',label:'Payment plan',done:S.plan.length>0&&ps.total!=null&&planTot===ps.total,why:'Instalments must add up to the total',target:'sec-plan'},
     {k:'ok',label:'Customer’s written OK',done:!!S.acceptance,why:'Upload the customer’s yes',target:'sec-ok'}
@@ -558,7 +560,7 @@ function step3(){
     <div class="bar"><i style="width:${Math.round(done/items.length*100)}%"></i></div>
     <div class="ready-list">${items.map(it=>`<button class="ready-item" type="button" data-ready="${it.go||''}" data-target="${it.target||''}">${it.done?ic('ok','c-ok'):ic('circle','c-q')}<span><span class="lbl2">${it.label}</span>${it.done?'':`<span class="why"> · ${esc(it.why)}</span>`}</span></button>`).join('')}</div>
   </section>
-  ${priceCard()}${billCard()}${planCard()}${okCard()}${claimCard()}${reviewCard()}${submitCard(items)}`;
+  ${priceCard()}${sepCard()}${billCard()}${planCard()}${okCard()}${claimCard()}${reviewCard()}${submitCard(items)}`;
 }
 function priceCard(){
   const L=priceLines(),ps=priceState(),n=counts();
@@ -573,6 +575,87 @@ function priceCard(){
     <div class="ptot"><span class="hint">${n.total!=null?`${n.total} / ${n.total} passengers`:''}</span><div><span class="hint">Package selling total</span><strong id="pTotal">${ps.total!=null?inr(ps.total):'Not worked out yet'}</strong><div class="draft" id="pDraft">${S.save.price==='saved'||ps.total==null?'':'Working out, not saved yet'}</div></div></div>
     <p class="hint" style="margin:12px 0 0">Purchase, Flight and the Visa desk never see these prices. No tax is calculated here.</p>
    </div></section>`;
+}
+/* ---------- Billing 24 Nov 2026 (build plan 3.1): "Services billed separately" ----------
+   The only change to the approved form. Shown under "Package price" when the Deal has more than one bill
+   group (grouping rules, plan section 2). Prices are part of the Deal total; the package bill is the rest.
+   Sales and the branch Manager only (Book now is closed to Purchase, Flight and Visa). Saves itself like
+   the Package price card. Switch "Book now price box" (service_prices_enabled) is On for Jodhpur here. */
+const SEP_ON=()=>!(TN.BILLING&&TN.BILLING.servicePricesEnabled===false);
+const sepInr=p=>p==null?'Not worked out yet':'₹'+(p/100).toLocaleString('en-IN',{maximumFractionDigits:2});
+const toPaise=v=>Math.round(Number(v)*100);
+const fRoute=f=>f.mode==='shot'?'From screenshot':`${f.from} – ${f.to}`;
+function sepGroups(){
+  const land=['hotel','car','activity'].filter(k=>S.svc[k].length),g=[];
+  if(land.length>=2)g.push({key:'PKG',kind:'package',pkg:true,label:'Package bill · the rest of the Deal total'});
+  else if(land[0]==='hotel')S.svc.hotel.forEach((h,i)=>g.push({key:'HTL:'+h.id,kind:'hotel',head:`Hotel ${i+1}`,icon:'bed',label:`Hotel ${i+1} · ${h.hotel}, ${h.city} · ${plural(Number(h.nights),'night')}`}));
+  else if(land[0]==='car')g.push({key:'TRF',kind:'transfer',head:'Transfers',icon:'car',label:`Transfers · ${plural(S.svc.car.reduce((s,c)=>s+Number(c.qty||1),0),'car')}`});
+  else if(land[0]==='activity')g.push({key:'ACT',kind:'activity',head:'Activities',icon:'compass',label:`Activities · ${plural(S.svc.activity.length,'activity','activities')}`});
+  const fl=S.svc.flight;
+  if(fl.length){
+    if(S.sep.split&&fl.length>1)fl.forEach((f,i)=>g.push({key:'FLT:'+f.id,kind:'flight',flight:true,head:`Flight ${i+1}`,icon:'plane',label:`Flight ${i+1} · ${fRoute(f)} · ${plural(f.pax.length,'passenger')}`}));
+    else g.push({key:'FLT',kind:'flight',flight:true,head:'Flights',icon:'plane',label:`Flights · ${fl.map(fRoute).join(', ')} · ${plural(new Set(fl.flatMap(f=>f.pax)).size,'passenger')}`});
+  }
+  if(S.svc.visa.length)g.push({key:'VIS',kind:'visa',head:'Visa',icon:'file',label:`Visa · ${[...new Set(S.svc.visa.map(v=>v.country))].join(', ')} · ${plural(new Set(S.svc.visa.flatMap(v=>v.pax)).size,'applicant')}`});
+  if(S.svc.passport.length)g.push({key:'PPT',kind:'passport',head:'Passport',icon:'shield',label:`Passport · ${plural(new Set(S.svc.passport.flatMap(v=>v.pax)).size,'applicant')}`});
+  return g;
+}
+function sepShown(){return SEP_ON()&&sepGroups().length>1}
+function sepState(){
+  const groups=sepGroups(),typed=groups.filter(g=>!g.pkg),hasPkg=groups.some(g=>g.pkg);
+  const tot=priceState().total,totP=tot==null?null:toPaise(tot);
+  const vals={},missing=[],bad=[];let sumP=0;
+  typed.forEach(g=>{const raw=String(S.sep.prices[g.key]??'').trim();
+    if(raw===''){missing.push(g);return}
+    if(!/^\d+(\.\d{1,2})?$/.test(raw)){bad.push(g);return}
+    const p=toPaise(raw);vals[g.key]=p/100;sumP+=p});
+  const issues=[];
+  if(bad.length)issues.push('Use rupees, 0 or more, with up to 2 decimals.');
+  if(missing.length)issues.push(`Type the selling price for ${missing.map(g=>g.head).join(', ')}.`);
+  if(totP!=null&&sumP>totP)issues.push('The separately billed services add up to more than the Deal total.');
+  else if(totP!=null&&!hasPkg&&!missing.length&&!bad.length&&sumP!==totP)issues.push(`These prices must add up to the Deal total. ${sepInr(totP-sumP)} is left to split.`);
+  return{groups,typed,hasPkg,totP,sumP,vals,missing,bad,issues,pkgP:hasPkg&&totP!=null&&sumP<=totP?totP-sumP:null,leftP:!hasPkg&&totP!=null?totP-sumP:null};
+}
+function sepReady(){
+  const st=sepState();
+  const why=st.missing.length?`Type the selling price for ${st.missing.map(g=>g.head).join(', ')}`:(st.issues[0]||'Fill the final sale per person').replace(/\.$/,'');
+  return{k:'sep',label:'Selling price for each separately billed service',done:!st.issues.length&&st.totP!=null&&S.save.sep!=='saving',why,target:'sec-sep'};
+}
+function sepTotals(st){
+  const row=(l,v,id,strong)=>`<div class="sep-t${strong?' sep-strong':''}"><span class="hint">${l}</span><span${id?` id="${id}"`:''}>${v}</span></div>`;
+  return st.hasPkg
+    ?row('Deal selling total',sepInr(st.totP))+row('Services billed separately',sepInr(st.sumP),'sepSum')+row('Package bill',sepInr(st.pkgP),'sepPkg',true)
+    :row('Deal selling total',sepInr(st.totP))+row('Left to split',sepInr(st.leftP),'sepLeft',true);
+}
+function sepCard(){
+  if(!sepShown())return'';
+  const st=sepState(),fl=S.svc.flight,fix=S.save.sep==='fix';
+  const inv=g=>fix&&(st.missing.includes(g)||st.bad.includes(g));
+  const rowH=g=>`<div class="sep-row"><div class="sep-l">${ic(g.icon)}<span>${esc(g.label)}</span></div>
+     <div class="f sep-f"><label for="sep-${esc(g.key)}">Selling price ₹</label><div class="money"><span>₹</span><input class="in" id="sep-${esc(g.key)}" data-sep="${esc(g.key)}" inputmode="decimal" autocomplete="off" aria-label="${esc(g.head)}, selling price, rupees" aria-describedby="why-sep" ${inv(g)?'aria-invalid="true"':''} value="${esc(S.sep.prices[g.key]??'')}"></div></div></div>`;
+  const tick=fl.length>1?`<label class="check sep-tick"><input type="checkbox" id="sepSplit" ${S.sep.split?'checked':''}><span>Each flight is a separate ticket booking</span></label>`:'';
+  let rows='',tickDone=false;
+  st.typed.forEach((g,i)=>{rows+=rowH(g);const nx=st.typed[i+1];if(g.flight&&!(nx&&nx.flight)&&!tickDone){rows+=tick;tickDone=true}});
+  return`<section class="card" id="sec-sep" aria-labelledby="sep-h">
+   <div class="card-h"><h3 id="sep-h">${ic('receipt')}Services billed separately</h3><span class="grow"></span>${savePill('sep')}</div>
+   <div class="card-b">
+    <p class="hint" style="margin:0 0 14px">${st.hasPkg?'Each service below gets its own bill. Out of the Deal total, type what the customer pays for each one. The package bill is the rest.':'Each service below gets its own bill. Type what the customer pays for each one. Together they must equal the Deal total.'}</p>
+    <div class="sep-rows">${rows}</div>
+    <div class="ptot sep-tot" id="sepTot" aria-live="polite">${sepTotals(st)}</div>
+    <div class="err" id="why-sep" style="margin-top:8px;${fix?'':'display:none'}">${ic('alert')}<span>${esc(S.why.sep||'')}</span></div>
+    <p class="hint" style="margin:12px 0 0">Purchase, Flight and the Visa desk never see these prices. No tax is calculated here.</p>
+   </div></section>`;
+}
+function sepLive(){
+  const box=byId('sepTot');if(!box)return;const st=sepState(),fix=S.save.sep==='fix';
+  box.innerHTML=sepTotals(st);
+  const w=byId('why-sep');if(w){w.style.display=fix?'':'none';w.querySelector('span').textContent=S.why.sep||''}
+  $$('[data-sep]').forEach(i=>{const g=st.typed.find(x=>x.key===i.dataset.sep);if(fix&&g&&(st.missing.includes(g)||st.bad.includes(g)))i.setAttribute('aria-invalid','true');else i.removeAttribute('aria-invalid')});
+  const a=byId('asideSep');if(a)a.textContent='Billed separately '+sepInr(st.sumP);
+}
+function bindSep(){
+  $$('[data-sep]').forEach(i=>i.oninput=()=>{S.sep.prices[i.dataset.sep]=i.value;autosave('sep',()=>sepState().issues);sepLive()});
+  const sp=byId('sepSplit');if(sp)sp.onchange=()=>{S.sep.split=sp.checked;autosave('sep',()=>sepState().issues);render();byId('sepSplit')?.focus()};
 }
 function billCard(){
   const b=S.bill;
@@ -664,12 +747,12 @@ function submitCard(items){
 /* ---------- Footer ---------- */
 function footer(){
   const unsaved=Object.entries(S.save).filter(([,v])=>v==='saving'||v==='fix');
-  const names={cust:'Customer & trip',pax:'Passengers',price:'Package price',bill:'Bill To',plan:'Payment plan'};
+  const names={cust:'Customer & trip',pax:'Passengers',price:'Package price',bill:'Bill To',plan:'Payment plan',sep:'Services billed separately'};
   const fixes=Object.entries(S.save).filter(([,v])=>v==='fix');
   const msg=fixes.length?`Not saved: ${fixes.map(([k])=>names[k]).join(', ')} · <a data-gofix="${fixes[0][0]}">Go to fix</a>`:unsaved.length?'Saving…':'All changes saved';
   return`<div class="foot" id="foot"><div class="msg" id="footMsg">Step ${S.step} of 3 · ${msg}</div><div class="foot-b">
    ${S.step>1?`<button class="btn sec lg" type="button" data-go="${S.step-1}">${ic('arrowL')}Back</button>`:''}
-   ${S.step<3?`<button class="btn pri lg" type="button" data-go="${S.step+1}">Go to step ${S.step+1}${ic('arrowR')}</button>`:`<button class="btn pri lg" type="button" id="footSubmit">Review and submit</button>`}
+   ${S.step<3?`<button class="btn pri lg" type="button" data-go="${S.step+1}">Go to step ${S.step+1}${ic('arrowR')}</button>`:`<button class="btn pri lg" type="button" id="footSubmit" aria-controls="submitBtn">Submit booking and create tasks</button>`}
   </div></div>`;
 }
 
@@ -682,6 +765,7 @@ function refreshLive(){
   if(S.step===3){
     const ps=priceState(),tt=byId('pTotal');if(tt)tt.textContent=ps.total!=null?inr(ps.total):'Not worked out yet';
     const d=byId('pDraft');if(d)d.textContent=S.save.price==='saved'||ps.total==null?'':'Working out, not saved yet';
+    sepLive();
   }
   const rd=byId('ready');
   if(rd){const tmp=document.createElement('div');tmp.innerHTML=step3();rd.replaceWith(tmp.querySelector('#ready'));bindReady()}
@@ -696,7 +780,9 @@ function refreshLive(){
 function bindFooter(){
   $$('#foot [data-go]').forEach(b=>b.onclick=()=>go(Number(b.dataset.go)));
   const g=$('#foot [data-gofix]');if(g)g.onclick=()=>{const k=g.dataset.gofix;const step=k==='cust'||k==='pax'?1:3;go(step,'sec-'+k)};
-  const fs=byId('footSubmit');if(fs)fs.onclick=()=>byId('ready').scrollIntoView({behavior:'smooth'});
+  /* O1 (owner-approved 16 Nov 2026): the sticky button has the real submit's label; it scrolls to the real
+     "Submit booking and create tasks" and focuses it (no smooth scroll: it is a repeated action). */
+  const fs=byId('footSubmit');if(fs)fs.onclick=()=>{const sb=byId('submitBtn');if(!sb){byId('ready').scrollIntoView();return}sb.scrollIntoView({block:'center'});sb.focus({preventScroll:true})};
 }
 function go(n,target){S.step=n;render();window.scrollTo(0,0);if(target)setTimeout(()=>byId(target)?.scrollIntoView({behavior:'smooth',block:'start'}),50)}
 function bindPage(){
@@ -739,6 +825,7 @@ function bindPage(){
     if(f==='f'&&P.p!==''){P.m=String(Number(P.f)-Number(P.p));const o=$(`[data-price="${k}.m"]`);if(o)o.value=P.m}
     autosave('price',()=>{const ps=priceState();return ps.block?[ps.block]:[]});
   });
+  bindSep();
   $$('[data-btype]').forEach(b=>b.onclick=()=>{S.bill.type=b.dataset.btype;render()});
   const bt=$('#billType');if(bt)bt.onclick=()=>{S.bill.mode='form';render()};
   const ba=$('#billAdd');if(ba)ba.onclick=()=>{S.bill.mode='form';render();toast('Add the customer here. It is saved to the customer list as Not checked.')};
@@ -1151,6 +1238,45 @@ const SEED={
     S.svc.activity=[otherRow({name:'Phi Phi Islands day tour by speedboat',city:'Phuket',date:'2026-12-14'})];
     S.step=2;
   },
+  /* Billing preview (24 Nov 2026, plan 3.1): Dubai package with a separately billed flight and visa. All saved; ready to submit. */
+  'BX-10105':()=>{
+    S.cust.confirmed=true;named('Manish Tanwar','Rekha Tanwar','Aditi Tanwar','Kunal Tanwar');
+    S.pax.forEach(p=>{p.files=[`passport-${p.name.toLowerCase().replace(/ /g,'-')}.pdf`];p.copy='copied'});
+    S.chosen=new Set(['hotel','car','flight','visa']);
+    S.svc.hotel=[hotelRow({city:'Dubai',hotel:'Rove Downtown',checkin:'2026-12-18',nights:'3',room:'Rove room',meal:'Breakfast',rooms:'2',roomRate:'9400'}),
+                 hotelRow({city:'Dubai',hotel:'JA Ocean View Hotel',checkin:'2026-12-21',nights:'2',room:'Sea view room',meal:'Breakfast',rooms:'2',roomRate:'12800'})];
+    S.svc.car=[carRow({kind:'pickup',vehicle:'Toyota HiAce',pickup:'Dubai airport (DXB)',drop:'Rove Downtown, Dubai',date:'2026-12-18',time:'09:40',rate:'4200'}),
+               carRow({kind:'p2p',vehicle:'Toyota HiAce',pickup:'Rove Downtown, Dubai',drop:'JA Ocean View Hotel, Dubai',date:'2026-12-21',rate:'3600'}),
+               carRow({kind:'drop',vehicle:'Toyota HiAce',pickup:'JA Ocean View Hotel, Dubai',drop:'Dubai airport (DXB)',date:'2026-12-23',time:'18:00',rate:'4200'})];
+    S.svc.flight=[flightRow({from:'AMD',to:'DXB',date:'2026-12-18',adate:'2026-12-18',airline:'Emirates',no:'EK 539',dep:'04:25',arr:'06:30',fareA:'12400'}),
+                  flightRow({from:'DXB',to:'AMD',date:'2026-12-23',adate:'2026-12-24',airline:'Emirates',no:'EK 538',dep:'22:05',arr:'02:40',fareA:'10900',isReturn:true})];
+    S.svc.visa=[otherRow({country:'United Arab Emirates',vtype:'Tourism',date:'2026-12-18'})];
+    S.prices.adult={p:'101000',m:'16000',f:'117000'};
+    const c=TN.customer('c-tanwar');
+    S.bill={mode:'form',type:'personal',name:c.name,contact:'',phone:c.phone,email:c.email,addr:'27, Ratanada Main Road',city:'Jodhpur',state:'Rajasthan',pin:'342011',gst:'',gstin:'',reason:''};
+    S.plan=[{label:'Advance',amount:'200000',due:'2026-11-02'},{label:'Balance',amount:'268000',due:'2026-12-04'}];
+    S.acceptance='WhatsApp-OK-Manish-Tanwar-26-Oct.png';
+    S.sep={prices:{FLT:'96000',VIS:'14000'},split:false};
+    Object.assign(S.save,{cust:'saved',pax:'saved',price:'saved',bill:'saved',plan:'saved',sep:'saved'});
+    S.step=3;
+  },
+  /* Billing preview: hotels only, two hotel bookings (no package). Prices do not add up yet. */
+  'BX-10106':()=>{
+    S.cust.confirmed=true;named('Arvind Rawat','Seema Rawat');
+    S.pax.forEach(p=>{p.files=[`aadhaar-${p.name.toLowerCase().replace(/ /g,'-')}.pdf`];p.copy='copied'});
+    S.chosen=new Set(['hotel']);
+    S.svc.hotel=[hotelRow({city:'Mount Abu',hotel:'Hilltone',checkin:'2026-12-05',nights:'2',room:'Deluxe room',meal:'Breakfast',roomRate:'8200'}),
+                 hotelRow({city:'Udaipur',hotel:'Trident',checkin:'2026-12-07',nights:'2',room:'Lake view room',meal:'Breakfast',roomRate:'13400'})];
+    S.prices.adult={p:'38000',m:'5000',f:'43000'};
+    const c=TN.customer('c-rawat');
+    S.bill={mode:'form',type:'personal',name:c.name,contact:'',phone:c.phone,email:c.email,addr:'9, Shastri Nagar, Sector C',city:'Jodhpur',state:'Rajasthan',pin:'342003',gst:'',gstin:'',reason:''};
+    S.plan=[{label:'Full payment',amount:'86000',due:'2026-11-20'}];
+    S.acceptance='WhatsApp-OK-Arvind-Rawat-25-Oct.png';
+    S.sep={prices:{['HTL:'+S.svc.hotel[0].id]:'48000',['HTL:'+S.svc.hotel[1].id]:'34000'},split:false};
+    Object.assign(S.save,{cust:'saved',pax:'saved',price:'saved',bill:'saved',plan:'saved',sep:'fix'});
+    S.why.sep='These prices must add up to the Deal total. ₹4,000 is left to split.';
+    S.step=3;
+  },
   /* Udaipur: returned by Accounts; open on the fix. */
   'BX-38520':(d)=>{
     S.version=2;S.returned=d.returnReason||'';
@@ -1265,6 +1391,7 @@ function submitBooking(){
     TN.DATA.services[id]={deal:d.id,assignee:null,taskStatus:'new',...svc};ids.push(id);
   }
   const cost=rows.reduce((s,r)=>s+(r.svc.budget||0),0);
+  if(sepShown()){const st=sepState();d.billPlan={split:S.sep.split,groups:st.groups.map(g=>({key:g.key,kind:g.kind,label:g.label,price:g.pkg?st.pkgP/100:(st.vals[g.key]??null)}))}}else d.billPlan=null;
   Object.assign(d,{bookingState:'waiting_for_accounts',accountsReview:'waiting',submittedAt:TN.TODAY,sellingPrice:ps.total,costEstimate:cost||null,services:ids,bookingVersion:S.version,billTo:{...S.bill},returnReason:null});
   TN.DATA.instalments=TN.DATA.instalments.filter(x=>x.deal!==d.id);
   S.plan.forEach(x=>TN.DATA.instalments.push({deal:d.id,label:x.label,due:x.due,amount:Number(x.amount)||0,paid:0,status:'due'}));

@@ -2,3 +2,6 @@
    UA [hidden] rule. These parts are shown and hidden in place (payment mode, claim
    panels, add-account kind, expense return form), so keep [hidden] winning. */
 [data-modes][hidden], [data-claim-panel][hidden], [data-kind][hidden], [data-kind-none][hidden], form[data-act][hidden] { display: none !important; }
+/* Agent D (redesign, 16 Nov). List detail rows fold open on demand; the live stacked-row
+   rule (max-sm:block) would otherwise beat [hidden] on phones. */
+tr[data-acc-detail][hidden] { display: none !important; }

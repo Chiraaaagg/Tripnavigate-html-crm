@@ -162,7 +162,7 @@
   }
   const amount = (v) => `<span class="font-semibold whitespace-nowrap tabular-nums">${v}</span>`;
   /** Live Deal page money is shown in rupees and paise (formatPaise). */
-  const rs = (n) => (n == null ? '—' : TN.fmt.inr(n) + '.00');
+  const rs = (n) => { if (n == null) return '—'; const t = TN.fmt.inr(n); return /\.\d\d$/.test(t) ? t : t + '.00'; };
   const notEntered = (t = 'Not entered yet') => `<span class="font-normal text-quiet italic">${esc(t)}</span>`;
   const subHeading = (id, t) => `<h3 id="${id}" class="m-0 text-base font-semibold text-ink">${esc(t)}</h3>`;
   const quietNote = (icon, text, iconCls = 'text-faint') => `<p class="m-0 flex gap-2 text-sm text-quiet">${ic(icon, 'mt-0.5 size-3.5 shrink-0 ' + iconCls)}<span>${text}</span></p>`;
@@ -170,9 +170,6 @@
   const liveIndicator = '<p class="live-indicator live" role="status" aria-live="polite"><span aria-hidden="true" class="status-glyph">●</span>Live updates on</p>';
   const freshness = (text) => `<p class="m-0 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-quiet" data-slot="freshness">${ic('refresh-cw', 'size-3.5 shrink-0 text-faint')}<span>${esc(text)}</span></p>`;
   const backLink = (href, text) => `<p class="m-0 mb-3"><a class="${BACK}" href="${href}">${ic('chevron-left', 'size-4')}${esc(text)}</a></p>`;
-  function tabsNav(label, items) {
-    return `<nav aria-label="${esc(label)}" class="font-sans mb-4" data-slot="tabs"><ul class="m-0 flex list-none flex-wrap gap-1 border-b border-line p-0 sm:flex-nowrap sm:overflow-x-auto">${items.map((t) => `<li class="m-0 shrink-0"><a${t.current ? ' aria-current="page"' : ''} class="${TAB}" href="${t.href}">${esc(t.label)}</a></li>`).join('')}</ul></nav>`;
-  }
   function rowDetails(ref, pairs) {
     return `<details class="group/details max-w-80 text-sm" data-slot="row-details"><summary class="inline-flex min-h-8 cursor-pointer list-none items-center rounded-chip px-1 font-medium text-brand-strong underline decoration-1 underline-offset-4 hover:text-brand-deep [&::-webkit-details-marker]:hidden ${FOCUS}">Details<span class="sr-only"> for ${esc(ref)}</span></summary><div class="mt-2.5 rounded-control border border-line bg-canvas px-3 py-2.5 text-left text-copy"><dl class="m-0 flex flex-col gap-1.5">${pairs.map(([k, v]) => `<div class="flex flex-col"><dt class="text-xs font-semibold text-quiet">${esc(k)}</dt><dd class="m-0 wrap-anywhere text-copy">${esc(v)}</dd></div>`).join('')}</dl></div></details>`;
   }
@@ -187,6 +184,106 @@
   function timeline(label, events) {
     return `<ol aria-label="${esc(label)}, newest first" class="m-0 flex list-none flex-col p-0 font-sans" data-slot="timeline">${events.map((e, i) => `<li class="relative m-0 flex gap-3 pb-4 last:pb-0">${i < events.length - 1 ? '<span aria-hidden="true" class="absolute top-6 bottom-0 left-2.25 w-px bg-line-strong"></span>' : ''}${ic(e.icon, 'relative mt-0.5 size-4.5 shrink-0 bg-card text-status-success')}<div class="min-w-0 flex-1"><p class="m-0 text-base text-ink">${e.title}</p><p class="m-0 text-sm text-quiet">${esc(e.when)}</p>${e.note ? `<div class="mt-0.75 text-sm text-copy">${e.note}</div>` : ''}</div></li>`).join('')}</ol>`;
   }
+
+  /* ---------- Redesign parts (16 Nov 2026) ----------
+     The shared helpers in 11-ui.js (TN.ui.recordHeader, status, queueToolbar, fold,
+     jumpLinks, tabs) are used when present; each fallback below has the same shape. */
+  const cap1 = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+  const firstSentence = (s) => { const i = String(s).indexOf('. '); return i > 0 ? s.slice(0, i + 1) : s; };
+  const endDot = (s) => (/[.!?]$/.test(s) ? s : s + '.');
+  const dataAttrs = (o) => Object.entries(o || {}).map(([k, v]) => ` data-${k}="${esc(v)}"`).join('');
+  const MON3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  /** "14–18 Nov 2026", "28 Nov – 2 Dec 2026", "30 Dec 2026 – 3 Jan 2027" (never wraps where it is used). */
+  function dateRange(a, b) {
+    if (!a) return '—';
+    if (!b || a === b) return TN.fmt.date(a);
+    const [y1, m1, d1] = a.split('-').map(Number), [y2, m2, d2] = b.split('-').map(Number);
+    if (y1 === y2 && m1 === m2) return `${d1}–${d2} ${MON3[m2 - 1]} ${y2}`;
+    if (y1 === y2) return `${d1} ${MON3[m1 - 1]} – ${d2} ${MON3[m2 - 1]} ${y2}`;
+    return `${TN.fmt.date(a)} – ${TN.fmt.date(b)}`;
+  }
+  /** C3 status: shared tone table when present; our own tone and icon otherwise. word is plain text. */
+  function statusBadge(word, tone, icon, o = {}) {
+    if (TN.ui && TN.ui.status) return TN.ui.status(esc(word), { second: o.second, sr: (o.sr || 'Status:') + ' ', wrap: o.wrap });
+    return `<span class="inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-1">${badge(tone, icon, word, o.sr || 'Status:', o.wrap)}${o.second ? `<span class="text-sm text-quiet">${o.second}</span>` : ''}</span>`;
+  }
+  /** C11 fold-out. */
+  function fold(o) {
+    if (TN.ui && TN.ui.fold) return TN.ui.fold(o);
+    return `<details class="rounded-control border border-line bg-canvas px-3.5 py-2.5${o.cls ? ' ' + o.cls : ''}"${o.id ? ` id="${o.id}"` : ''}${o.open ? ' open' : ''}><summary class="cursor-pointer rounded-chip font-semibold text-brand-strong underline decoration-1 underline-offset-4 ${FOCUS}">${o.summary}</summary><div class="mt-3 flex flex-col gap-3">${o.body}</div></details>`;
+  }
+  /** In-page links that move focus to the target. */
+  function jumpLinks(items) {
+    if (TN.ui && TN.ui.jumpLinks) return TN.ui.jumpLinks(items);
+    return `<nav aria-label="On this tab" class="flex flex-wrap items-center gap-x-4 gap-y-1 font-sans text-sm"><span class="text-quiet">Go to:</span>${items.map((i) => `<a class="${LINK_SOFT}" href="${i.href}" data-act="sales-jump" data-target="${i.href}">${esc(i.label)}</a>`).join('')}</nav>`;
+  }
+  TN.act('sales-jump', (el) => {
+    const t = document.querySelector(el.dataset.target);
+    if (!t) return;
+    const focusable = /^(A|BUTTON|INPUT|SELECT|TEXTAREA|SUMMARY)$/.test(t.tagName);
+    if (!focusable && !t.hasAttribute('tabindex')) t.setAttribute('tabindex', '-1');
+    t.scrollIntoView({ block: 'start' });
+    t.focus({ preventScroll: true });
+  });
+  /** C4 record header: back · ID / title · status · owner / Next + one primary button / folded Details. */
+  function recordHeader(o) {
+    if (TN.ui && TN.ui.recordHeader) return TN.ui.recordHeader(o);
+    const b = o.next && o.next.button;
+    let button = '';
+    if (b) {
+      button = b.href
+        ? `<a class="${btnClass('primary')}" href="${b.href}">${esc(b.label)}</a>`
+        : `<button type="button" class="${btnClass('primary')}" data-slot="button" data-act="${b.jump ? 'sales-jump' : b.act}"${b.jump ? ` data-target="${b.jump}"` : ''}${dataAttrs(b.data)}>${esc(b.label)}</button>`;
+    }
+    const nextLine = (t) => `<p class="m-0 text-copy" data-slot="record-next"><span class="font-semibold text-ink">Next:</span> ${t}</p>`;
+    return `${o.back ? backLink(o.back.href, o.back.label) : ''}<header class="mb-4 flex flex-col gap-2.5 font-sans" data-slot="page-header">${o.recordId ? `<p class="m-0 text-sm font-medium text-quiet"><span class="wrap-anywhere">${o.recordId}</span></p>` : ''}<div class="flex flex-wrap items-center gap-x-3 gap-y-2"><h1 class="m-0 min-w-0 text-2xl leading-tight font-display tracking-heading text-ink max-sm:text-xl"><span class="wrap-anywhere">${o.title}</span></h1>${o.status ? `<span class="inline-flex flex-wrap items-center gap-2">${o.status}</span>` : ''}${o.owner || ''}</div>${o.next ? `<div class="flex flex-wrap items-center gap-x-4 gap-y-2">${nextLine(o.next.text)}${button}</div>` : ''}${!o.next && o.nextWho ? nextLine(o.nextWho) : ''}${o.readOnly ? `<p class="m-0 text-sm text-quiet">${o.readOnly}</p>` : ''}${o.details ? fold({ summary: 'Details', body: o.details, cls: 'self-start' }) : ''}</header>`;
+  }
+  /** C2 toolbar: one search field, at most four chips (rest under More), sort select. One form, submits on Enter. */
+  function queueBar(o) {
+    const shown = o.chips.slice(0, 4);
+    const rest = o.chips.slice(4);
+    const curRest = rest.filter((c) => c.current);
+    const moreList = rest.filter((c) => !c.current);
+    // Shared toolbar: it keeps the other filters, adds q and sort to the address, folds chips after four under "More"
+    // and shows "Clear search" itself.
+    if (TN.ui && TN.ui.queueToolbar) return TN.ui.queueToolbar({ id: o.id, label: o.label, chipsLabel: o.chipsLabel, search: o.search, chips: o.chips, sort: o.sort });
+    const chipHtml = (list) => list.map((c) => `<li class="m-0"><a${c.current ? ' aria-current="page"' : ''} class="${c.current ? CHIP_ON : CHIP_OFF}" href="${c.href}">${c.current ? ic('check', 'size-3.5 shrink-0') : ''}<span>${esc(c.label)}</span>${c.count == null ? '' : `<span class="font-semibold tabular-nums ${c.current ? 'text-white' : 'text-brand-strong'}">(${c.count})</span>`}</a></li>`).join('');
+    const more = moreList.length ? `<li class="m-0"><details class="relative" data-slot="chip-more"><summary class="${CHIP_OFF} cursor-pointer list-none [&::-webkit-details-marker]:hidden">More<span class="sr-only"> filters</span>${ic('chevron-down', 'size-3.5 shrink-0')}</summary><ul class="m-0 mt-2 flex list-none flex-wrap gap-2 p-0">${chipHtml(moreList)}</ul></details></li>` : '';
+    const s = o.search, so = o.sort;
+    return `<form role="search" novalidate class="mb-4 flex flex-col gap-3 font-sans lg:flex-row lg:items-end" data-act="${o.act}" id="${o.id}" aria-label="${esc(o.label || 'Find in this list')}"><div class="flex min-w-0 flex-col gap-1 lg:w-80 lg:shrink-0"><label for="${o.id}-q" class="text-sm font-semibold text-ink">Search</label><div class="flex gap-2"><div class="relative min-w-0 flex-1">${ic('search', 'pointer-events-none absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2 text-quiet')}<input type="search" class="${INPUT} pl-9!" data-slot="input" id="${o.id}-q" name="${s.name}" value="${esc(s.value || '')}" placeholder="${esc(s.placeholder)}" autocomplete="off" enterkeyhint="search"></div>${btn('Search', { type: 'submit', icon: 'search', extra: 'min-h-10' })}</div></div>${o.chips.length ? `<nav aria-label="${esc(o.chipsLabel || 'Filter by status')}" class="min-w-0 flex-1"><ul class="m-0 flex list-none flex-wrap items-start gap-2 p-0">${chipHtml([...shown, ...curRest])}${more}</ul></nav>` : '<span class="flex-1"></span>'}${so ? `<div class="flex flex-col gap-1 lg:w-56 lg:shrink-0"><label for="${o.id}-sort" class="text-sm font-semibold text-ink">Sort</label><div class="relative" data-slot="select"><select class="${INPUT} cursor-pointer pr-9" id="${o.id}-sort" name="${so.name}" data-change="${o.act}">${so.options.map((x) => `<option value="${esc(x.value)}"${x.value === so.value ? ' selected' : ''}>${esc(x.label)}</option>`).join('')}</select>${ic('chevron-down', 'pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-quiet')}</div></div>` : ''}</form>`;
+  }
+  /** List query string from the current filters (keeps the ones not changed). */
+  function listHref(path, q, change) {
+    const p = new URLSearchParams();
+    const all = { ...q, ...change };
+    Object.entries(all).forEach(([k, v]) => { if (v != null && v !== '') p.set(k, v); });
+    const s = p.toString();
+    return `#${path}${s ? '?' + s : ''}`;
+  }
+  /** Search submit and sort change for a list toolbar: the form holds q and sort; other filters stay. */
+  function bindListForm(act, path, keep) {
+    TN.act(act, (el) => {
+      const f = el.tagName === 'FORM' ? el : el.form;
+      if (!f) return;
+      const fd = new FormData(f);
+      const q = TN.query();
+      const next = {};
+      keep.forEach((k) => { if (q[k]) next[k] = q[k]; });
+      const text = String(fd.get('q') || '').trim();
+      if (text) next.q = text;
+      const sort = fd.get('sort');
+      if (sort) next.sort = sort;
+      TN.go(listHref(path, next, {}).slice(1));
+    });
+  }
+  const digitsOf = (s) => String(s || '').replace(/\D/g, '');
+  /** Full phone number only (D10): exact match on digits, with or without the 91 country code. */
+  const phoneMatch = (typed, phone) => {
+    const a = digitsOf(typed), b = digitsOf(phone);
+    if (a.length < 10 || !b) return false;
+    const strip = (x) => (x.length === 12 && x.startsWith('91') ? x.slice(2) : x.length === 11 && x.startsWith('0') ? x.slice(1) : x);
+    return strip(a) === strip(b);
+  };
 
   /* ---------- Form parts (live Field / Input / Select / Textarea / ErrorSummary) ---------- */
   function fieldErr(msg) { return msg ? `<p class="m-0 flex items-start gap-1.5 font-sans text-sm font-medium text-status-danger" id="%ID%-error">${ic('circle-alert', 'lucide-alert-circle mt-0.5 size-3.5 shrink-0')}${esc(msg)}</p>` : ''; }
@@ -324,37 +421,67 @@
   const LEAD_SEEN = { owner: 'you own it', branch_manager: 'you manage this branch', integration_admin: 'you manage the Bitrix connection' };
   const ownerCell = (key) => (key ? `<span class="wrap-break-word">${esc(who(key))}</span>` : badge('warning', 'hourglass', 'Waiting for owner'));
 
+  const LEAD_FILTERS = [
+    ['new', 'New', (l) => l.status === 'New'],
+    ['in_progress', 'In progress', (l) => l.status === 'In progress'],
+    ['quotation_sent', 'Quotation sent', (l) => l.status === 'Quotation sent'],
+    ['follow_up', 'Follow-up', (l) => l.status === 'Follow-up'],
+    ['converted', 'Converted to deal', (l) => l.status === 'Converted'],
+    ['lost', 'Lost', (l) => l.status === 'Lost'],
+    ['no_owner', 'Waiting for owner', (l) => !l.owner],
+  ];
+  const leadCanQuote = (l) => TN.can('seeQuotations') && (l.owner === me().key || TN.is('manager')) && l.status !== 'Converted' && l.status !== 'Lost';
+  bindListForm('sales-leads-find', '/app/leads', ['view', 'filter']);
   TN.page('/app/leads', {
     nav: '/app/leads', roles: ['sales', 'manager', 'admin'], title: 'Leads',
     render(_, q) {
-      const all = D.leads.filter(leadVisible).sort((a, b) => b.id.localeCompare(a.id));
+      const all = D.leads.filter(leadVisible);
       const mine = all.filter((l) => l.owner === me().key);
-      const filter = q.filter === 'mine' ? 'mine' : 'all';
-      const rows = filter === 'mine' ? mine : all;
-      const head = `<header class="mb-5 flex flex-col gap-4 font-sans sm:flex-row sm:items-end sm:justify-between" data-slot="page-header"><div class="min-w-0"><h1 class="m-0 text-2xl leading-tight font-display tracking-heading text-ink max-sm:text-xl">Leads</h1><p class="m-0 mt-1.5 text-base text-quiet">Leads from Bitrix. Follow them up in Bitrix; make quotations here.</p><div class="mt-2.5 flex flex-wrap items-center gap-2 text-sm text-quiet">${freshness('Bitrix data updated 12 minutes ago.')}</div></div></header>`;
-      const filters = `<div class="mb-4 flex flex-col gap-4"><div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 font-sans" data-slot="filter-chips">${chips('Filter leads', [
-        { label: 'All leads you can see', count: all.length, href: '#/app/leads', on: filter === 'all' },
-        { label: 'Mine', count: mine.length, href: '#/app/leads?filter=mine', on: filter === 'mine' },
-      ])}<p class="m-0 text-xs text-quiet">Counts include all pages.</p></div></div>`;
+      // Old address ?filter=mine is the "Mine" tab.
+      const view = q.view === 'mine' || q.filter === 'mine' ? 'mine' : 'all';
+      const st = LEAD_FILTERS.find((f) => f[0] === q.filter);
+      const pool = view === 'mine' ? mine : all;
+      const text = String(q.q || '').trim().toLowerCase();
+      let rows = st ? pool.filter(st[2]) : pool;
+      if (text) rows = rows.filter((l) => (leadRef(l) + ' ' + l.id + ' ' + leadTitle(l) + ' ' + (l.deal || '')).toLowerCase().includes(text));
+      const asc = q.sort === 'id_asc';
+      rows = [...rows].sort((a, b) => (asc ? a.id.localeCompare(b.id) : b.id.localeCompare(a.id)));
+      const base = { view: view === 'mine' ? 'mine' : '', filter: st ? st[0] : '', q: q.q || '', sort: q.sort || '' };
+      const head = TN.ui.pageHeader({ title: 'Leads', description: 'Leads from Bitrix. Follow them up in Bitrix; make quotations here.' });
+      const tabs = TN.ui.tabs({ label: 'Which leads', cls: 'mb-4', items: [
+        { label: 'All leads you can see', count: all.length, href: listHref('/app/leads', { ...base, view: '' }, {}), current: view === 'all' },
+        { label: 'Mine', count: mine.length, href: listHref('/app/leads', { ...base, view: 'mine' }, {}), current: view === 'mine' },
+      ] });
+      const bar = queueBar({ id: 'leads-find', act: 'sales-leads-find', label: 'Find a lead',
+        search: { name: 'q', label: 'Find a lead', value: q.q || '', placeholder: 'Name, trip or BXL- reference' },
+        chipsLabel: 'Filter leads by Bitrix status',
+        chips: LEAD_FILTERS.map(([k, label, fn]) => ({ label, count: pool.filter(fn).length, current: st && st[0] === k, href: listHref('/app/leads', { ...base, filter: st && st[0] === k ? '' : k }, {}) })),
+        sort: { name: 'sort', value: asc ? 'id_asc' : '', options: [{ value: '', label: 'Newest lead first' }, { value: 'id_asc', label: 'Oldest lead first' }] } });
+      const found = text && !TN.ui.queueToolbar ? `<p class="m-0 mb-3 text-sm text-copy" role="status">${TN.fmt.plural(rows.length, 'lead')} ${rows.length === 1 ? 'matches' : 'match'} “${esc(q.q)}”.${TN.ui.queueToolbar ? '' : ` <a class="${LINK_SOFT}" href="${listHref('/app/leads', { ...base, q: '' }, {})}">Clear search</a>`}</p>` : '';
       let body;
       if (!rows.length) {
-        body = card(emptyState('inbox', 'Nothing matches this filter', 'No lead you own is in the CRM yet.', btn('Clear filters', { href: '#/app/leads' })), { role: 'status' });
+        body = card(emptyState('inbox', 'Nothing matches', text ? 'No lead you can see matches this search.' : view === 'mine' && !st ? 'No lead you own is in the CRM yet.' : 'No lead you can see has this status.', btn('Clear filters', { href: '#/app/leads' })), { role: 'status' });
       } else {
-        const tr = rows.map((l) => {
-          const rel = leadVisible(l);
-          return `<tr role="row" class="${TR}" data-search="${esc((leadRef(l) + ' ' + leadTitle(l)).toLowerCase())}">${
-            td('Customer and trip', `<a class="${ROW_LINK_WRAP}" data-slot="row-link" href="#/app/leads/${l.id}">${esc(leadTitle(l))}</a><span class="block text-sm text-quiet">${leadRef(l)}</span>`)}${
-            td('Status', bitrixName(l.status === 'Converted' ? 'Converted to deal' : l.status))}${
-            td('Source', bitrixName(l.source))}${
-            td('Owner', ownerCell(l.owner))}${
-            td('Branch', 'Jodhpur')}${
-            td('Created', TN.fmt.date(l.created), 'whitespace-nowrap')}${
-            td('', rowDetails(leadRef(l), [['Bitrix lead', '#' + l.id.slice(2)], ['Status', `Bitrix code: ${STATUS_CODE[l.status] || 'NEW'}.`], ['Source', `Bitrix code: ${SOURCE_CODE[l.source] || 'OTHER'}.`], ['Created in Bitrix', TN.fmt.dateTime(leadTime(l))], ['Last checked with Bitrix', TN.fmt.dateTime(lastChecked)], ['Why you see it', `You see this lead because ${LEAD_SEEN[rel]}.`]]))}</tr>`;
-        }).join('');
-        const range = `1–${rows.length} of ${rows.length} leads`;
-        body = tableCard('Leads table', 'leads-table', range, ['Customer and trip', 'Status', 'Source', 'Owner', 'Branch', 'Created', '<span class="sr-only">Details</span>'], tr, pagerNav('Lead pages', range));
+        body = TN.ui.table({ label: 'Leads table', id: 'leads-table', top: true,
+          columns: ['Customer and trip', 'Created', 'Status', 'Next step', 'Owner', 'Deal'],
+          rows: rows.map((l) => {
+            const rel = leadVisible(l);
+            const statusText = l.status === 'Converted' ? 'Converted to deal' : l.status;
+            const nextText = l.status === 'Converted' ? 'Work on the deal' : l.status === 'Lost' ? 'Nothing while the lead is lost in Bitrix' : 'Follow up in Bitrix';
+            const rowBtn = leadCanQuote(l) ? `<div class="mt-1.5">${btn('New quotation', { size: 'sm', href: `#/app/leads/${l.id}?tab=quotations`, sr: `for ${leadRef(l)}` })}</div>` : '';
+            return { attrs: { 'data-search': (leadRef(l) + ' ' + leadTitle(l)).toLowerCase() }, cells: [
+              { html: `<a class="${ROW_LINK_WRAP}" data-slot="row-link" href="#/app/leads/${l.id}">${esc(leadTitle(l))}</a><span class="block text-sm text-quiet">${leadRef(l)}</span>`, noLabel: true, cls: 'min-w-40' },
+              { html: TN.fmt.date(l.created), cls: 'whitespace-nowrap' },
+              `${bitrixName(statusText)}<span class="block text-sm text-quiet">Source: ${esc(l.source)}</span>`,
+              `<span class="text-copy">${esc(nextText)}</span>${rowBtn}`,
+              ownerCell(l.owner),
+              `${l.deal ? `<a class="${ROW_LINK}" href="#/app/deals/${l.deal}">${l.deal}</a>` : '<span class="whitespace-nowrap text-quiet">None yet</span>'}${rowDetails(leadRef(l), [['Bitrix lead', '#' + l.id.slice(2)], ['Status', `Bitrix code: ${STATUS_CODE[l.status] || 'NEW'}.`], ['Source', `Bitrix code: ${SOURCE_CODE[l.source] || 'OTHER'}.`], ['Branch', 'Jodhpur'], ['Created in Bitrix', TN.fmt.dateTime(leadTime(l))], ['Last checked with Bitrix', TN.fmt.dateTime(lastChecked)], ['Why you see it', `You see this lead because ${LEAD_SEEN[rel]}.`]])}`,
+            ] };
+          }),
+          footer: (TN.ui.pager || ((o) => pagerNav(o.label, o.text)))({ label: 'Lead pages', text: `1–${rows.length} of ${rows.length} leads` }),
+        });
       }
-      return `<div class="font-sans text-base text-copy">${head}${filters}${body}<p class="m-0 mt-3 text-sm text-quiet">Sorted by Bitrix lead number, newest first.</p></div>`;
+      return `<div class="font-sans text-base text-copy">${head}${tabs}${bar}${found}${body}<div class="mt-3">${freshness('Bitrix data updated 12 minutes ago.')}</div></div>`;
     },
   });
 
@@ -395,8 +522,17 @@
       const canQuote = quotesOk && (l.owner === me().key || TN.is('manager')) && l.status !== 'Converted' && l.status !== 'Lost';
       const statusText = l.status === 'Converted' ? 'Converted to deal' : l.status;
       const next = l.status === 'Converted' ? `work on deal <a class="${LINK}" href="#/app/deals/${l.deal}">${l.deal}</a>` : l.status === 'Lost' ? 'nothing while the lead is lost in Bitrix' : 'follow up in Bitrix';
-      const head = `${backLink('#/app/leads', 'Back to leads')}<header class="flex flex-col gap-4 font-sans sm:flex-row sm:items-end sm:justify-between mb-3" data-slot="page-header"><div class="min-w-0"><p class="m-0 mb-1 text-sm font-medium text-quiet">${leadRef(l)}</p><h1 class="m-0 text-2xl leading-tight font-display tracking-heading text-ink max-sm:text-xl"><span class="block wrap-anywhere">${esc(leadTitle(l))}</span></h1><div class="mt-2.5 flex flex-wrap items-center gap-2 text-sm text-quiet">${bitrixName(statusText)}${l.owner ? `<span class="inline-flex max-w-full min-w-0 items-center gap-1.5 wrap-break-word text-copy">${ic('user-round', 'lucide-user-2 size-4 shrink-0 text-faint')}<span class="min-w-0">Owner: <span class="font-semibold text-ink">${esc(who(l.owner))}</span></span></span>` : badge('warning', 'hourglass', 'Waiting for owner')}<span class="inline-flex items-center gap-1.5 text-copy">${ic('building-complex', 'lucide-building-2 size-4 shrink-0 text-faint')}Jodhpur</span></div></div>${canQuote ? `<div class="flex min-w-min flex-wrap items-center gap-2 max-sm:[&>*]:flex-1"><a class="${btnClass('primary')}" data-slot="lead-primary" href="#/app/leads/${l.id}?tab=quotations">${ic('file-plus-corner', 'lucide-file-plus-2')}New quotation</a></div>` : ''}</header><div class="mb-4 flex flex-col gap-2"><p class="m-0 text-copy"><span class="font-semibold text-ink">Next:</span> ${next}${l.owner && l.status !== 'Converted' ? `<span class="text-quiet"> · ${esc(who(l.owner))}</span>` : ''}</p></div>`;
-      const tabs = tabsNav('Lead sections', tabsAll.map(([k, label]) => ({ label, href: `#/app/leads/${l.id}${k === 'overview' ? '' : '?tab=' + k}`, current: k === tab })));
+      const ownerHtml = l.owner ? `<span class="inline-flex max-w-full min-w-0 items-center gap-1.5 wrap-break-word text-sm text-copy">${ic('user-round', 'lucide-user-2 size-4 shrink-0 text-faint')}<span class="min-w-0">Owner: <span class="font-semibold text-ink">${esc(who(l.owner))}</span></span></span>` : badge('warning', 'hourglass', 'Waiting for owner');
+      const head = recordHeader({
+        back: { href: '#/app/leads', label: 'Back to leads' },
+        recordId: leadRef(l),
+        title: esc(leadTitle(l)),
+        status: bitrixName(statusText),
+        owner: ownerHtml,
+        next: { text: `${cap1(next)}${l.owner && l.status !== 'Converted' ? `<span class="text-quiet"> · ${esc(who(l.owner))}</span>` : ''}`, button: canQuote && tab !== 'quotations' ? { label: 'New quotation', href: `#/app/leads/${l.id}?tab=quotations` } : null },
+        details: summaryList([['Branch', 'Jodhpur'], ['Bitrix lead', '#' + l.id.slice(2)]]),
+      });
+      const tabs = TN.ui.tabs({ label: 'Lead sections', cls: 'mb-4', items: tabsAll.map(([k, label]) => ({ label, href: `#/app/leads/${l.id}${k === 'overview' ? '' : '?tab=' + k}`, current: k === tab })) });
       let body;
       if (tab === 'bitrix') {
         body = sectionCard('lead-bitrix-heading', 'Bitrix details', summaryList([
@@ -425,33 +561,68 @@
   /* =====================================================================
      DEALS LIST  (#/app/deals) · live (DL-01..DL-05), every role
      ===================================================================== */
-  const DEAL_FILTERS = {
-    overdue: ['Customer payment overdue', (d) => TN.can('seeCustomerPayments') && overdueOf(d.id).length > 0],
-    returned: ['Returned by Accounts', (d) => d.bookingState === 'returned'],
-    changes: ['Change waiting for the customer', (d) => D.changes.some((c) => c.deal === d.id && c.status === 'waiting_customer')],
-  };
+  /* Status filters. The Home "What needs you" rows open the list with one of these (?filter=...). */
+  const DEAL_FILTERS = [
+    ['needs_booking', 'Needs booking', (d) => ['not_started', 'quotation_accepted'].includes(d.bookingState)],
+    ['drafts', 'Drafts to continue', (d) => ['in_progress', 'ready_to_submit', 'returned'].includes(d.bookingState)],
+    ['returned', 'Returned by Accounts', (d) => d.bookingState === 'returned'],
+    ['arranging', 'Being arranged', (d) => d.bookingState === 'being_arranged'],
+    ['missing_details', 'Drafts missing details', (d) => d.bookingState === 'in_progress' && (d.sellingPrice == null || !d.services.length)],
+    ['waiting_accounts', 'Waiting for Accounts', (d) => d.bookingState === 'waiting_for_accounts'],
+    ['confirmed', 'All services confirmed', (d) => d.bookingState === 'all_confirmed'],
+    ['overdue', 'Customer payment overdue', (d) => TN.can('seeCustomerPayments') && overdueOf(d.id).length > 0],
+    ['changes', 'Change waiting for the customer', (d) => D.changes.some((c) => c.deal === d.id && c.status === 'waiting_customer')],
+    ['lost', 'Lost in Bitrix', (d) => d.bookingState === 'lost'],
+  ];
+  const DEAL_SORT = [{ value: '', label: 'Newest Bitrix number first' }, { value: 'id_asc', label: 'Oldest Bitrix number first' }, { value: 'travel', label: 'Soonest travel first' }];
+  /** Reference, Bitrix number, customer name, trip; full phone number for the roles that hold the customer (D10). */
+  function dealMatches(d, typed) {
+    const t = typed.toLowerCase();
+    const c = TN.customer(d.customer) || {};
+    if ((d.id + ' ' + d.id.slice(3) + ' ' + d.title + ' ' + (c.name || '') + ' ' + d.destination).toLowerCase().includes(t)) return true;
+    return !DEPT_OF_ROLE[TN.role] && phoneMatch(typed, c.phone);
+  }
+  /** One row button when the viewer can act on the booking (same action as the Deal header). */
+  function dealRowButton(d) {
+    if (!canEditBooking(d)) return '';
+    const m = headerModel(d);
+    if (!m.primary || m.actor !== 'You') return '';
+    const label = { not_started: 'Start booking', quotation_accepted: 'Start booking', in_progress: 'Continue', ready_to_submit: 'Continue', returned: 'Fix' }[d.bookingState];
+    if (!label) return '';
+    const sr = ` for ${d.id}`;
+    return `<div class="mt-1.5">${m.primary.act ? btn(label, { size: 'sm', act: m.primary.act, attrs: ` data-id="${d.id}"`, sr }) : btn(label, { size: 'sm', href: m.primary.href, sr })}</div>`;
+  }
+  bindListForm('sales-deals-find', '/app/deals', ['view', 'filter']);
   TN.page('/app/deals', {
     nav: '/app/deals', title: 'Deals',
     render(_, q) {
       const all = visibleDeals();
       const owned = all.filter((d) => relation(d, true) === 'owner');
       const assigned = all.filter((d) => relation(d, true) === 'assigned');
-      const extra = DEAL_FILTERS[q.filter];
-      const filter = extra ? q.filter : ['owned', 'assigned'].includes(q.filter) ? q.filter : 'all';
-      let rows = filter === 'owned' ? owned : filter === 'assigned' ? assigned : extra ? all.filter(extra[1]) : all;
-      const asc = q.sort === 'id_asc';
-      rows = [...rows].sort((a, b) => (asc ? a.id.localeCompare(b.id) : b.id.localeCompare(a.id)));
-      const head = `<header class="mb-5 flex flex-col gap-4 font-sans sm:flex-row sm:items-end sm:justify-between" data-slot="page-header"><div class="min-w-0"><h1 class="m-0 text-2xl leading-tight font-display tracking-heading text-ink max-sm:text-xl">Deals</h1><p class="m-0 mt-1.5 text-base text-quiet">Deals from Bitrix that you can open.</p><div class="mt-2.5 flex flex-wrap items-center gap-2 text-sm text-quiet">${freshness('Bitrix data updated 12 minutes ago.')}<span class="[&_.live-indicator]:m-0">${liveIndicator}</span></div></div></header>`;
-      const chipItems = [
-        { label: 'All deals you can see', count: all.length, href: '#/app/deals', on: filter === 'all' },
-        { label: 'Owned by you', count: owned.length, href: '#/app/deals?filter=owned', on: filter === 'owned' },
-        { label: 'Assigned to you', sr: ', owned by someone else', count: assigned.length, href: '#/app/deals?filter=assigned', on: filter === 'assigned' },
-      ];
-      // Home "What needs you" links open the list with one of these filters; the chip shows while it is on.
-      if (extra) chipItems.push({ label: extra[0], count: rows.length, href: `#/app/deals?filter=${filter}`, on: true });
-      const sortQs = (s) => `#/app/deals?${filter !== 'all' ? 'filter=' + filter + '&' : ''}${s ? 'sort=' + s : ''}`.replace(/[?&]$/, '');
-      const order = `<div class="flex flex-wrap items-end justify-between gap-3"><div role="group" aria-label="Order of deals" class="flex flex-wrap items-center gap-2"><span class="text-sm text-quiet">Order:</span><span class="inline-flex gap-0.5 rounded-control border border-line bg-wash p-0.5">${[['', 'Newest first'], ['id_asc', 'Oldest first']].map(([s, t]) => ((asc ? s === 'id_asc' : s === '') ? `<strong aria-current="true" class="inline-flex items-center gap-1.5 rounded-chip bg-card px-2.5 py-1 text-sm font-semibold text-ink shadow-button">${ic('check', 'size-3.5 text-brand-strong')}${t}</strong>` : `<a class="inline-flex items-center rounded-chip px-2.5 py-1 text-sm font-medium text-brand-strong no-underline hover:bg-card hover:text-brand-deep ${FOCUS}" href="${sortQs(s)}">${t}</a>`)).join('')}</span></div></div>`;
-      const filters = `<div class="mb-4 flex flex-col gap-4"><div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 font-sans" data-slot="filter-chips">${chips('Filter deals', chipItems)}<p class="m-0 text-xs text-quiet">Counts include all pages.</p></div>${all.length && rows.length ? order : ''}</div>`;
+      // Old addresses ?filter=owned and ?filter=assigned are now the tabs.
+      const view = ['owned', 'assigned'].includes(q.view) ? q.view : ['owned', 'assigned'].includes(q.filter) ? q.filter : 'all';
+      const dept = !!DEPT_OF_ROLE[TN.role];
+      const st = DEAL_FILTERS.find((f) => f[0] === q.filter);
+      const pool = view === 'owned' ? owned : view === 'assigned' ? assigned : all;
+      const typed = String(q.q || '').trim();
+      let rows = st ? pool.filter(st[2]) : pool;
+      if (typed) rows = rows.filter((d) => dealMatches(d, typed));
+      const sort = DEAL_SORT.some((s) => s.value === q.sort) ? q.sort || '' : '';
+      rows = [...rows].sort((a, b) => (sort === 'travel' ? a.start.localeCompare(b.start) : sort === 'id_asc' ? a.id.localeCompare(b.id) : b.id.localeCompare(a.id)));
+      const base = { view: view === 'all' ? '' : view, filter: st ? st[0] : '', q: typed, sort };
+      const head = TN.ui.pageHeader({ title: 'Deals', description: 'Deals from Bitrix that you can open.' });
+      const tabItems = [{ label: 'All deals you can see', count: all.length, href: listHref('/app/deals', { ...base, view: '' }, {}), current: view === 'all' }];
+      if (owned.length || TN.is('sales', 'manager')) tabItems.push({ label: 'Owned by you', count: owned.length, href: listHref('/app/deals', { ...base, view: 'owned' }, {}), current: view === 'owned' });
+      if (assigned.length || dept) tabItems.push({ label: 'Assigned to you', count: assigned.length, href: listHref('/app/deals', { ...base, view: 'assigned' }, {}), current: view === 'assigned' });
+      const tabs = all.length ? TN.ui.tabs({ label: 'Which deals', cls: 'mb-4', items: tabItems }) : '';
+      // Department roles see their own task word, so the booking-status chips are for Sales and the Manager.
+      const chipDefs = dept ? [] : DEAL_FILTERS.filter(([k]) => k !== 'overdue' || TN.can('seeCustomerPayments'));
+      const bar = all.length ? queueBar({ id: 'deals-find', act: 'sales-deals-find', label: 'Find a deal',
+        search: { name: 'q', label: 'Find a deal', value: typed, placeholder: dept ? 'Reference, Bitrix number, customer or trip' : 'Reference, customer, trip or full phone number' },
+        chipsLabel: 'Filter deals by booking status',
+        chips: chipDefs.map(([k, label, fn]) => ({ label, count: pool.filter(fn).length, current: st && st[0] === k, href: listHref('/app/deals', { ...base, filter: st && st[0] === k ? '' : k }, {}) })),
+        sort: { name: 'sort', value: sort, options: DEAL_SORT } }) : '';
+      const found = typed && !TN.ui.queueToolbar ? `<p class="m-0 mb-3 text-sm text-copy" role="status">${TN.fmt.plural(rows.length, 'deal')} ${rows.length === 1 ? 'matches' : 'match'} “${esc(typed)}”.${TN.ui.queueToolbar ? '' : ` <a class="${LINK_SOFT}" href="${listHref('/app/deals', { ...base, q: '' }, {})}">Clear search</a>`}</p>` : '';
       let body;
       if (!all.length) {
         body = TN.is('accounts', 'checker')
@@ -460,36 +631,48 @@
             ? card(emptyState('briefcase', 'No deals to show', 'No deal is visible to you. Deals show here only when you are given access to them.'), { role: 'status' })
             : card(emptyState('briefcase', 'No deals to show', 'No deal is visible to you. Ask your manager if you expected to see one.'), { role: 'status' });
       } else if (!rows.length) {
-        body = card(emptyState('briefcase', 'Nothing matches this filter', 'Other deals you can see are under All deals.', btn('Clear filters', { href: '#/app/deals' })), { role: 'status' });
+        body = card(emptyState('briefcase', 'Nothing matches', typed ? 'No deal you can see matches this search. Search finds a reference, Bitrix number, customer name or trip, or a full phone number.' : 'No deal you can see matches this filter. Other deals are under All deals.', btn('Clear filters', { href: '#/app/deals' })), { role: 'status' });
       } else {
-        const tr = rows.map((d) => {
-          const rel = relation(d, true);
-          return `<tr role="row" class="${TR}" data-search="${esc((d.id + ' ' + d.title).toLowerCase())}">${
-            td('Reference', `<a class="${ROW_LINK}" data-slot="row-link" href="#/app/deals/${d.id}">${d.id}</a>`)}${
-            td('Customer and trip', esc(d.title))}${
-            td('Stage', bitrixName(d.stage))}${
-            td('Owner', ownerCell(d.owner))}${
-            td('', rowDetails(d.id, [['Bitrix deal', '#' + d.id.slice(3)], ['Stage', `Bitrix code: ${BITRIX_STAGE_CODE}.`], ['Branch', 'Jodhpur'], ['Created', TN.fmt.date(dealCreated(d))], ['Last checked with Bitrix', TN.fmt.dateTime(lastChecked)], ['Last change received', TN.fmt.dateTime(lastChange(d))], ['Why you can see this deal', SEEN[rel]]]))}</tr>`;
-        }).join('');
-        const range = `1–${rows.length} of ${rows.length} deals`;
-        body = tableCard('Deals table', 'deals-table', range, ['Reference', 'Customer and trip', 'Stage', 'Owner', '<span class="sr-only">Details</span>'], tr, pagerNav('Deal pages', range));
+        body = TN.ui.table({ label: 'Deals table', id: 'deals-table', top: true,
+          columns: ['Customer and trip', 'Dates', 'Status', 'Next step', 'Owner', 'Deal'],
+          rows: rows.map((d) => {
+            const rel = relation(d, true);
+            const m = headerModel(d);
+            const svcs = fullServices(d).filter((s) => s.taskStatus !== 'cancelled');
+            const second = svcs.length ? `${svcs.filter(isDone).length} of ${svcs.length} confirmed` : '';
+            const nextText = endDot(cap1(firstSentence(m.next)));
+            return { attrs: { 'data-search': (d.id + ' ' + d.title).toLowerCase() }, cells: [
+              { html: `<a class="${ROW_LINK_WRAP}" data-slot="row-link" href="#/app/deals/${d.id}">${esc(d.title)}</a>`, noLabel: true, cls: 'min-w-40' },
+              { html: `<span class="whitespace-nowrap">${dateRange(d.start, d.end)}</span><span class="block text-sm whitespace-nowrap text-quiet">${TN.fmt.plural(d.nights, 'night')}</span>` },
+              statusBadge(m.word[0], m.word[1], m.word[2], { second, sr: dept ? 'Your task:' : 'Booking status:' }),
+              `<span class="text-copy">${esc(nextText)}</span>${dealRowButton(d)}`,
+              ownerCell(d.owner),
+              `<a class="${ROW_LINK}" href="#/app/deals/${d.id}">${d.id}</a>${rowDetails(d.id, [['Bitrix deal', '#' + d.id.slice(3)], ['Stage', `${d.stage} (Bitrix code: ${BITRIX_STAGE_CODE}).`], ['Branch', 'Jodhpur'], ['Created', TN.fmt.date(dealCreated(d))], ['Last checked with Bitrix', TN.fmt.dateTime(lastChecked)], ['Last change received', TN.fmt.dateTime(lastChange(d))], ['Why you can see this deal', SEEN[rel]]])}`,
+            ] };
+          }),
+          footer: (TN.ui.pager || ((o) => pagerNav(o.label, o.text)))({ label: 'Deal pages', text: `1–${rows.length} of ${rows.length} deals` }),
+        });
       }
-      return `<div class="font-sans text-base text-copy">${head}${filters}${body}</div>`;
+      return `<div class="font-sans text-base text-copy">${head}${tabs}${bar}${found}${body}${all.length ? `<div class="mt-3 flex flex-wrap items-center gap-2 text-sm text-quiet">${freshness('Bitrix data updated 12 minutes ago.')}<span class="[&_.live-indicator]:m-0">${liveIndicator}</span></div>` : ''}</div>`;
     },
   });
 
   /* =====================================================================
      DEAL PAGE  (#/app/deals/:id) · live workspace + pending additions
      ===================================================================== */
-  const TAB_LABEL = { overview: 'Overview', services: 'Services and tasks', quotations: 'Quotations', documents: 'Documents', money: 'Money', history: 'History' };
+  /* Deal tabs after the split (design plan 1.3, SL-5). Old ?tab=quotations opens Documents, where the
+     quotations and branded itineraries now sit. */
+  const TAB_LABEL = { overview: 'Overview', services: 'Services and tasks', money: 'Money', documents: 'Documents', messages: 'Messages', history: 'History' };
+  const TAB_ALIAS = { quotations: 'documents' };
   function visibleTabs() {
     return Object.keys(TAB_LABEL).filter((t) => {
-      if (t === 'money') return TN.can('seeSellingPrice');
-      if (t === 'quotations') return TN.can('seeQuotations');
+      if (t === 'money' || t === 'messages') return TN.can('seeSellingPrice');
       return true;
     });
   }
-  const dealHref = (id, tab) => `#/app/deals/${id}${tab && tab !== 'overview' ? '?tab=' + tab : ''}`;
+  /** The page opens on the viewer's work: the Sales owner of a Deal with services lands on Services and tasks. */
+  const defaultTab = (d) => (TN.is('sales') && d.owner === me().key && fullServices(d).length ? 'services' : 'overview');
+  const dealHref = (id, tab) => `#/app/deals/${id}${tab ? '?tab=' + tab : ''}`;
   const bookHref = (id) => `#/app/deals/${id}/book`;
   const deptWord = { purchase: 'Purchase', flight: 'Flight', visa: 'the Visa and passport desk' };
   function arranging(d) {
@@ -548,28 +731,27 @@
     refused: ['danger', 'circle-x', 'Refused by the branch Manager'],
   };
 
-  function dealHeader(d) {
+  /** C4 record header: back · ID / title · status · owner / Next with the one primary button / Details (system facts). */
+  function dealHeader(d, tab) {
     const m = headerModel(d);
     const [wordText, tone, icon] = m.word;
     const svcs = fullServices(d).filter((s) => s.taskStatus !== 'cancelled');
     const done = svcs.filter(isDone).length;
     const trip = tripStatus(d);
     const cancel = D.cancellations.find((c) => c.deal === d.id && c.status !== 'closed');
-    let primary = '';
-    if (m.primary) {
-      primary = m.primary.act
-        ? `<form novalidate class="flex flex-col gap-3" data-act="noop"><div role="status" aria-live="polite"></div><div>${btn(m.primary.label, { variant: 'primary', act: m.primary.act, attrs: ` data-id="${d.id}"` })}</div></form>`
-        : `<a class="${btnClass('primary')}" href="${m.primary.href}">${esc(m.primary.label)}</a>`;
-    }
     const leadId = LEAD_OF[d.id];
-    const status = [
-      badge(tone, icon, wordText, 'Booking status:'),
-      trip ? badge(...TRIP_LOOK[trip], 'Trip status:') : '',
-      `<span class="inline-flex items-center gap-1 text-copy"><span class="text-quiet">Stage:</span>${bitrixName(d.stage)}</span>`,
-      `<span class="inline-flex max-w-full min-w-0 items-center gap-1.5 wrap-break-word text-copy">${ic('user-round', 'lucide-user-2 size-4 shrink-0 text-faint')}<span class="min-w-0">Owner: <span class="font-semibold text-ink">${esc(who(d.owner))}</span></span></span>`,
-      leadId && TN.can('seeLeads') ? `<span class="min-w-0 wrap-anywhere text-copy">From lead <a class="${LINK} hover:decoration-2" href="#/app/leads/${leadId}">${leadId.replace('L-', 'BXL-')}</a></span>` : '',
-      `<div class="[&_.live-indicator]:m-0">${liveIndicator}</div>`,
-    ].join('');
+    const status = statusBadge(wordText, tone, icon, { sr: DEPT_OF_ROLE[TN.role] ? 'Your task:' : 'Booking status:', second: svcs.length ? `Services: ${done} of ${svcs.length} confirmed` : '' })
+      + (trip ? badge(...TRIP_LOOK[trip], 'Trip status:') : '');
+    const owner = `<span class="inline-flex max-w-full min-w-0 items-center gap-1.5 wrap-break-word text-sm text-copy">${ic('user-round', 'lucide-user-2 size-4 shrink-0 text-faint')}<span class="min-w-0">Owner: <span class="font-semibold text-ink">${esc(who(d.owner))}</span></span></span>`;
+    const nextText = esc(endDot(cap1(m.next))) + (m.actor ? `<span class="text-quiet"> · ${m.actor}</span>` : '') + (m.startHint ? '<span class="block text-sm text-quiet">Starts the booking form. Nothing is booked or paid.</span>' : '');
+    // On Services and tasks already, "See team tasks" jumps to the services list instead of reloading the page.
+    const onServices = tab === 'services' && m.primary && m.primary.href === dealHref(d.id, 'services');
+    const button = !m.primary ? null : m.primary.act ? { label: m.primary.label, act: m.primary.act, data: { id: d.id } } : onServices ? { label: m.primary.label, jump: '#services-sold' } : { label: m.primary.label, href: m.primary.href };
+    const details = `${summaryList([
+      ['Stage in Bitrix', bitrixName(d.stage)],
+      leadId && TN.can('seeLeads') ? ['From lead', `<a class="${LINK} hover:decoration-2" href="#/app/leads/${leadId}">${leadId.replace('L-', 'BXL-')}</a>`] : null,
+      ['Bitrix deal', '#' + d.id.slice(3)],
+    ])}<div class="[&_.live-indicator]:m-0">${liveIndicator}</div>`;
     const notices = [];
     if (d.bookingState === 'returned' && !DEPT_OF_ROLE[TN.role]) {
       notices.push(notice('warning', `<p>Returned ${TN.fmt.dateTime(d.returnedAt || '2026-10-25 12:30')}.</p><p>Reason: <span class="wrap-break-word">${esc(d.returnReason)}</span></p>`, { icon: 'undo-2', title: 'Returned by Accounts' }));
@@ -579,7 +761,16 @@
       const [, , w] = CANCEL_WORD[cancel.status];
       notices.push(notice('warning', `<p>${esc(cancel.kind)}, asked by ${esc(who(cancel.requestedBy))} on ${TN.fmt.date(cancel.at)}. ${esc(w)}.</p><p><a class="${LINK}" href="${dealHref(d.id, 'services')}">See the cancellation</a></p>`, { icon: 'circle-x', title: 'Cancellation requested' }));
     }
-    return `<header class="flex flex-col gap-4 font-sans sm:flex-row sm:items-end sm:justify-between mb-3" data-slot="page-header"><div class="min-w-0"><p class="m-0 mb-1 text-sm font-medium text-quiet"><span class="wrap-anywhere">${d.id}</span></p><h1 class="m-0 text-2xl leading-tight font-display tracking-heading text-ink max-sm:text-xl"><span class="block wrap-anywhere">${esc(d.title)}</span></h1><div class="mt-2.5 flex flex-wrap items-center gap-2 text-sm text-quiet">${status}</div></div>${primary ? `<div class="flex min-w-min flex-wrap items-center gap-2 max-sm:[&>*]:flex-1"><div data-slot="deal-primary">${primary}</div></div>` : ''}</header><div class="mb-4 flex flex-col gap-2.5"><p class="m-0 text-copy" data-slot="deal-next"><span class="font-semibold text-ink">Next:</span> ${esc(m.next)}${m.actor ? `<span class="text-quiet"> · ${m.actor}</span>` : ''}</p>${m.startHint ? '<p class="m-0 text-sm text-quiet">Starts the booking form. Nothing is booked or paid.</p>' : ''}${svcs.length ? `<div class="flex flex-wrap items-center gap-2 text-sm"><span class="inline-flex items-center gap-1.5 text-copy">${ic('list-checks', 'size-4 shrink-0 text-faint')}Services: ${done} of ${svcs.length} confirmed</span></div>` : ''}${notices.join('')}</div>`;
+    const head = recordHeader({
+      back: { href: '#/app/deals', label: 'Back to deals' },
+      recordId: d.id,
+      title: esc(d.title),
+      status,
+      owner,
+      next: { text: nextText, button },
+      details,
+    });
+    return `${head}${notices.length ? `<div class="mb-4 flex flex-col gap-2.5">${notices.join('')}</div>` : ''}`;
   }
 
   /* ---------- Overview tab (no money) + pending trip status ---------- */
@@ -619,7 +810,8 @@
     }).join('')}</ol>`;
     let checklist = '';
     if (trip) {
-      const items = closureChecklist(d);
+      // Money fence: desk roles see only the supplier items, never customer receipts or dues.
+      const items = closureChecklist(d).filter((x) => TN.can('seeCustomerPayments') || /supplier/i.test(x[0]));
       const allDone = items.every((x) => x[1]);
       const list = `<ul class="m-0 flex list-none flex-col divide-y divide-line p-0" aria-label="Closure checklist">${items.map(([t, ok, sub]) => `<li class="m-0 flex flex-wrap items-start justify-between gap-2 py-2"><span class="min-w-0 flex-1"><span class="font-semibold text-ink">${t}</span><span class="block text-sm text-quiet">${esc(sub)}</span></span>${ok ? badge('success', 'circle-check', 'Done', 'Checklist item:') : badge('neutral', 'circle-dashed', 'Not yet', 'Checklist item:')}</li>`).join('')}</ul>`;
       let action = '';
@@ -642,6 +834,7 @@
     TN.refresh();
   });
 
+  /** Overview: one-screen summary (SL-6). Each block links to the tab that holds the detail. Money only for price readers. */
   function overviewTab(d) {
     const svcs = fullServices(d);
     const team = [['Sales', d.owner]];
@@ -651,22 +844,49 @@
     });
     const travellers = d.adults + d.children + d.infants;
     const showTravellers = !TN.is('purchase', 'flight');
+    const priceReader = TN.can('seeSellingPrice');
     const rel = relation(d, false);
+    const c = TN.customer(d.customer) || {};
+    const tabLink = (tab, text) => `<a class="${LINK_SOFT} text-sm" href="${dealHref(d.id, tab)}">${esc(text)}</a>`;
+    // Services with their status (department roles: their own department only).
+    const shown = (DEPT_OF_ROLE[TN.role] ? svcs.filter((s) => s.dept === DEPT_OF_ROLE[TN.role]) : svcs).filter((s) => s.taskStatus !== 'cancelled');
+    const svcList = shown.length
+      ? `<ul class="m-0 flex list-none flex-col gap-1.5 p-0" aria-label="Services and their status">${shown.map((s) => { const [tone, icon, word] = serviceState(s); return `<li class="m-0 flex flex-wrap items-center justify-between gap-x-3 gap-y-1"><span class="min-w-0 wrap-break-word text-ink">${esc(s.title)}</span>${badge(tone, icon, word, 'Service status:', true)}</li>`; }).join('')}</ul>`
+      : '<span class="text-quiet">No services yet.</span>';
+    // Money: total and still to pay, from money checked by Accounts.
+    let moneyRow = null;
+    if (priceReader) {
+      if (d.sellingPrice == null) moneyRow = ['Money', `<span class="text-quiet">No selling total yet.</span> ${tabLink('money', 'Open Money')}`];
+      else {
+        const checked = verifiedSum(d.id);
+        const od = overdueOf(d.id).reduce((a, i) => a + i.amount - i.paid, 0);
+        moneyRow = ['Money', `<span class="block">Selling total ${amount(rs(d.sellingPrice))}</span><span class="block">Still to pay ${amount(rs(d.sellingPrice - checked))} <span class="text-sm text-quiet">(based on money checked by Accounts)</span></span>${od ? `<span class="mt-1 block">${badge('danger', 'circle-alert', `Overdue ${rs(od)}`, 'Customer dues:', true)}</span>` : ''}<span class="mt-1 block">${tabLink('money', 'Open Money')}</span>`];
+      }
+    }
+    const openChange = D.changes.find((x) => x.deal === d.id && ['waiting_customer', 'accepted'].includes(x.status));
+    const changeRow = openChange ? ['Open change', `${badge(...(CHANGE_WORD[openChange.status] || CHANGE_WORD.waiting_customer), 'Change status:', true)}<span class="mt-1 block text-copy">${esc(openChange.kind)}: ${esc(openChange.detail)}</span><span class="mt-1 block">${tabLink('services', 'See the change')}</span>`] : null;
+    const lastShared = priceReader ? sharedItems(d)[0] : null;
+    const sharedRow = lastShared ? ['Last shared with the customer', `${esc(lastShared.what)} <span class="text-sm text-quiet">· ${esc(lastShared.when)}</span><span class="mt-1 block">${tabLink('messages', 'Open Messages')}</span>`] : null;
     const rows = [
-      ['Trip', `${esc(d.destination)} · ${TN.fmt.date(d.start)} to ${TN.fmt.date(d.end)}`],
+      priceReader ? ['Customer', `${esc(c.name || '')}${c.phone ? `<span class="block text-sm text-copy">${esc(c.phone)}</span>` : ''}`] : null,
+      ['Trip', `${esc(d.destination)}<span class="block text-sm whitespace-nowrap text-copy">${dateRange(d.start, d.end)} · ${TN.fmt.plural(d.nights, 'night')}</span>`],
       showTravellers ? ['Travellers', `${travellers} travellers`] : null,
-      ['Branch', 'Jodhpur'],
+      ['Services', `${svcList}${svcs.length ? `<span class="mt-1.5 block">${tabLink('services', 'Open Services and tasks')}</span>` : ''}`],
+      moneyRow,
+      changeRow,
+      sharedRow,
       ['Team', `<ul class="m-0 flex list-none flex-col gap-1 p-0">${team.map(([k, p]) => `<li class="m-0 inline-flex items-center gap-1.5">${ic('user-round', 'lucide-user-2 size-4 shrink-0 text-faint')}${esc(k)}: ${isMe(p) ? 'You' : 'a colleague'}</li>`).join('')}</ul>`],
-      ['Created', TN.fmt.date(dealCreated(d))],
     ];
-    const details = `<details class="rounded-control border border-line bg-canvas px-3.5 py-2.5" data-slot="deal-details"><summary class="cursor-pointer rounded-chip font-semibold text-brand-strong underline decoration-1 underline-offset-4 ${FOCUS}">Details and Bitrix facts</summary><div class="mt-3 flex flex-col gap-3">${summaryList([
+    const details = fold({ summary: 'Details and Bitrix facts', body: `${summaryList([
       ['Why you can see this deal', SEEN[rel]],
+      ['Branch', 'Jodhpur'],
+      ['Created', TN.fmt.date(dealCreated(d))],
       ['Bitrix deal', '#' + d.id.slice(3)],
       ['Stage', `${bitrixName(d.stage)}<span class="block text-sm text-quiet">Bitrix code: ${BITRIX_STAGE_CODE}.</span>`],
       ['Last checked with Bitrix', TN.fmt.dateTime(lastChecked)],
       ['Last change received', TN.fmt.dateTime(lastChange(d))],
-    ])}${quietNote('lock', 'Title, stage and salesperson come from Bitrix. Change them there.')}</div></details>`;
-    return sectionCard('deal-overview-heading', 'Overview', summaryList(rows) + tripBlock(d) + details, { bodyCls: 'flex flex-col gap-4' });
+    ])}${quietNote('lock', 'Title, stage and salesperson come from Bitrix. Change them there.')}` });
+    return card(`<section aria-labelledby="deal-overview-heading"><h2 class="sr-only" id="deal-overview-heading">Overview</h2><div class="px-4.5 py-4 flex flex-col gap-4">${summaryList(rows)}${tripBlock(d)}${details}</div></section>`);
   }
 
   /* ---------- Services and tasks tab (live DealServicesCard) + pending go-ahead, changes, cancellation ---------- */
@@ -727,12 +947,17 @@
     const canAsk = sales && booked(d);
     if (!changes.length && !cancel.length && !canAsk) return '';
     const money = TN.can('seeCustomerPayments');
-    const changeRows = changes.map((c) => {
+    const changeRow = (c) => {
       const [tone, icon, word] = CHANGE_WORD[c.status] || CHANGE_WORD.waiting_customer;
       const acts = sales && c.status === 'waiting_customer' ? `<div class="flex flex-wrap gap-2">${btn('Customer accepted', { size: 'sm', act: 'sales-change-accepted', attrs: ` data-id="${c.id}"` })}${btn('Withdraw', { size: 'sm', variant: 'ghost', act: 'sales-change-withdraw', attrs: ` data-id="${c.id}"` })}</div>` : '';
       const priceNote = money ? (c.note ? `<p class="m-0 text-sm text-quiet">${esc(c.note)}</p>` : '') : '<p class="m-0 text-sm text-quiet">Fresh customer acceptance needed before the teams act on it.</p>';
       return `<li class="m-0"><article class="flex flex-col gap-2 rounded-card border border-line bg-card px-4 py-3" aria-label="Change ${esc(c.id)}"><div class="flex flex-wrap items-center justify-between gap-2"><p class="m-0 text-base font-semibold text-ink">${esc(c.kind)}</p>${badge(tone, icon, word, 'Change status:', true)}</div><p class="m-0 text-sm text-copy">${esc(c.detail)}</p>${priceNote}<p class="m-0 text-sm text-quiet">Asked by ${esc(who(c.requestedBy))} on ${TN.fmt.date(c.at)}</p>${acts}</article></li>`;
-    }).join('');
+    };
+    // Open requests in full; finished ones (done, withdrawn) fold to one line each (SL-8).
+    const openChanges = changes.filter((c) => !['done', 'withdrawn'].includes(c.status));
+    const earlier = changes.filter((c) => ['done', 'withdrawn'].includes(c.status));
+    const changeRows = openChanges.map(changeRow).join('');
+    const earlierFold = earlier.length ? fold({ summary: `Earlier changes (${earlier.length})`, body: `<ul class="m-0 flex list-none flex-col divide-y divide-line p-0" aria-label="Earlier changes">${earlier.map((c) => `<li class="m-0 flex flex-wrap items-center justify-between gap-2 py-2"><span class="min-w-0 text-copy"><span class="font-semibold text-ink">${esc(c.kind)}</span> · ${esc(c.detail)} <span class="text-sm text-quiet">· ${TN.fmt.date(c.at)}</span></span>${badge(...(CHANGE_WORD[c.status] || CHANGE_WORD.done), 'Change status:', true)}</li>`).join('')}</ul>` }) : '';
     const cancelRows = cancel.map((c) => {
       const [tone, icon, word] = CANCEL_WORD[c.status];
       const charges = (c.charges || []).map((x) => [TN.service(x.service).title, `${amount(rs(x.supplierCharge))}<span class="block text-sm text-quiet">${esc(x.note)}</span>`, { numeric: true }]);
@@ -751,8 +976,11 @@
       return `<li class="m-0"><article class="flex flex-col gap-2 rounded-card border border-line bg-card px-4 py-3" aria-label="Cancellation ${esc(c.id)}" id="cancellation"><div class="flex flex-wrap items-center justify-between gap-2"><p class="m-0 text-base font-semibold text-ink">${esc(c.kind)}</p>${badge(tone, icon, word, 'Cancellation status:', true)}</div><p class="m-0 text-sm text-copy">Reason: ${esc(c.reason)}</p><p class="m-0 text-sm text-quiet">Asked by ${esc(who(c.requestedBy))} on ${TN.fmt.date(c.at)}</p>${charges.length && TN.can('seeSupplierCost') || (charges.length && money) ? summaryList([...charges, ...moneyRows]) : ''}<p class="m-0 text-copy"><span class="font-semibold text-ink">Next:</span> ${esc(nextWho)}</p>${act ? `<div>${act}</div>` : ''}</article></li>`;
     }).join('');
     const openCancel = cancel.some((c) => c.status !== 'closed');
-    const buttons = canAsk ? `<div class="flex flex-wrap gap-2">${btn('Request a change', { act: 'sales-change-open', attrs: ` data-id="${d.id}"` })}${openCancel ? '' : btn('Cancel booking', { act: 'sales-cancel-open', attrs: ` data-id="${d.id}"` })}</div>` : '';
-    const body = `${changes.length || cancel.length ? `<ol class="m-0 flex list-none flex-col gap-3 p-0" aria-label="Changes and cancellations, newest first">${cancelRows}${changeRows}</ol>` : '<p class="m-0 text-quiet">No change or cancellation on this deal.</p>'}${buttons}${canAsk ? '<p class="m-0 text-sm text-quiet">A change the customer will notice needs a fresh OK from the customer before the teams act on it. A cancellation goes to Purchase for supplier charges, then to the branch Manager.</p>' : ''}`;
+    const waitingChange = changes.some((c) => c.status === 'waiting_customer');
+    // "Request a change" sits in the Services sold header; Cancel booking stays here, away from it.
+    const buttons = canAsk && !openCancel ? `<div class="flex flex-wrap gap-2">${btn('Cancel booking', { variant: 'ghost', act: 'sales-cancel-open', attrs: ` data-id="${d.id}"` })}</div>` : '';
+    const listed = openChanges.length || cancel.length;
+    const body = `${listed ? `<ol class="m-0 flex list-none flex-col gap-3 p-0" aria-label="Changes and cancellations, newest first">${cancelRows}${changeRows}</ol>` : (earlier.length ? '' : '<p class="m-0 text-quiet">No change or cancellation on this deal.</p>')}${earlierFold}${canAsk && waitingChange ? '<p class="m-0 text-sm text-quiet">Finish or withdraw the open change before you ask for another.</p>' : ''}${buttons}${canAsk ? '<p class="m-0 text-sm text-quiet">A change the customer will notice needs a fresh OK from the customer before the teams act on it. A cancellation goes to Purchase for supplier charges, then to the branch Manager.</p>' : ''}`;
     return sectionCard('deal-changes-heading', 'Changes after booking', body, { bodyCls: 'flex flex-col gap-4', desc: 'Add or remove a service, change dates, or cancel.' });
   }
 
@@ -765,7 +993,9 @@
     }
     const shown = DEPT_OF_ROLE[TN.role] ? svcs.filter((s) => s.dept === DEPT_OF_ROLE[TN.role]) : svcs;
     const editor = canEditBooking(d);
-    const servicesCard = card(`<section aria-labelledby="services-heading" id="services-sold">${cardHead('services-heading', 'Services sold', { desc: submitted(d) ? 'Booking version 1 · submitted' : 'Not submitted yet', aside: progressPill(svcs) })}<ol class="m-0 flex list-none flex-col divide-y divide-line p-0" aria-label="Sold services">${shown.map(serviceRow).join('')}</ol>${editor ? `<div class="px-4.5 border-t border-line py-3">${btn('Open the booking', { size: 'sm', href: bookHref(d.id) })}</div>` : ''}</section>`);
+    const canChange = TN.is('sales', 'manager') && editor && booked(d) && !D.changes.some((c) => c.deal === d.id && c.status === 'waiting_customer');
+    const aside = `<div class="flex flex-wrap items-center gap-2">${progressPill(svcs)}${canChange ? btn('Request a change', { size: 'sm', act: 'sales-change-open', attrs: ` data-id="${d.id}"` }) : ''}</div>`;
+    const servicesCard = card(`<section aria-labelledby="services-heading" id="services-sold">${cardHead('services-heading', 'Services sold', { desc: submitted(d) ? 'Booking version 1 · submitted' : 'Not submitted yet', aside })}<ol class="m-0 flex list-none flex-col divide-y divide-line p-0" aria-label="Sold services">${shown.map(serviceRow).join('')}</ol>${editor ? `<div class="px-4.5 border-t border-line py-3">${btn('Open the booking', { size: 'sm', href: bookHref(d.id) })}</div>` : ''}</section>`);
     const waiting = svcs.filter((s) => s.goAhead === 'waiting').length;
     const goNote = waiting && !DEPT_OF_ROLE[TN.role] ? notice('info', `<p>${TN.fmt.plural(waiting, 'hotel')} on this deal ${waiting === 1 ? 'waits' : 'wait'} for the Accounts go-ahead. Purchase books a hotel only after Accounts gives it.</p>`, { icon: 'hourglass' }) : '';
     const goNoteDept = waiting && TN.is('purchase') ? notice('info', '<p>Wait for the Accounts go-ahead before you commit any hotel on this deal.</p>', { icon: 'hourglass' }) : '';
@@ -895,7 +1125,10 @@
     const docs = docsOf(d);
     const sales = TN.is('sales', 'manager') && canEditBooking(d);
     const canAsk = sales && booked(d);
-    if (!docs.length && !canAsk && !TN.can('accounts')) return `<div class="flex min-w-0 flex-col gap-5">${live}</div>`;
+    // Quotations and branded itineraries moved here from the old Quotations tab (price readers who make quotations only).
+    const quotes = TN.can('seeQuotations') ? quotationsTab(d) : '';
+    const jumps = quotes ? jumpLinks([{ href: '#deal-documents-heading', label: 'Files' }, { href: '#deal-invoices-heading', label: 'Invoices and vouchers' }, { href: '#quotations-heading', label: 'Quotations' }, { href: '#itineraries-heading-deal', label: 'Branded itineraries' }].filter((j) => j.href !== '#deal-invoices-heading' || docs.length || canAsk || TN.can('accounts'))) : '';
+    if (!docs.length && !canAsk && !TN.can('accounts')) return `<div class="flex min-w-0 flex-col gap-5">${jumps}${live}${quotes}</div>`;
     const docRows = docs.map((x) => {
       const [tone, icon, word] = DOC_WORD[x.status];
       const s = x.service ? TN.service(x.service) : null;
@@ -909,7 +1142,7 @@
     }).join('');
     const body = `${docs.length ? `<ul class="m-0 flex list-none flex-col gap-2 p-0" aria-label="Invoices and vouchers">${docRows}</ul>` : '<p class="m-0 text-quiet">No invoice or voucher on this deal yet.</p>'}${canAsk ? `<div class="flex flex-wrap gap-2">${btn('Ask Accounts for an invoice', { act: 'sales-invoice-open', attrs: ` data-id="${d.id}"` })}</div>` : ''}${TN.can('accounts') ? `<div>${btn('Open Invoices and vouchers', { size: 'sm', href: '#/app/accounts/documents' })}</div>` : ''}${quietNote('info', 'Not a tax invoice. The tax invoice is issued from Tally. Accounts approves every document before it goes out; staff download it and send it to the customer themselves.', 'text-status-info')}`;
     const pending = sectionCard('deal-invoices-heading', 'Invoices and vouchers', body, { bodyCls: 'flex flex-col gap-4' });
-    return `<div class="flex min-w-0 flex-col gap-5">${live}${pending}</div>`;
+    return `<div class="flex min-w-0 flex-col gap-5">${jumps}${live}${pending}${quotes}</div>`;
   }
   TN.act('sales-open-file', (el) => TN.toast(`Opening ${el.dataset.file}. The view is recorded.`));
   TN.act('sales-open-doc', (el) => { if (typeof TN.openDocument === 'function') TN.openDocument(el.dataset.id); else TN.toast(`Opening ${el.dataset.id} as a PDF.`); });
@@ -1014,20 +1247,32 @@
       ['Reported, not checked (not money)', amount(rs(reported)), { numeric: true }],
       ['Checked by Accounts', amount(rs(checked)), { numeric: true }],
       ['Still to pay (based on checked money)', amount(rs(d.sellingPrice - checked)), { numeric: true, total: true }],
-    ])}<h4 class="m-0 mt-2.5 text-sm font-semibold text-ink">Reported payments on this deal</h4>${reports.length ? `<ul class="m-0 flex list-none flex-col divide-y divide-line p-0" aria-label="Reported payments on this deal">${reports.map((r) => `<li class="m-0 flex flex-wrap items-center justify-between gap-2 py-2"><span>${amount(rs(r.amount))}<span class="text-sm text-quiet"> · ${MODE[r.mode] || r.mode} · paid ${TN.fmt.date(r.date)}</span></span>${claimPill(claimStatus(r))}</li>`).join('')}</ul>` : '<p class="m-0 text-quiet">No payment reported on this deal yet.</p>'}${canReport ? `<div>${btn('Report a payment', { act: 'sales-report-open', attrs: ` data-id="${d.id}"` })}</div>` : ''}</section>`;
+    ])}<h4 class="m-0 mt-2.5 text-sm font-semibold text-ink">Reported payments on this deal</h4>${reports.length ? `<ul class="m-0 flex list-none flex-col divide-y divide-line p-0" aria-label="Reported payments on this deal">${reports.map((r) => `<li class="m-0 flex flex-wrap items-center justify-between gap-2 py-2"><span>${amount(rs(r.amount))}<span class="text-sm text-quiet"> · ${MODE[r.mode] || r.mode} · paid ${TN.fmt.date(r.date)}</span></span>${claimPill(claimStatus(r))}</li>`).join('')}</ul>` : '<p class="m-0 text-quiet">No payment reported on this deal yet.</p>'}</section>`;
     const recs = receiptsOf(d.id).filter((r) => TN.can('accounts') || r.status === 'verified');
     const receipts = `<section aria-labelledby="money-receipts" class="flex flex-col gap-2">${subHeading('money-receipts', TN.can('accounts') ? 'Receipts' : 'Receipts checked by Accounts')}${recs.length ? `<ul class="m-0 flex list-none flex-col divide-y divide-line p-0" aria-label="Receipts on this deal">${recs.map((r) => `<li class="m-0 flex flex-wrap items-center justify-between gap-2 py-2"><span>${amount(rs(r.amount))}<span class="text-sm text-quiet"> · ${esc(r.mode)} · received ${TN.fmt.date(r.date)} · ${esc(r.id)}</span>${TN.can('accounts') ? `<span class="block text-sm text-quiet">${esc(r.ref)} · into ${esc(r.to)} · recorded by ${esc(who(r.recordedBy))}${r.verifiedBy ? ', verified by ' + esc(who(r.verifiedBy)) : ''}</span>` : ''}</span>${r.status === 'verified' ? badge('success', 'circle-check', TN.can('accounts') ? 'Verified' : 'Checked by Accounts', 'Receipt status:', true) : r.cheque === 'waiting_clearance' ? badge('info', 'info', 'Cheque awaiting bank clearance', 'Receipt status:', true) : badge('info', 'info', 'Recorded, awaiting verification', 'Receipt status:', true)}</li>`).join('')}</ul>` : '<p class="m-0 text-quiet">No receipt checked by Accounts yet.</p>'}${TN.can('accounts') ? `<div>${btn('Open in Accounts', { size: 'sm', href: `#/app/accounts/deals/${d.id}` })}</div>` : ''}</section>`;
+    const refundList = D.refunds.filter((r) => r.deal === d.id);
+    const REFUND_WORD = { approved: ['info', 'hand-coins', 'Approved · Accounts settles it'], paid: ['info', 'banknote', 'Paid · waiting for a second Accounts check'], verified: ['success', 'circle-check', 'Checked by Accounts'] };
+    const refunds = refundList.length ? `<section aria-labelledby="money-refunds" class="flex flex-col gap-2">${subHeading('money-refunds', 'Refunds and recoveries')}<ul class="m-0 flex list-none flex-col divide-y divide-line p-0" aria-label="Refunds and recoveries on this deal">${refundList.map((r) => `<li class="m-0 flex flex-wrap items-center justify-between gap-2 py-2"><span class="min-w-0">${amount(rs(r.amount))}<span class="text-sm text-quiet"> · ${esc(r.kind)} · ${esc(r.id)}</span>${r.note ? `<span class="block text-sm text-quiet">${esc(r.note)}</span>` : ''}</span>${badge(...(REFUND_WORD[r.status] || REFUND_WORD.approved), 'Refund status:', true)}</li>`).join('')}</ul>${TN.can('accounts') ? `<div>${btn('Open Refunds and recoveries', { size: 'sm', href: '#/app/accounts/refunds' })}</div>` : ''}</section>` : '';
     const versions = submitted(d) ? `<section aria-labelledby="money-versions" class="flex flex-col gap-2">${subHeading('money-versions', 'Selling total by booking version')}${summaryList([['Version 1', amount(rs(d.sellingPrice)), { numeric: true }]])}</section>` : '';
     const foot = `<p class="m-0 text-sm text-quiet">${TN.can('accounts') ? 'Receipts are recorded and verified on the Accounts deal page.' : 'Only receipts checked by a second Accounts person are listed. Accounts records receipts and cheques; payment proof stays with Accounts.'}</p>`;
-    return sectionCard('deal-money-heading', 'Money', booking + duesSection(d) + claims + receipts + versions + foot, { bodyCls: 'flex flex-col gap-6' });
+    const dues = duesSection(d);
+    const jumps = jumpLinks([dues ? { href: '#money-dues', label: 'Customer dues' } : null, { href: '#money-claims', label: 'Reported payments' }, { href: '#money-receipts', label: 'Receipts' }, refunds ? { href: '#money-refunds', label: 'Refunds' } : null].filter(Boolean));
+    const tell = canReport ? btn('Tell Accounts about a payment', { act: 'sales-report-open', attrs: ` data-id="${d.id}"` }) : '';
+    return sectionCard('deal-money-heading', 'Money', jumps + booking + dues + claims + receipts + refunds + versions + foot, { bodyCls: 'flex flex-col gap-6', aside: tell });
   }
   const ACCOUNTS = [['', 'Choose the account'], ['hdfc', 'HDFC Bank •••• 4417'], ['upi', 'UPI holidaychacha@hdfcbank'], ['cash', 'Jodhpur branch cash']];
   function reportForm(d, v = {}, errs = {}, title) {
     const list = Object.entries(errs);
     const body = `<form novalidate id="sales-report-form" aria-label="Tell Accounts about a payment" class="flex flex-col gap-3" data-act="sales-report-submit" data-id="${d.id}">${list.length || title ? errorSummary(title || 'The payment was not reported.', list) : ''}${notice('info', '<p>Reported by Sales. Not money until a receipt is recorded and checked by a second Accounts person.</p><p>No advance is required. A Bitrix stage does not prove payment.</p>')}${fieldset('What the customer says they paid', `<div class="grid gap-4">${selectF('bk-claim-mode', 'mode', 'How they paid', v.mode || 'Bank transfer', [['Bank transfer', 'Bank transfer'], ['UPI', 'UPI'], ['Cash', 'Cash'], ['Cheque', 'Cheque']])}${inputF('bk-claim-amount', 'amount', 'Amount ₹', v.amount, { money: true, inputmode: 'decimal', error: errs['bk-claim-amount'] })}${inputF('bk-claim-paid-on', 'paidOn', 'Paid on', v.paidOn, { type: 'date', error: errs['bk-claim-paid-on'] })}${inputF('bk-claim-payer', 'payer', 'Paid by', v.payer ?? TN.customer(d.customer).name, { max: 200, error: errs['bk-claim-payer'] })}${inputF('bk-claim-reference', 'ref', 'Reference or UTR', v.ref, { max: 40, hint: 'Identifies the payment. It is not proof that money arrived.', error: errs['bk-claim-reference'] })}${selectF('bk-claim-destination', 'account', 'Company account that received it', v.account, ACCOUNTS, { error: errs['bk-claim-destination'] })}${textareaF('bk-claim-note', 'note', 'Note for Accounts', v.note, { optional: true, rows: 2, span: true })}</div>`)}</form>`;
-    return { title: 'Report a payment', description: `${d.id} · ${d.title}`, body, footer: `<div class="flex flex-wrap gap-2">${btn('Send to Accounts', { variant: 'primary', type: 'submit', attrs: ' form="sales-report-form"' })}${btn('Cancel', { attrs: ' data-close' })}</div>` };
+    return { title: 'Tell Accounts about a payment', description: `${d.id} · ${d.title}`, body, footer: `${btn('Cancel', { attrs: ' data-close' })}${btn('Send to Accounts', { variant: 'primary', type: 'submit', attrs: ' form="sales-report-form"' })}` };
   }
-  TN.act('sales-report-open', (el) => openDrawer(reportForm(TN.deal(el.dataset.id))));
+  /* The existing claim form, unchanged, in a dialog opened from the Money tab (SL-3). */
+  function openReportDialog(o) {
+    TN.dialog(o);
+    const sum = document.querySelector('#tn-overlay [data-slot="error-summary"]');
+    if (sum) sum.focus();
+  }
+  TN.act('sales-report-open', (el) => openReportDialog(reportForm(TN.deal(el.dataset.id))));
   TN.act('sales-report-submit', (f) => {
     const d = TN.deal(f.dataset.id), v = formVals(f), errs = {};
     const n = toNum(v.amount);
@@ -1037,10 +1282,10 @@
     if (!String(v.payer || '').trim()) errs['bk-claim-payer'] = 'Paid by: write the payer’s name';
     if (!/^[A-Za-z0-9/ -]{6,40}$/.test(String(v.ref || '').trim())) errs['bk-claim-reference'] = 'Reference or UTR: 6 to 40 letters, digits, / or -';
     if (!v.account) errs['bk-claim-destination'] = 'Company account that received it: choose the account';
-    if (Object.keys(errs).length) { openDrawer(reportForm(d, v, errs)); return; }
+    if (Object.keys(errs).length) { openReportDialog(reportForm(d, v, errs)); return; }
     const ref = v.ref.trim();
     if (D.paymentReports.some((r) => r.deal === d.id && r.ref.replace(/\D/g, '') === ref.replace(/\D/g, '') && r.status !== 'withdrawn')) {
-      openDrawer(reportForm(d, v, { 'bk-claim-reference': 'Reference or UTR: already reported on this deal' }, 'This payment reference is already reported on this deal. Check the payments listed below before reporting it again.'));
+      openReportDialog(reportForm(d, v, { 'bk-claim-reference': 'Reference or UTR: already reported on this deal' }, 'This payment reference is already reported on this deal. Check the payments listed below before reporting it again.'));
       return;
     }
     const id = 'PR-' + String(Math.max(...D.paymentReports.map((r) => Number(r.id.slice(3)))) + 1).padStart(4, '0');
@@ -1050,6 +1295,30 @@
     TN.toast('Sent to Accounts. It is not money until Accounts checks it.');
     TN.refresh();
   });
+
+  /* ---------- Messages tab (SL-5, SL-16): what went to the customer, and staff notices on this deal ---------- */
+  /** What staff shared with the customer: quotations marked as shared, documents marked as sent. Newest first. */
+  function sharedItems(d) {
+    const items = [];
+    quotationsFor('deal', d.id).forEach((q) => (q.versions || []).filter((v) => v.sentAt).forEach((v) => items.push({
+      at: v.sentAt, what: `Quotation ${q.id} version ${v.n}`, how: v.via ? `Shared by ${v.via}` : 'Shared', when: TN.fmt.date(v.sentAt), href: `#/app/quotations/${q.id}/preview${v.n !== (q.versions[q.versions.length - 1] || {}).n ? '?v=' + v.n : ''}`,
+    })));
+    D.documents.filter((x) => x.deal === d.id && x.status === 'sent').forEach((x) => items.push({
+      at: x.sentAt || x.date, what: x.kind === 'Hotel voucher' ? `Hotel voucher ${x.id}` : `${x.kind} ${x.id}`, how: x.sentBy ? `Sent by ${who(x.sentBy)}` : 'Sent', when: TN.fmt.date(x.sentAt || x.date), href: dealHref(d.id, 'documents'),
+    }));
+    return items.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  }
+  function messagesTab(d) {
+    const items = sharedItems(d);
+    const shared = items.length
+      ? `<ul class="m-0 flex list-none flex-col divide-y divide-line p-0" aria-label="Shared with the customer, newest first">${items.map((i) => `<li class="m-0 flex flex-wrap items-center justify-between gap-2 py-2.5 first:pt-0 last:pb-0"><span class="min-w-0"><a class="${LINK_SOFT}" href="${i.href}">${esc(i.what)}</a><span class="block text-sm text-quiet">${esc(i.how)} · ${esc(i.when)}</span></span>${badge('success', 'send', 'Shared with customer', 'Status:', true)}</li>`).join('')}</ul>`
+      : '<p class="m-0 text-quiet">Nothing shared with the customer yet. Quotations you mark as shared and documents you mark as sent show here.</p>';
+    const mine = D.notices.filter((n) => n.deal === d.id && (n.to || []).includes(TN.role));
+    const notes = mine.length
+      ? `<ul class="m-0 flex list-none flex-col divide-y divide-line p-0" aria-label="Staff notices on this deal, newest first">${mine.map((n) => `<li class="m-0 flex gap-2.5 py-2.5 first:pt-0 last:pb-0">${ic(n.kind === 'reminder' ? 'clock' : 'info', 'mt-0.5 size-4 shrink-0 text-faint')}<span class="min-w-0"><span class="block text-copy">${esc(n.text)}</span><span class="block text-sm text-quiet">${TN.fmt.dateTime(n.at)}</span></span></li>`).join('')}</ul>`
+      : '<p class="m-0 text-quiet">No staff notice about this deal for you.</p>';
+    return `<div class="flex min-w-0 flex-col gap-5">${sectionCard('deal-shared-heading', 'Shared with the customer', shared, { desc: 'Staff share documents themselves, then mark them as shared or sent.' })}${sectionCard('deal-notices-heading', 'Staff notices on this deal', notes)}</div>`;
+  }
 
   /* ---------- History tab (money-free) ---------- */
   function historyTab(d) {
@@ -1086,10 +1355,12 @@
       const d = TN.deal(p.id);
       if (!d || !relation(d, false)) return dealNotFound();
       const vis = visibleTabs();
-      const tab = vis.includes(q.tab) ? q.tab : 'overview';
-      const tabs = tabsNav('Deal sections', vis.map((t) => ({ label: TAB_LABEL[t], href: dealHref(d.id, t), current: t === tab })));
-      const body = { overview: overviewTab, services: servicesTab, quotations: quotationsTab, documents: documentsTab, money: moneyTab, history: historyTab }[tab](d);
-      return `<div class="font-sans text-base text-copy">${backLink('#/app/deals', 'Back to deals')}${dealHeader(d)}${tabs}${body}</div>`;
+      const asked = TAB_ALIAS[q.tab] || q.tab;
+      const tab = vis.includes(asked) ? asked : defaultTab(d);
+      // C5 tabs (shared look). No counts on record tabs: a count could leak money facts.
+      const tabs = TN.ui.tabs({ label: 'Deal sections', cls: 'mb-4', items: vis.map((t) => ({ label: TAB_LABEL[t], href: dealHref(d.id, t), current: t === tab })) });
+      const body = { overview: overviewTab, services: servicesTab, documents: documentsTab, money: moneyTab, messages: messagesTab, history: historyTab }[tab](d);
+      return `<div class="font-sans text-base text-copy">${dealHeader(d, tab)}${tabs}${body}</div>`;
     },
   });
 
