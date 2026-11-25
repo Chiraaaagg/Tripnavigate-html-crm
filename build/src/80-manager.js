@@ -88,7 +88,7 @@
   };
   /** On / Off / Unknown badge for a setting row. */
   const stateBadge = (state, title, words) => {
-    const w = words || { on: 'On', off: 'Off', unknown: 'Unknown' };
+    const w = { on: 'On', off: 'Off', unknown: 'Not known', ...(words || {}) };
     if (state === 'on') return badge('success', w.on, { wrap: true, sr: `${title}, current state`, icon: 'circle-check', state: 'on' });
     if (state === 'off') return badge('neutral', w.off, { wrap: true, sr: `${title}, current state`, icon: 'circle-off', state: 'off' });
     return badge('warning', w.unknown, { wrap: true, sr: `${title}, current state`, icon: 'circle-question-mark', state: 'unknown' });
@@ -120,7 +120,7 @@
       ? `<div class="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4.5 py-3.5">${o.desc ? `<div class="min-w-0"><${h} class="m-0 text-lg leading-6 font-semibold tracking-[-0.005em] text-ink" id="${id}-heading">${title}</${h}><p class="m-0 text-sm text-quiet">${o.desc}</p></div>` : `<${h} class="m-0 text-lg leading-6 font-semibold tracking-[-0.005em] text-ink" id="${id}-heading">${title}</${h}>`}${o.aside || ''}</div>`
       : '';
     const foot = o.footer ? `<div class="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4.5 py-3 text-sm text-quiet">${o.footer}</div>` : '';
-    return `<div class="rounded-card border border-line bg-card font-sans text-base text-copy shadow-card${o.extra ? ' ' + o.extra : ''}" data-slot="card"${o.domId ? ` id="${o.domId}"` : ''}><section aria-labelledby="${id}-heading">${head}<div class="${o.bodyClass || 'px-4.5 py-4'}">${o.body || ''}</div>${foot}</section></div>`;
+    return `<div class="rounded-card border border-line bg-card font-sans text-base text-copy shadow-card${o.extra ? ' ' + o.extra : ''}" data-slot="card"${o.domId ? ` id="${o.domId}"` : ''}><section${o.title ? ` aria-labelledby="${id}-heading"` : ''}>${head}<div class="${o.bodyClass || 'px-4.5 py-4'}">${o.body || ''}</div>${foot}</section></div>`;
   };
 
   const SUMMARY_ROW = 'grid grid-cols-1 gap-0.5 py-2.5 first:pt-0 last:pb-0 sm:grid-cols-[minmax(10rem,40%)_1fr] sm:gap-4';
@@ -172,7 +172,20 @@
   };
   const reasonOk = (s) => { const t = String(s || '').replace(/\s+/g, ' ').trim(); return t.length >= 10 && t.length <= 500 ? t : null; };
 
-  TN.hm = { ic, btn, badge, stateBadge, pill, notice, card, summary, table, tabs, pageHeader, field, textarea, input, select, choice, choiceGroup, statCard, statItem, link, LINK, sectionHead, nowStamp, notify, roleOfPerson, personName, reasonOk, CONTROL, BTN_BASE };
+  const FOCUS = 'outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-brand-strong focus-visible:shadow-none';
+  const COUNT = (n) => `<span class="rounded-full bg-wash px-1.5 text-xs leading-5 font-medium text-quiet tabular-nums">${n}</span>`;
+  /** In-page jump chips (C2/DM-5). Buttons, not hash links: the router owns the hash. items: [{ target, label, count }] */
+  const jumpChips = (label, items, sticky = true) => `<nav aria-label="${esc(label)}" class="${sticky ? 'lg:sticky top-0 z-10 ' : ''}-mx-1 mb-5 bg-canvas px-1 py-2" data-slot="jump-chips"><ul class="m-0 flex list-none flex-wrap gap-2 p-0">${items.map((c) => `<li class="m-0"><button type="button" class="inline-flex min-h-9 max-w-full cursor-pointer items-center gap-2 rounded-full border border-line bg-card px-3 py-1.5 font-sans text-sm font-medium text-copy hover:border-line-strong hover:bg-wash hover:text-ink ${FOCUS}" data-act="mgr-jump" data-id="${esc(c.target)}">${esc(c.label)}${c.count != null ? COUNT(c.count) + `<span class="sr-only"> waiting</span>` : ''}</button></li>`).join('')}</ul></nav>`;
+  TN.act('mgr-jump', (el) => {
+    if (TN.jumpTo) { TN.jumpTo(el.dataset.id); return; }
+    const t = document.getElementById(el.dataset.id); if (!t) return;
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    t.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
+    if (!t.hasAttribute('tabindex')) t.setAttribute('tabindex', '-1');
+    t.focus({ preventScroll: true });
+  });
+
+  TN.hm = { FOCUS, COUNT, jumpChips, ic, btn, badge, stateBadge, pill, notice, card, summary, table, tabs, pageHeader, field, textarea, input, select, choice, choiceGroup, statCard, statItem, link, LINK, sectionHead, nowStamp, notify, roleOfPerson, personName, reasonOk, CONTROL, BTN_BASE };
 
   /* ---------------------------------------------------------------
      Extra shared data (added at load time; 00 is never edited)
@@ -478,44 +491,80 @@
   TN.approvalsWaiting = TN.hm.approvalCount;
 
   /* ---------------------------------------------------------------
-     Approvals page
+     Approvals page (redesign DM-5..DM-8: summary chips, only sections with
+     something waiting, one row template with Approve / Return on the row)
      --------------------------------------------------------------- */
-  const QUEUE_HEAD = (cols) => `<thead><tr>${cols.map((c) => `<th scope="col">${esc(c)}</th>`).join('')}</tr></thead>`;
+  const GROUP_CHIP = { pay: 'Supplier payments', fund: 'Company funding', cost: 'Costs above budget', bank: 'Bank details', cancel: 'Cancellations and write-offs', split: 'Split across branches' };
+  const lowerFirst = (t) => t.charAt(0).toLowerCase() + t.slice(1);
+  const reqLabel = (it) => (it.group === 'bank' || it.group === 'cost' ? it.title : it.id);
+  const blockOf = (it) => { try { return it.block ? it.block() : null; } catch (e) { return null; } };
+  const navTabs = (label, items, cls) => (TN.ui && TN.ui.tabs ? TN.ui.tabs({ label, items, cls }) : `<div class="${cls || ''}">${tabs(label, items)}</div>`);
+  TN.hm.navTabs = navTabs;
+  const groupHead = (id, icon, title, n, desc) => `<div class="mb-3 flex flex-col gap-1"><h2 id="${id}" tabindex="-1" class="m-0 flex scroll-mt-24 items-center gap-2 text-lg font-semibold text-ink outline-none">${ic(icon, 'size-4.5 text-quiet')}${esc(title)}${COUNT(n)}</h2>${desc ? `<p class="m-0 text-sm text-quiet">${desc}</p>` : ''}</div>`;
+  const dealCellHtml = (id) => (id ? `${dealLink(id)}<span class="block text-sm text-quiet">${esc(custOf(id))}</span>` : '<span class="text-sm text-quiet">No Deal: supplier record</span>');
 
-  function groupTable(g, list) {
-    const cols = ['Request', 'Deal', 'Raised by', 'Amount', 'Why it is with you', 'Decision'];
-    const rows = list.map((it) => (it.group === 'bank' || it.group === 'cost' ? `<tr><td data-label="Request"><strong>${esc(it.title)}</strong><span class="fin-sub">${esc(it.sub)}</span></td>` : `<tr><td data-label="Request"><strong>${esc(it.id)}</strong><span class="fin-sub">${esc(it.title)}${it.sub ? ' · ' + esc(it.sub) : ''}</span></td>`)
-      + `<td data-label="Deal">${it.deal ? `<a href="#/app/deals/${esc(it.deal)}"><strong>${esc(it.deal)}</strong><span class="visually-hidden"> — open the Deal</span></a><span class="fin-sub">${esc(custOf(it.deal))}</span>` : '<span class="fin-sub">No Deal: supplier record</span>'}</td>`
-      + `<td data-label="Raised by">${esc(personName(it.by))}<span class="fin-sub">${TN.fmt.date(it.at)}</span></td>`
-      + `<td data-label="Amount" class="fin-num">${it.amount != null ? inr(it.amount) : '—'}</td>`
-      + `<td data-label="Why it is with you">${pill(it.by === MANAGER ? 'warn' : 'info', it.by === MANAGER ? '!' : '◐', it.by === MANAGER ? 'Your own request' : it.why, 'Why:')}</td>`
-      + `<td data-label="Decision">${btn(`Review<span class="visually-hidden"> ${esc(it.group === 'bank' || it.group === 'cost' ? it.title : it.id)}</span>`, { size: 'sm', act: 'mgr-review', id: it.group + ':' + it.id })}</td></tr>`).join('');
-    return `<section class="mb-8" aria-labelledby="grp-${g.key}"><div class="mb-3 flex flex-col gap-1"><h2 id="grp-${g.key}" class="m-0 flex items-center gap-2 text-lg font-semibold text-ink">${ic(g.icon, 'size-4.5 text-quiet')}${esc(g.title)}<span class="rounded-full bg-wash px-1.5 text-xs leading-5 font-medium text-quiet tabular-nums">${list.length}</span></h2><p class="m-0 text-sm text-quiet">${esc(g.desc)}</p></div>`
-      + (list.length ? `<div class="table-scroll"><table class="stack-table fin-queue"><caption class="visually-hidden">${TN.fmt.plural(list.length, 'request')} · ${esc(g.title)}</caption>${QUEUE_HEAD(cols)}<tbody>${rows}</tbody></table></div>` : `<p class="m-0 rounded-control border border-line bg-card px-4 py-3.5 text-quiet">Nothing waiting.</p>`)
-      + `</section>`;
+  function decisionCell(it, key) {
+    const label = esc(reqLabel(it));
+    const details = btn(`Details<span class="sr-only"> of ${label}</span>`, { size: 'sm', variant: 'ghost', act: 'mgr-review', id: key });
+    const own = it.by === MANAGER;
+    const blocked = own ? 'You asked for this, so a different person must approve it.' : (blockOf(it) || '').replace(/ Nothing was changed\.$/, '');
+    if (TN.ui && TN.ui.approvalRowActions) return `<div class="flex flex-col items-end gap-1.5">${TN.ui.approvalRowActions({ id: key, approveAct: 'mgr-row-approve', returnAct: 'mgr-row-return', srFor: label, disabledReason: blocked ? esc(blocked) : null })}${details}</div>`;
+    const safeId = key.replace(/[^A-Za-z0-9_-]/g, '-');
+    const dis = blocked ? ` disabled aria-describedby="blk-${safeId}"` : '';
+    return `<div class="flex flex-col items-start gap-1.5"><div class="flex flex-wrap items-center gap-2">${btn(`Approve<span class="sr-only"> ${label}</span>`, { size: 'sm', act: 'mgr-row-approve', id: key, attrs: dis })}${btn(`Return<span class="sr-only"> ${label}</span>`, { size: 'sm', variant: 'ghost', act: 'mgr-row-return', id: key, attrs: dis })}${details}</div>${blocked ? `<p class="m-0 flex items-start gap-1.5 text-sm text-quiet" id="blk-${safeId}">${ic('lock', 'mt-0.5 size-3.5 shrink-0 text-faint')}<span>${esc(blocked)}</span></p>` : ''}</div>`;
+  }
+
+  function groupSection(g, list) {
+    const rows = list.map((it) => {
+      const key = it.group + ':' + it.id;
+      const raised = `<span class="block text-sm text-quiet">Raised by ${esc(personName(it.by))}, <span class="whitespace-nowrap">${TN.fmt.date(it.at)}</span></span>`;
+      const what = it.group === 'bank' || it.group === 'cost'
+        ? `<span class="font-semibold text-ink">${esc(it.title)}</span><span class="block text-sm text-copy">${esc(it.sub)}</span>${raised}`
+        : `<span class="font-semibold text-ink">${esc(it.id)}</span><span class="block text-sm text-copy">${esc(it.title)}${it.sub ? ' · ' + esc(it.sub) : ''}</span>${raised}`;
+      return [what, dealCellHtml(it.deal), it.amount != null ? `<span class="whitespace-nowrap">${inr(it.amount)}</span>` : '—', it.by === MANAGER ? '<span class="text-quiet">Your own request</span>' : esc(it.why), decisionCell(it, key)];
+    });
+    const cols = [{ label: 'Request' }, { label: 'Deal' }, { label: 'Amount', num: true }, { label: 'Why it is with you' }, { label: 'Decision' }];
+    const n = list.filter((i) => i.by !== MANAGER).length;
+    return `<section class="mb-8" aria-labelledby="grp-${g.key}" data-group="${g.key}">${groupHead('grp-' + g.key, g.icon, g.title, n, esc(g.desc))}${card({ bodyClass: '', body: table({ label: g.title, caption: `${TN.fmt.plural(list.length, 'request')} · ${g.title}`, cols, rows }) })}</section>`;
+  }
+
+  function waitingView(items) {
+    const groups = GROUPS.map((g) => ({ g, list: items.filter((i) => i.group === g.key) }));
+    const full = groups.filter((x) => x.list.length); const empty = groups.filter((x) => !x.list.length);
+    if (!full.length) return (TN.ui && TN.ui.state ? TN.ui.state({ kind: 'empty', title: 'Nothing waiting for you', text: 'New requests from Purchase, Flight, Visa and Accounts appear here.' }) : `<div class="rounded-card border border-line bg-card px-4.5 py-6 text-center shadow-card">${ic('inbox', 'mx-auto size-6 text-quiet')}<p class="m-0 mt-2 font-semibold text-ink">Nothing waiting for you</p><p class="m-0 text-sm text-quiet">New requests from Purchase, Flight, Visa and Accounts appear here.</p></div>`);
+    return jumpChips('Waiting, by kind', full.map((x) => ({ target: 'grp-' + x.g.key, label: GROUP_CHIP[x.g.key], count: x.list.filter((i) => i.by !== MANAGER).length })))
+      + full.map((x) => groupSection(x.g, x.list)).join('')
+      + (empty.length ? `<p class="m-0 text-sm text-quiet" data-slot="nothing-waiting">Nothing waiting: ${empty.map((x) => esc(lowerFirst(GROUP_CHIP[x.g.key]))).join(', ')}.</p>` : '');
   }
 
   function escalationView() {
     const e = escalations();
     const R = D.reminderRules;
-    const sec = (key, title, desc, icon, list, cols, row) => `<section class="mb-8" aria-labelledby="esc-${key}"><div class="mb-3 flex flex-col gap-1"><h2 id="esc-${key}" class="m-0 flex items-center gap-2 text-lg font-semibold text-ink">${ic(icon, 'size-4.5 text-quiet')}${esc(title)}<span class="rounded-full bg-wash px-1.5 text-xs leading-5 font-medium text-quiet tabular-nums">${list.length}</span></h2><p class="m-0 text-sm text-quiet">${desc}</p></div>`
-      + (list.length ? `<div class="table-scroll"><table class="stack-table fin-queue"><caption class="visually-hidden">${TN.fmt.plural(list.length, 'item')} · ${esc(title)}</caption>${QUEUE_HEAD(cols)}<tbody>${list.map(row).join('')}</tbody></table></div>` : `<p class="m-0 rounded-control border border-line bg-card px-4 py-3.5 text-quiet">Nothing here.</p>`) + `</section>`;
-    const dealCell = (id) => `<td data-label="Deal"><a href="#/app/deals/${esc(id)}"><strong>${esc(id)}</strong><span class="visually-hidden"> — open the Deal</span></a><span class="fin-sub">${esc(custOf(id))}</span></td>`;
-    return sec('overdue', 'Instalments overdue', `${R.escalateOverdue.days} or more days overdue. The Deal’s Sales owner chases the customer; Accounts sees the same dues list.`, 'clock', e.overdue, ['Deal', 'Instalment', 'Due', 'Still due', 'Sales owner', 'Next step'],
-      ({ i, idx, late }) => `<tr>${dealCell(i.deal)}<td data-label="Instalment">${esc(i.label)}</td><td data-label="Due">${TN.fmt.date(i.due)}<span class="fin-sub">${pill('warn', '!', TN.fmt.plural(late, 'day') + ' overdue', 'Status:')}</span></td><td data-label="Still due" class="fin-num">${inr(i.amount - i.paid)}</td><td data-label="Sales owner">${esc(personName((TN.deal(i.deal) || {}).owner))}</td><td data-label="Next step">${btn('Remind the Sales owner', { size: 'sm', act: 'mgr-remind-due', id: String(idx) })}</td></tr>`)
-      + sec('accounts', 'Bookings waiting for Accounts', `Waiting ${TN.fmt.plural(R.accountsWait.days, 'day')} or more for the Accounts review. Hotel work cannot start before the go-ahead.`, 'hourglass', e.accounts, ['Deal', 'Submitted', 'Waiting', 'Sales owner', 'Next step'],
-        (d) => `<tr>${dealCell(d.id)}<td data-label="Submitted">${TN.fmt.date(d.submittedAt)}</td><td data-label="Waiting">${pill('warn', '◷', TN.fmt.plural(-TN.fmt.daysFrom(d.submittedAt), 'day'), 'Waiting:')}</td><td data-label="Sales owner">${esc(personName(d.owner))}</td><td data-label="Next step">${btn('Remind Accounts', { size: 'sm', act: 'mgr-remind-acc', id: d.id })}</td></tr>`)
-      + sec('nottaken', 'Tasks not taken', `Nobody took these tasks within ${R.notTaken.hours} hours.`, 'inbox', e.notTaken, ['Task', 'Deal', 'Department', 'Waiting since', 'Next step'],
-        ({ id, s, since }) => `<tr><td data-label="Task"><strong>${esc(s.title)}</strong><span class="fin-sub">${esc(s.detail || '')}</span></td>${dealCell(s.deal)}<td data-label="Department">${esc(DEPT[s.dept])}</td><td data-label="Waiting since">${TN.fmt.date(since)}</td><td data-label="Next step">${btn('Give to someone', { size: 'sm', act: 'mgr-assign', id })}</td></tr>`)
-      + sec('stuck', 'Stuck tasks', `In progress with no update for ${R.stuck.days} or more days. Move a stuck task to someone else.`, 'user-round-pen', e.stuck, ['Task', 'Deal', 'With', 'Last update', 'Next step'],
-        ({ id, s, at }) => `<tr><td data-label="Task"><strong>${esc(s.title)}</strong><span class="fin-sub">${esc(s.detail || '')}</span></td>${dealCell(s.deal)}<td data-label="With">${esc(personName(s.assignee))}</td><td data-label="Last update">${TN.fmt.date(at)}<span class="fin-sub">${TN.fmt.plural(-TN.fmt.daysFrom(at), 'day')} ago</span></td><td data-label="Next step">${btn('Reassign task', { size: 'sm', act: 'mgr-move', id })}</td></tr>`);
+    const sec = (key, title, desc, icon, list, cols, row) => ({ key, title, html: list.length ? `<section class="mb-8" aria-labelledby="esc-${key}">${groupHead('esc-' + key, icon, title, list.length, desc)}${card({ bodyClass: '', body: table({ label: title, caption: `${TN.fmt.plural(list.length, 'item')} · ${title}`, cols: cols.map((c, i) => (typeof c === 'string' ? { label: c } : c)), rows: list.map(row) }) })}</section>` : '' , n: list.length });
+    const dealCell = (id) => dealCellHtml(id);
+    const parts = [
+      sec('overdue', 'Instalments overdue', `${R.escalateOverdue.days} or more days overdue. The Deal’s Sales owner chases the customer; Accounts sees the same dues list.`, 'clock', e.overdue, ['Deal', 'Instalment', 'Due', { label: 'Still due', num: true }, 'Sales owner', 'Next step'],
+        ({ i, idx, late }) => [dealCell(i.deal), esc(i.label), `${TN.fmt.date(i.due)}<span class="mt-1 block">${badge('warning', TN.fmt.plural(late, 'day') + ' overdue')}</span>`, inr(i.amount - i.paid), esc(personName((TN.deal(i.deal) || {}).owner)), btn('Remind the Sales owner', { size: 'sm', act: 'mgr-remind-due', id: String(idx) })]),
+      sec('accounts', 'Bookings waiting for Accounts', `Waiting ${TN.fmt.plural(R.accountsWait.days, 'day')} or more for the Accounts review. Hotel work cannot start before the go-ahead.`, 'hourglass', e.accounts, ['Deal', 'Submitted', 'Waiting', 'Sales owner', 'Next step'],
+        (d) => [dealCell(d.id), TN.fmt.date(d.submittedAt), badge('warning', TN.fmt.plural(-TN.fmt.daysFrom(d.submittedAt), 'day')), esc(personName(d.owner)), btn('Remind Accounts', { size: 'sm', act: 'mgr-remind-acc', id: d.id })]),
+      sec('nottaken', 'Tasks not taken', `Nobody took these tasks within ${R.notTaken.hours} hours.`, 'inbox', e.notTaken, ['Task', 'Deal', 'Department', 'Waiting since', 'Next step'],
+        ({ id, s, since }) => [`<span class="font-semibold text-ink">${esc(s.title)}</span><span class="block text-sm text-quiet">${esc(s.detail || '')}</span>`, dealCell(s.deal), esc(DEPT[s.dept]), TN.fmt.date(since), btn('Give to someone', { size: 'sm', act: 'mgr-assign', id })]),
+      sec('stuck', 'Stuck tasks', `In progress with no update for ${R.stuck.days} or more days. Move a stuck task to someone else.`, 'user-round-pen', e.stuck, ['Task', 'Deal', 'With', 'Last update', 'Next step'],
+        ({ id, s, at }) => [`<span class="font-semibold text-ink">${esc(s.title)}</span><span class="block text-sm text-quiet">${esc(s.detail || '')}</span>`, dealCell(s.deal), esc(personName(s.assignee)), `${TN.fmt.date(at)}<span class="block text-sm text-quiet">${TN.fmt.plural(-TN.fmt.daysFrom(at), 'day')} ago</span>`, btn('Reassign task', { size: 'sm', act: 'mgr-move', id })]),
+    ];
+    const full = parts.filter((p) => p.n); const empty = parts.filter((p) => !p.n);
+    if (!full.length) return `<p class="m-0 rounded-card border border-line bg-card px-4.5 py-4 text-quiet">Nothing is late. Overdue instalments, bookings waiting for Accounts and stuck tasks appear here.</p>`;
+    return (full.length > 1 ? jumpChips('Late work, by kind', full.map((p) => ({ target: 'esc-' + p.key, label: p.title, count: p.n }))) : '')
+      + full.map((p) => p.html).join('')
+      + (empty.length ? `<p class="m-0 text-sm text-quiet">Nothing late: ${empty.map((p) => esc(lowerFirst(p.title))).join(', ')}.</p>` : '');
   }
   const DEPT = { purchase: 'Purchase', flight: 'Flight', visa: 'Visa and passport' };
   const DEPT_PEOPLE = { purchase: ['purchase', 'purchase2'], flight: ['flight'], visa: ['visa'] };
 
   function decidedView() {
     const list = D.managerDecisions;
-    return `<div class="table-scroll"><table class="stack-table fin-queue"><caption>${TN.fmt.plural(list.length, 'decision')} · Decided</caption>${QUEUE_HEAD(['When', 'Request', 'Decision', 'Note'])}<tbody>${list.map((x) => `<tr><td data-label="When">${TN.fmt.dateTime(x.at)}</td><td data-label="Request"><strong>${esc(x.ref)}</strong><span class="fin-sub">${esc(x.kind)}</span></td><td data-label="Decision">${x.outcome === 'approved' ? pill('ok', '✓', 'Approved', 'Decision:') : pill('warn', '↩', 'Returned', 'Decision:')}</td><td data-label="Note">${esc(x.text)}</td></tr>`).join('')}</tbody></table></div>`;
+    return card({ bodyClass: '', body: table({ label: 'Decided', caption: `${TN.fmt.plural(list.length, 'decision')} · Decided`, cols: [{ label: 'When' }, { label: 'Request' }, { label: 'Decision' }, { label: 'Note' }],
+      rows: list.map((x) => [TN.fmt.dateTime(x.at), `<span class="font-semibold text-ink">${esc(x.ref)}</span><span class="block text-sm text-quiet">${esc(x.kind)}</span>`, x.outcome === 'approved' ? badge('success', 'Approved') : badge('warning', 'Returned', { icon: 'undo-2' }), esc(x.text)]) }) });
   }
 
   TN.page('/app/approvals', {
@@ -527,16 +576,50 @@
       let body = '';
       if (tab === 'escalations') body = escalationView();
       else if (tab === 'decided') body = decidedView();
-      else body = GROUPS.map((g) => groupTable(g, items.filter((i) => i.group === g.key))).join('');
-      return pageHeader({ eyebrow: 'Jodhpur branch', title: 'Approvals', mb: 'mb-3' })
-        + `<div class="mb-5 flex flex-col gap-2 font-sans text-base text-copy [&_p]:m-0" data-slot="finance-header-lines"><p>Requests that need the branch Manager, and work that is running late.</p><p class="fin-disclaimer" role="note"><span aria-hidden="true">ⓘ </span>You never approve your own request. Every decision is recorded with your name and the people involved get a notice.</p></div>`
-        + `<div class="mb-4 flex flex-col gap-2">${tabs('Approvals tabs', [
+      else body = waitingView(items);
+      return pageHeader({ eyebrow: 'Jodhpur branch', title: 'Approvals', desc: 'Requests and late work that need the branch Manager. You never approve your own request, and every decision is recorded with your name.', mb: 'mb-4' })
+        + navTabs('Approvals tabs', [
           { href: '#/app/approvals', label: 'Waiting for you', current: tab === 'waiting', count: items.filter((i) => i.by !== MANAGER).length },
           { href: '#/app/approvals?tab=escalations', label: 'Escalations', current: tab === 'escalations', count: ec },
           { href: '#/app/approvals?tab=decided', label: 'Decided', current: tab === 'decided' },
-        ])}</div>`
+        ], 'mb-4')
         + body;
     },
+  });
+
+  /* ---------- Approve and Return on the row ---------- */
+  const afterDecision = (group) => setTimeout(() => {
+    const sec = document.querySelector(`[data-group="${group}"]`);
+    const next = (sec && sec.querySelector('[data-act="mgr-row-approve"]:not([disabled])')) || document.querySelector('[data-act="mgr-row-approve"]:not([disabled])') || document.querySelector('[data-slot="jump-chips"] button') || document.getElementById('main');
+    if (next && next.focus) next.focus();
+  }, 0);
+  TN.act('mgr-row-approve', (el) => {
+    const key = el.dataset.id; const it = findItem(key);
+    if (!it) { TN.toast('This request was already decided.'); TN.refresh(); return; }
+    if (it.by === MANAGER) { TN.toast('Not approved', 'danger', 'You asked for this, so a different person must approve it. Nothing was changed.'); return; }
+    const blocked = blockOf(it);
+    if (blocked) { TN.toast('Not approved', 'danger', blocked); return; }
+    const msg = it.approve('');
+    decide({ kind: it.kind, id: reqLabel(it) }, 'approved', msg);
+    TN.toast(msg, 'success'); TN.refresh(); afterDecision(it.group);
+  });
+  function returnDialog(key, st = {}) {
+    const it = findItem(key); if (!it) return;
+    const who = personName(it.by);
+    TN.dialog({ title: `Return ${reqLabel(it)}?`, description: `${it.kind}${it.amount != null ? ' · ' + inr(it.amount) : ''}`,
+      body: `<form id="mgr-ret-form" data-act="mgr-ret-submit" data-id="${esc(key)}" class="flex flex-col gap-4" novalidate><p class="m-0">It goes back to ${esc(who)} with your reason. Nothing is approved or paid.</p>${textarea({ id: 'mgr-ret-reason', name: 'reason', label: 'Reason for returning', hint: `10 to 500 characters. ${esc(who)} reads it.`, value: st.reason || '', error: st.error })}</form>`,
+      footer: btn('Cancel', { attrs: ' data-close autofocus' }) + btn(`Return to ${esc(who)}`, { variant: 'primary', type: 'submit', attrs: ' form="mgr-ret-form"' }) });
+    if (st.error) setTimeout(() => { const t = document.getElementById('mgr-ret-reason'); if (t) t.focus(); }, 0);
+  }
+  TN.act('mgr-row-return', (el) => returnDialog(el.dataset.id));
+  TN.act('mgr-ret-submit', (f) => {
+    const key = f.dataset.id; const it = findItem(key); if (!it) { TN.closeOverlay(); TN.refresh(); return; }
+    const raw = f.querySelector('#mgr-ret-reason').value;
+    const r = reasonOk(raw);
+    if (!r) { returnDialog(key, { reason: raw, error: 'Not returned: say why, in 10 to 500 characters.' }); return; }
+    const msg = it.ret(r);
+    decide({ kind: it.kind, id: reqLabel(it) }, 'returned', msg + ` Reason: “${r}”`);
+    TN.closeOverlay(); TN.toast(msg); TN.refresh(); afterDecision(it.group);
   });
 
   /* ---------- Approve / return drawer ---------- */
@@ -645,7 +728,7 @@
   /** Horizontal bar list (single series, one hue; values in text ink). */
   const bars = (label, data, fmt) => {
     const max = Math.max(1, ...data.map((d) => d.value));
-    return `<figure class="m-0 flex flex-col gap-2.5" aria-label="${esc(label)}">${data.map((d) => `<div class="flex items-center gap-3 text-sm" title="${esc(d.label)}: ${esc(fmt(d.value))}"><span class="w-28 shrink-0 text-copy sm:w-40">${esc(d.label)}</span><span class="h-2 min-w-0 flex-1 rounded-full bg-wash" aria-hidden="true"><span class="block h-2 rounded-full bg-brand-strong" style="width:${d.value ? Math.max(2, (d.value / max) * 100) : 0}%"></span></span><span class="w-24 shrink-0 text-right font-medium text-ink tabular-nums">${esc(fmt(d.value))}</span></div>`).join('')}<figcaption class="sr-only">${esc(label)}. The same numbers are in the table below.</figcaption></figure>`;
+    return `<figure class="m-0 flex flex-col gap-2.5" aria-label="${esc(label)}">${data.map((d) => `<div class="flex items-center gap-3 text-sm" title="${esc(d.label)}: ${esc(fmt(d.value))}"><span class="w-32 shrink-0 text-copy">${esc(d.label)}</span><span class="h-2 min-w-0 flex-1 rounded-full bg-wash" aria-hidden="true"><span class="block h-2 rounded-full bg-brand-strong" style="width:${d.value ? Math.max(2, (d.value / max) * 100) : 0}%"></span></span><span class="w-24 shrink-0 text-right font-medium text-ink tabular-nums">${esc(fmt(d.value))}</span></div>`).join('')}<figcaption class="sr-only">${esc(label)}. The same numbers are in the table below.</figcaption></figure>`;
   };
 
   const PAY_WORD = { requested: ['info', '◐', 'Waiting for Accounts'], waiting_manager: ['info', '◐', 'Waiting for the Manager'], approved: ['ok', '✓', 'Approved, to pay'], paid: ['info', '●', 'Paid, to verify'], verified: ['ok', '●', 'Paid and verified'], returned: ['warn', '↩', 'Returned'], on_hold: ['warn', '!', 'On hold'] };
@@ -782,12 +865,15 @@
   TN.page('/app/reports', {
     nav: '/app/reports', roles: reportRoles, title: 'Reports',
     render() {
-      const cards = REPORTS.map((r) => {
+      const rows = REPORTS.map((r) => {
         const locked = r.cap && !TN.can(r.cap);
-        return `<div class="rounded-card border border-line bg-card px-4.5 py-4 font-sans shadow-card flex flex-col gap-2" data-slot="card"><div class="flex items-center justify-between gap-2"><h2 class="m-0 text-lg leading-6 font-semibold tracking-[-0.005em] text-ink">${esc(r.title)}</h2><span class="grid size-7.5 place-items-center rounded-control bg-brand-tint text-brand-strong">${ic(r.icon, 'size-4')}</span></div><p class="m-0 text-sm text-quiet">${esc(r.desc)}</p>${locked ? `<p class="m-0 flex items-start gap-1.5 text-sm text-quiet">${ic('lock', 'mt-0.5 size-3.5 shrink-0 text-faint')}<span>Shows ${capWord[r.cap]}, which your role does not see.</span></p>` : `<p class="m-0 mt-1">${link('#/app/reports/' + r.id, `Open report<span class="visually-hidden">: ${esc(r.title)}</span>`)}</p>`}</div>`;
-      }).join('');
+        return [
+          `<span class="inline-flex items-start gap-2">${ic(r.icon, 'mt-0.5 size-4 shrink-0 text-quiet')}<span class="min-w-0">${locked ? `<span class="font-semibold text-ink">${esc(r.title)}</span>` : link('#/app/reports/' + r.id, esc(r.title))}<span class="block text-sm text-quiet">${esc(r.desc)}</span></span></span>`,
+          locked ? `<span class="inline-flex items-start gap-1.5 text-sm text-quiet">${ic('lock', 'mt-0.5 size-3.5 shrink-0 text-faint')}<span>Not shown for your role: it shows ${capWord[r.cap]}.</span></span>` : btn(`Open<span class="sr-only"> ${esc(r.title)}</span>`, { size: 'sm', href: '#/app/reports/' + r.id }),
+        ];
+      });
       return pageHeader({ title: 'Reports', desc: 'Filter by period, branch, owner and status, and export to Excel. Each report shows only what your role may see.' })
-        + `<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:gap-4">${cards}</div>`;
+        + card({ bodyClass: '', body: table({ label: 'Reports', caption: `${REPORTS.length} reports`, cols: [{ label: 'Report' }, { label: 'Next step' }], rows }) });
     },
   });
 

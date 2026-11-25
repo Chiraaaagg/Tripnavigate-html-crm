@@ -282,18 +282,67 @@
     });
   }
   const mineOrAll = (scope, list) => (scope === 'all' ? list : list.filter((x) => x.owner === me()));
+  /* ---------- Quotations and Itineraries: one list page with two tabs (SL-10, C2) ----------
+     One search box (name, customer or exact reference, every status and page; an exact reference opens the record,
+     closed drafts and referral drafts included), four chips with the rest under "More", a sort select. */
+  const CHIP_ORDER = ['open', 'drafts', 'shared', 'accepted', 'ready', 'ready_to_book', 'accepted_not_linked', 'declined_or_expired', 'closed_drafts'];
+  const scopeOf = (qy) => (qy.scope === 'all' || qy.scope === 'mine' ? qy.scope : TN.is('manager') ? 'all' : 'mine');
+  function listTabs(current, qy) {
+    const scope = scopeOf(qy);
+    const sc = qy.scope ? '?scope=' + qy.scope : '';
+    return U.tabs({ label: 'Quotations and itineraries', cls: 'mb-4', items: [
+      { href: '/app/quotations' + sc, label: 'Quotations', count: mineOrAll(scope, Q).filter(FILTERS[0][2]).length, current: current === 'quotations' },
+      { href: '/app/itineraries' + sc, label: 'Itineraries', count: mineOrAll(scope, IT()).length, current: current === 'itineraries' },
+    ] });
+  }
+  function scopeSwitch(path, qy, noun) {
+    const scope = scopeOf(qy);
+    const keep = new URLSearchParams(TN.query());
+    const href = (k) => { const p = new URLSearchParams(keep); p.set('scope', k); p.delete('miss'); return '#' + path + '?' + p.toString(); };
+    return `<div role="group" aria-label="Which ${noun} to show" class="mb-3 flex flex-wrap items-center gap-2"><span class="text-sm text-quiet">Show:</span><span class="inline-flex flex-wrap gap-0.5 rounded-control border border-line bg-wash p-0.5">${[['mine', 'Mine'], ['all', 'All you can open']].map(([k, l]) => (k === scope ? `<strong aria-current="true" class="inline-flex min-h-9 items-center rounded-chip bg-card px-2.5 py-1 text-sm font-semibold text-ink shadow-button">${l}</strong>` : `<a class="inline-flex min-h-9 items-center rounded-chip px-2.5 py-1 text-sm font-medium text-brand-strong no-underline hover:bg-card hover:text-brand-deep ${FO}" href="${href(k)}">${l}</a>`)).join('')}</span></div>`;
+  }
+  function toolbar(o) {
+    const base = (f) => { const p = new URLSearchParams(TN.query()); p.delete('miss'); p.delete('q'); if (f && f !== 'open') p.set('filter', f); else p.delete('filter'); const s = p.toString(); return o.path + (s ? '?' + s : ''); };
+    const chips = o.order.map((k) => o.filters.find((f) => f[0] === k)).filter(Boolean).map(([k, l, fn]) => ({ href: base(k), label: l, count: o.pool.filter(fn).length, current: !o.q && k === o.filter }));
+    const miss = o.miss ? `<p class="m-0 mb-3 flex items-start gap-1.5 text-sm font-medium text-status-danger" role="alert">${TN.ic('circle-alert', 'mt-0.5 size-3.5 shrink-0')}<span>Nothing with that reference that you can open. Check the reference (for example ${o.refEg}).</span></p>` : '';
+    if (!U.queueToolbar) return listChrome(o.legacy) + miss;
+    return U.queueToolbar({ id: o.noun + '-find', act: o.act, label: `Find ${o.noun}`, chipsLabel: `Filter ${o.noun}`,
+      search: { name: 'q', value: o.q, placeholder: o.placeholder, label: `Search ${o.noun}` },
+      chips, sort: { name: 'sort', value: o.sort, options: o.sortOptions } }) + miss;
+  }
+  /** Search submit: an exact reference opens the record; any other text searches every status. Sort change keeps the rest. */
+  function findAct(name, path, openRef) {
+    TN.act(name, (el) => {
+      const f = el.tagName === 'FORM' ? el : el.form; if (!f) return;
+      const fd = new FormData(f), text = String(fd.get('q') || '').trim(), sort = fd.get('sort') || '';
+      const p = new URLSearchParams(TN.query()); p.delete('miss'); p.delete('ref');
+      if (el.tagName === 'FORM' && text && openRef(text)) return;
+      if (el.tagName === 'FORM' && text && /^(Q-\d{4}-\d{3}|TD-\d+|IT-\d{4})$/i.test(text)) { p.delete('q'); p.set('miss', '1'); p.set('ref', text); TN.go(path + '?' + p.toString()); return; }
+      if (text) p.set('q', text); else p.delete('q');
+      if (sort) p.set('sort', sort); else p.delete('sort');
+      const s = p.toString(); TN.go(path + (s ? '?' + s : ''));
+    });
+  }
+  findAct('q-find', '/app/quotations', (text) => { const q = qById(text), d = RD().find((x) => x.id.toLowerCase() === text.toLowerCase()); if (q) { TN.go('/app/quotations/' + q.id); return true; } if (d) { TN.go('/app/quotations/drafts/' + d.id); return true; } const i = itinById(text); if (i) { TN.go('/app/itineraries/' + i.id); return true; } return false; });
+  findAct('it-find', '/app/itineraries', (text) => { const i = itinById(text); if (i) { TN.go('/app/itineraries/' + i.id); return true; } return false; });
+  const Q_SORT = [{ value: '', label: 'Recently updated first' }, { value: 'valid', label: 'Valid until, soonest first' }, { value: 'ref', label: 'Reference' }];
   TN.page('/app/quotations', { nav: '/app/quotations', roles: ['sales', 'manager'], title: 'Quotations',
     render(p, qy) {
-      const scope = qy.scope || (TN.is('manager') ? 'all' : 'mine');
+      const scope = scopeOf(qy);
       const filter = FILTERS.some((f) => f[0] === qy.filter) ? qy.filter : 'open';
       const pool = mineOrAll(scope, Q);
-      const list = pool.filter(FILTERS.find((f) => f[0] === filter)[2]).sort((a, b) => (b.updated || '').localeCompare(a.updated || ''));
+      const text = String(qy.q || '').trim().toLowerCase();
+      const sort = Q_SORT.some((s) => s.value === qy.sort) ? qy.sort || '' : '';
+      let list = text ? pool.filter((q) => `${q.id} ${q.title} ${q.customer.name} ${q.trip.dest} ${q.subject.ref}`.toLowerCase().includes(text)) : pool.filter(FILTERS.find((f) => f[0] === filter)[2]);
+      list = list.sort((a, b) => (sort === 'valid' ? String(cur(a).validUntil || '').localeCompare(String(cur(b).validUntil || '')) : sort === 'ref' ? a.id.localeCompare(b.id) : (b.updated || '').localeCompare(a.updated || '')));
       const table = list.length ? U.table({ label: 'Quotations table', id: 'quotations-table', top: true, caption: `Showing ${list.length} of ${list.length} quotations`, captionCls: 'sr-only',
         columns: ['Quotation', 'Status', 'Lead, deal or referral', 'Valid until', 'Updated', { label: 'Next step', sr: true }], rows: quoteRows(list),
-        footer: `<nav aria-label="Quotations pages" class="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4.5 py-3 font-sans" data-slot="work-pager"><span aria-hidden="true"></span><span class="text-sm text-quiet tabular-nums">Showing ${list.length} of ${list.length} quotations</span><span aria-hidden="true"></span></nav>` })
-        : U.card(U.emptyState({ icon: 'file-text', title: 'No quotations here', description: 'Nothing matches this filter. Try another filter, or start a new quotation.', level: 2 }));
+        footer: U.pager({ label: 'Quotations pages', text: `Showing ${list.length} of ${list.length} quotations` }) })
+        : U.card(U.emptyState({ icon: 'file-text', title: 'No quotations here', description: text ? 'No quotation you can open matches this search. Search finds a title, customer, trip or reference.' : 'Nothing matches this filter. Try another filter, or start a new quotation.', level: 2 }));
       return U.page(U.pageHeader({ title: 'Quotations', description: scope === 'all' ? 'Quotations you can open' : 'Quotations you made or own', actions: U.button('New quotation', { href: '/app/quotations/new', variant: 'primary', size: 'lg', icon: 'plus' }) })
-        + listChrome({ path: '/app/quotations', noun: 'quotations', scope, filter, pool, filters: FILTERS, refAct: 'q-ref', refPh: 'Q-2610-014 or TD-318', refEg: 'Q-2610-014 or TD-318', ref: qy.ref, refMiss: qy.miss === '1' })
+        + listTabs('quotations', qy) + scopeSwitch('/app/quotations', qy, 'quotations')
+        + toolbar({ path: '/app/quotations', noun: 'quotations', act: 'q-find', q: qy.q || '', filter, pool, filters: FILTERS, order: CHIP_ORDER, sort, sortOptions: Q_SORT, placeholder: 'Title, customer, trip or reference (Q-2610-014, TD-318)', refEg: 'Q-2610-014 or TD-318', miss: qy.miss === '1',
+          legacy: { path: '/app/quotations', noun: 'quotations', scope, filter, pool, filters: FILTERS, refAct: 'q-ref', refPh: 'Q-2610-014 or TD-318', refEg: 'Q-2610-014 or TD-318', ref: qy.ref, refMiss: qy.miss === '1' } })
         + table + closedNote);
     }, mount: (root) => bindSearch(root) });
   TN.act('q-ref', (f) => {
@@ -635,16 +684,97 @@
       <section class="doc-section doc-note" aria-label="Next step"><p>To confirm, reply in writing (WhatsApp or e-mail) to ${E(TN.person(q.owner).name)} (+91 291 261 0410), saying which option you choose. Availability is checked when you confirm.</p></section>
       <footer class="doc-foot"><p class="doc-legal">Holiday Chacha Pvt Ltd · Regd. office: 59A, Babu Rajendra Marg, Masuria Colony, Baldev Nagar, Jodhpur, Rajasthan 342003 · PAN AAFCH9191M · GSTIN 08AAFCH9191M1ZV (Rajasthan)</p><span>Prepared by ${E(TN.person(q.owner).name)}, Travel consultant</span><span>Quotation — not a tax invoice</span></footer></article>${missing ? '' : ''}`;
   }
+  /* D1: Customer copy actions. The CRM sends nothing: staff download or print the copy, share it themselves,
+     then press "Mark as shared" (the existing dialog). */
+  function copyActions(q, v, viewOld) {
+    const file = `${q.id}-v${v.n}.pdf`;
+    const dl = U.button('Download PDF', { act: 'q-pdf', variant: 'primary', size: 'lg', icon: 'download', cls: 'min-h-11', data: { id: q.id, v: v.n }, srLabel: ': ' + file });
+    const pr = `<a class="${BIG_BTN('secondary')}" href="#/app/quotations/${q.id}/print?v=${v.n}&print=1" target="_blank" rel="noopener">${TN.ic('printer')}Print<span class="sr-only"> (opens in a new tab)</span></a>`;
+    let share = '';
+    if (!viewOld && v === cur(q)) {
+      if (v.status === 'ready') share = U.button('Mark as shared', { act: 'q-mark-shared', size: 'lg', icon: 'send', cls: 'min-h-11', data: { id: q.id } });
+      else if (v.status === 'draft') share = `<span class="inline-flex flex-wrap items-center gap-2">${U.button('Mark as shared', { size: 'lg', icon: 'send', cls: 'min-h-11', disabled: true, attrs: { 'aria-describedby': 'q-share-blocked' } })}<span id="q-share-blocked" class="text-sm text-quiet">${TN.ic('lock', 'mr-1 inline size-3.5 align-[-2px]')}Mark it ready on the quotation first. You or the branch Manager can.</span></span>`;
+    }
+    const sharedLine = v.sentAt && ['sent', 'accepted', 'declined', 'expired', 'superseded'].includes(v.status) ? `<p class="m-0 text-sm text-copy" role="status">${TN.ic('send', 'mr-1 inline size-3.5 align-[-2px] text-status-info')}Version ${v.n} shared${v.via ? ' by ' + E(v.via) : ''} on ${F.date(v.sentAt)}.</p>` : '';
+    return { actions: `<div class="flex flex-wrap items-center gap-2 max-sm:[&>*]:flex-1">${dl}${pr}${share}</div>`, sharedLine };
+  }
+  TN.act('q-pdf', (el) => {
+    const q = qById(el.dataset.id); if (!q) return;
+    const v = q.versions.find((x) => x.n === Number(el.dataset.v)) || cur(q);
+    const name = `${q.id}-v${v.n}.pdf`;
+    try {
+      const url = URL.createObjectURL(new Blob([quotePdf(q, v)], { type: 'application/pdf' }));
+      const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      TN.toast(`${name} downloaded`, 'success', v.status === 'ready' && v === cur(q) ? 'Share it with the customer yourself, then press “Mark as shared”.' : 'Nothing was sent.');
+    } catch (e) { TN.toast('Not downloaded', 'danger', 'The PDF could not be made. Use Print and save it as a PDF instead.'); }
+  });
+  /** Small real PDF (A4, Helvetica) from the same facts as the customer copy. */
+  function quotePdf(q, v) {
+    const t = q.trip, n = nightsOf(t.start, t.end);
+    const L = [];
+    const add = (text, size = 10, bold = false, gap = 0) => L.push({ text: String(text), size, bold, gap });
+    add('TripNavigate', 18, true); add('We make travel effortless.', 9);
+    add(`Tour quotation ${q.id} · Rev ${v.n}`, 10, true, 8); add(`Date ${v.sentAt || v.made} · Valid until ${v.validUntil}`, 9);
+    add(q.title, 14, true, 10);
+    add(`For ${q.customer.company || q.customer.name} · ${F.day(t.start)} to ${F.day(t.end)} · ${pl(n, 'night')}, ${pl(n + 1, 'day')} · ${t.dest}`);
+    add(travText(t));
+    if (v.changed) add(`What changed: ${v.changed}`, 10, false, 4);
+    const tiers = ['quoted', 'upgrade'].filter((k) => q.tiers[k] && q.tiers[k].total != null);
+    if (tiers.length) {
+      add('Your price', 12, true, 10);
+      tiers.forEach((k) => { const tr = q.tiers[k]; add(`${k === 'quoted' ? 'As quoted' : 'Upgrade'}${tr.name ? ' · ' + tr.name : ''}: ${F.inr(tr.total)} (${printedAs(q, tr)})`, 10, true, 2); });
+      add(`${words(q.tiers[tiers[0]].total)}. GST as applicable. Quotation, not a tax invoice.`, 9);
+    }
+    const hotels = q.services.filter((s) => s.kind === 'hotel' && (!s.tier || s.tier === 'quoted'));
+    if (hotels.length) { add('Where you stay', 12, true, 10); hotels.forEach((h) => add(`${h.city} · ${h.name} · ${h.room || '[Room type]'}${h.meal ? ' (' + h.meal + ')' : ''} · ${F.day(h.checkin)} to ${F.day(h.checkout)} · ${pl(h.rooms, 'room')}`)); }
+    if (q.days.length) { add('Day by day', 12, true, 10); q.days.forEach((d, i) => { add(`Day ${i + 1}: ${d[0]}${d[1] ? ' · ' + d[1] : ''}`, 10, true, 2); if (d[2]) add(d[2], 9); }); }
+    if (q.included.length) { add('Included', 12, true, 10); q.included.forEach((x) => add('- ' + x)); }
+    if (q.excluded.length) { add('Not included', 12, true, 10); q.excluded.forEach((x) => add('- ' + x)); }
+    const main = q.tiers[tiers[0] || 'quoted'];
+    if (main && main.plan.length) { add('Payment schedule if you confirm', 12, true, 10); main.plan.forEach(([l, a, w]) => add(`${l} · ${w === 'On confirmation' ? 'On acceptance' : w} · ${F.inr(a)}`)); }
+    if (q.terms.length) { add('Good to know', 12, true, 10); q.terms.forEach((x) => add('- ' + x)); }
+    add(`To confirm, reply in writing (WhatsApp or e-mail) to ${TN.person(q.owner).name} (+91 291 261 0410), saying which option you choose. Availability is checked when you confirm.`, 10, false, 10);
+    add('Holiday Chacha Pvt Ltd · Regd. office: 59A, Babu Rajendra Marg, Masuria Colony, Baldev Nagar, Jodhpur, Rajasthan 342003 · PAN AAFCH9191M · GSTIN 08AAFCH9191M1ZV (Rajasthan)', 8, false, 12);
+    add(`Prepared by ${TN.person(q.owner).name}, Travel consultant · Quotation, not a tax invoice`, 8);
+    const enc = (s) => s.replace(/₹/g, 'Rs ').replace(/[–—]/g, '-').replace(/·/g, '-').replace(/[’‘]/g, "'").replace(/[“”]/g, '"').replace(/[^\x20-\x7E]/g, ' ').replace(/([()\\])/g, '\\$1');
+    const pages = []; let ops = []; let y = 800;
+    const newPage = () => { pages.push(ops.join('\n')); ops = []; y = 800; };
+    L.forEach((l) => {
+      y -= l.gap;
+      const max = Math.floor(515 / (l.size * 0.5));
+      const words2 = enc(l.text).split(' '); const rows = []; let row = '';
+      words2.forEach((w) => { if ((row + ' ' + w).trim().length > max) { rows.push(row.trim()); row = w; } else row += ' ' + w; });
+      if (row.trim()) rows.push(row.trim());
+      rows.forEach((r) => { if (y < 50) newPage(); ops.push(`BT 0.18 0.23 0.31 rg /${l.bold ? 'F2' : 'F1'} ${l.size} Tf 40 ${y} Td (${r}) Tj ET`); y -= l.size * 1.45; });
+    });
+    newPage();
+    const objs = ['<< /Type /Catalog /Pages 2 0 R >>', '', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>'];
+    const kids = [];
+    pages.forEach((c) => { const pi = objs.length + 1; kids.push(pi + ' 0 R'); objs.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${pi + 1} 0 R >>`); objs.push(`<< /Length ${c.length} >>\nstream\n${c}\nendstream`); });
+    objs[1] = `<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${pages.length} >>`;
+    let out = '%PDF-1.4\n'; const offs = [];
+    objs.forEach((o, i) => { offs.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+    const xref = out.length;
+    out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${offs.map((o) => String(o).padStart(10, '0') + ' 00000 n \n').join('')}trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+    return out;
+  }
   TN.page('/app/quotations/:id/preview', { nav: '/app/quotations', roles: ['sales', 'manager'], title: 'Customer copy',
     render(p, qy) {
       const q = qById(p.id); if (!q) return U.notAllowed(false);
       const v = q.versions.find((x) => x.n === Number(qy.v)) || cur(q);
+      const viewOld = v !== cur(q);
       const missing = q.services.filter((s) => s.kind === 'hotel' && !s.room).length;
       const checks = `<div class="mb-4 flex flex-col gap-3" role="status">${note('circle-check', 'text-status-success', 'Checked: no internal or pushy words.')}${missing ? note('info', 'text-status-info', '<span class="sr-only">Note for staff: </span>You can still share it. Fill the missing details first if you can.') + note('circle-alert', 'text-status-warning', `${pl(missing, 'detail')} missing (shown in [brackets]): Room type.`) : ''}</div>`;
-      return U.page(U.backLink(`/app/quotations/${q.id}`, 'Back to the quotation') + U.pageHeader({ title: 'What the customer sees', description: 'This is how the quotation will look. Nothing is sent.', actions: U.button('Print or save as PDF', { act: 'q-print', icon: 'printer', size: 'lg', cls: 'min-h-11' }) })
-        + `<div class="mb-4">${segNav(q, true, 'Nothing is sent from here.')}</div>` + checks + quoteDoc(q, v));
+      const ca = copyActions(q, v, viewOld);
+      return U.page(U.backLink(`/app/quotations/${q.id}`, 'Back to the quotation') + U.pageHeader({ title: 'What the customer sees', description: 'This is how the quotation will look. Nothing is sent.', actions: ca.actions })
+        + `<div class="mb-4 flex flex-col gap-2">${segNav(q, true, 'Nothing is sent from here.')}${ca.sharedLine}</div>` + checks + quoteDoc(q, v));
     } });
   TN.act('q-print', () => window.print());
+  /* Print view of the customer copy (no CRM shell), as the itinerary PDF page. ?print=1 opens the print dialog. */
+  TN.page('/app/quotations/:id/print', { nav: '__bare', roles: ['sales', 'manager'], title: 'Quotation',
+    render(p, qy) { const q = qById(p.id); if (!q) return U.notAllowed(false); const v = q.versions.find((x) => x.n === Number(qy.v)) || cur(q); return `<div class="tn-print-root"><main id="main" class="tn-print">${quoteDoc(q, v)}</main></div>`; },
+    mount: () => { if (TN.query().print === '1') setTimeout(() => { try { window.print(); } catch (e) { /* print blocked */ } }, 300); } });
 
   /* =====================================================================
      Referral drafts: #/app/quotations/drafts/:id (live; switched Off today)
@@ -714,19 +844,25 @@
       footer: `<nav aria-label="Itineraries pages" class="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4.5 py-3 font-sans" data-slot="work-pager"><span aria-hidden="true"></span><span class="text-sm text-quiet tabular-nums">Showing ${list.length} of ${list.length} itineraries</span><span aria-hidden="true"></span></nav>` });
   }
   const IFILTERS = [['open', 'Open', (i) => true], ['draft', 'Draft', (i) => i.status === 'draft'], ['ready', 'Ready for final PDF', (i) => i.status === 'ready'], ['final', 'Final PDF made', (i) => i.status === 'final'], ['closed_drafts', 'Closed drafts', () => false]];
-  TN.page('/app/itineraries', { nav: '/app/itineraries', roles: ['sales', 'manager'], title: 'Itineraries',
+  const IT_SORT = [{ value: '', label: 'Recently updated first' }, { value: 'ref', label: 'Reference' }];
+  TN.page('/app/itineraries', { nav: '/app/quotations', roles: ['sales', 'manager'], title: 'Itineraries',
     render(p, qy) {
-      const scope = qy.scope || (TN.is('manager') ? 'all' : 'mine');
+      const scope = scopeOf(qy);
       const filter = IFILTERS.some((f) => f[0] === qy.filter) ? qy.filter : 'open';
       const pool = mineOrAll(scope, IT());
-      const list = pool.filter(IFILTERS.find((f) => f[0] === filter)[2]);
+      const text = String(qy.q || '').trim().toLowerCase();
+      const sort = IT_SORT.some((s) => s.value === qy.sort) ? qy.sort || '' : '';
+      let list = text ? pool.filter((i) => `${i.id} ${i.title} ${i.deal || ''} ${i.referral || ''} ${basisText(i)}`.toLowerCase().includes(text)) : pool.filter(IFILTERS.find((f) => f[0] === filter)[2]);
+      list = list.slice().sort((a, b) => (sort === 'ref' ? a.id.localeCompare(b.id) : String(b.updated || '').localeCompare(String(a.updated || ''))));
       return U.page(U.pageHeader({ title: 'Itineraries', description: scope === 'all' ? 'Itineraries you can open' : 'Itineraries you made or own', actions: U.button('New itinerary', { href: '/app/itineraries/new', variant: 'primary', size: 'lg', icon: 'plus' }) })
-        + listChrome({ path: '/app/itineraries', noun: 'itineraries', scope, filter, pool, filters: IFILTERS, refAct: 'it-ref', refPh: 'IT-0031', refEg: 'IT-0031', ref: qy.ref, refMiss: qy.miss === '1' })
-        + (list.length ? itinTable(list) : U.card(U.emptyState({ icon: 'map', title: 'No itineraries here', description: 'Nothing matches this filter. Make one from an accepted quotation or a booking.', level: 2 })))
+        + listTabs('itineraries', qy) + scopeSwitch('/app/itineraries', qy, 'itineraries')
+        + toolbar({ path: '/app/itineraries', noun: 'itineraries', act: 'it-find', q: qy.q || '', filter, pool, filters: IFILTERS, order: IFILTERS.map((f) => f[0]), sort, sortOptions: IT_SORT, placeholder: 'Title, deal or reference (IT-0031)', refEg: 'IT-0031', miss: qy.miss === '1',
+          legacy: { path: '/app/itineraries', noun: 'itineraries', scope, filter, pool, filters: IFILTERS, refAct: 'it-ref', refPh: 'IT-0031', refEg: 'IT-0031', ref: qy.ref, refMiss: qy.miss === '1' } })
+        + (list.length ? itinTable(list) : U.card(U.emptyState({ icon: 'map', title: 'No itineraries here', description: text ? 'No itinerary you can open matches this search.' : 'Nothing matches this filter. Make one from an accepted quotation or a booking.', level: 2 })))
         + closedNote.replace('Closed drafts that were never linked are not in this list.', 'Closed itinerary drafts are not in this list.'));
     }, mount: (root) => bindSearch(root) });
   TN.act('it-ref', (f) => { const ref = new FormData(f).get('reference').trim(), i = itinById(ref); if (i) return TN.go('/app/itineraries/' + i.id); const qs = new URLSearchParams(TN.query()); qs.set('ref', ref); qs.set('miss', '1'); TN.go('/app/itineraries?' + qs.toString()); });
-  TN.page('/app/itineraries/new', { nav: '/app/itineraries', roles: ['sales', 'manager'], title: 'New itinerary', render: () => { const h = newPage('itinerary'); TN._qErr = null; TN._qVals = null; return h; } });
+  TN.page('/app/itineraries/new', { nav: '/app/quotations', roles: ['sales', 'manager'], title: 'New itinerary', render: () => { const h = newPage('itinerary'); TN._qErr = null; TN._qVals = null; return h; } });
   const nextItId = () => { let n = 32; while (itinById(`IT-00${n}`)) n++; return `IT-00${n}`; };
   function newItinerary(o) {
     const i = Object.assign({ id: nextItId(), owner: me(), status: 'draft', updated: now(), made: TN.TODAY, source: null, diffs: [], settled: [], docs: [], deal: null }, o);
@@ -777,7 +913,7 @@
       ${U.fieldset({ legend: 'Document wording', body: `<p class="m-0 mb-3 text-sm text-quiet">What the customer reads around the facts. Customer text: no supplier names, net rates or internal notes.</p><div class="grid gap-4 sm:grid-cols-2">${fld('it-cover', 'Cover word', f.cover, { optional: true, name: 'cover', hint: 'One or two words for the cover, for example the destination.' })}${fld('it-country', 'Country', f.country, { optional: true, name: 'country' })}${fld('it-type', 'Trip type', f.tripType, { optional: true, name: 'tripType', hint: 'For example: Family, Honeymoon.' })}${fld('it-basis', 'Room basis', f.roomBasis, { optional: true, name: 'roomBasis', hint: 'For example: 2 adults and 1 child sharing.' })}${area('it-intro', 'Introduction', f.intro, { cls: 'sm:col-span-2', name: 'intro', hint: 'A short welcome paragraph. Customer text: no supplier names, net rates or internal notes.' })}${area('it-care', 'We take care of', lines(f.care), { name: 'care', hint: 'One point per line, for example airport transfers.' })}${area('it-bring', 'You bring', lines(f.bring), { name: 'bring', hint: 'One point per line, for example passport and comfortable shoes.' })}</div>` })}
       <div class="flex flex-wrap items-center gap-3">${U.button('Save facts', { type: 'submit', size: 'lg', cls: 'h-auto min-h-11 py-2 whitespace-normal' })}<span class="text-sm text-quiet" aria-live="polite">All saved</span></div></form>`;
   }
-  TN.page('/app/itineraries/:id', { nav: '/app/itineraries', roles: ['sales', 'manager'], title: (p) => (itinById(p.id) || {}).title || 'Itinerary', canOpen: (p) => !!itinById(p.id),
+  TN.page('/app/itineraries/:id', { nav: '/app/quotations', roles: ['sales', 'manager'], title: (p) => (itinById(p.id) || {}).title || 'Itinerary', canOpen: (p) => !!itinById(p.id),
     render(p) {
       const i = itinById(p.id);
       if (!i) return U.notAllowed({ title: 'Itinerary not found', text: 'There is no itinerary with this reference that you can open.', back: { href: '#/app/itineraries', label: 'Back to Itineraries' } });
@@ -830,7 +966,7 @@
     if (kind === 'final') i.status = 'final'; i.updated = now();
     TN.toast(kind === 'final' ? 'Final PDF made' : 'Preview PDF made', 'success', 'Nothing is sent to the customer. Open it from Documents.'); TN.refresh();
   });
-  TN.page('/app/itineraries/:id/preview', { nav: '/app/itineraries', roles: ['sales', 'manager'], title: 'Customer copy',
+  TN.page('/app/itineraries/:id/preview', { nav: '/app/quotations', roles: ['sales', 'manager'], title: 'Customer copy',
     render(p) {
       const i = itinById(p.id); if (!i) return U.notAllowed(false);
       return U.page(U.backLink(`/app/itineraries/${i.id}`, 'Back to the itinerary') + U.pageHeader({ title: 'What the customer sees', description: 'This is how the itinerary will look. Nothing is sent.' })

@@ -1,0 +1,30 @@
+/* 72-billing.css · billing preview (build plan 24 Nov 2026). Only what live.css and 30-booknow.css lack.
+   Live CSS variables only. No animation. */
+
+/* Book now step 3: "Services billed separately" (plan 3.1), inside the approved form's own styles */
+.bf .sep-rows{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.bf .sep-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(170px,220px);gap:12px;align-items:end;padding:12px 0;border-bottom:1px solid var(--line)}
+.bf .sep-l{display:flex;gap:9px;align-items:flex-start;color:var(--ink);font-weight:500;padding-bottom:10px;min-width:0;overflow-wrap:anywhere}
+.bf .sep-l .i{width:16px;height:16px;color:var(--quiet);margin-top:3px;flex-shrink:0}
+.bf .sep-tick{padding:10px 0 12px;border-bottom:1px solid var(--line)}
+.bf .ptot.sep-tot{flex-direction:column;align-items:stretch;gap:6px;border-top:0;margin-top:8px}
+.bf .sep-t{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.bf .sep-t span:last-child{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+.bf .sep-strong span:last-child{font-size:20px}
+@media (max-width:640px){.bf .sep-row{grid-template-columns:1fr}.bf .sep-l{padding-bottom:0}}
+
+/* Bills pages: money figures and the small "lines" lists in the side panel */
+.bl-num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.bl-lines{margin:0;padding:0;list-style:none;display:flex;flex-direction:column}
+.bl-lines>li{padding:8px 0;border-top:1px solid var(--color-line)}
+.bl-lines>li:first-child{border-top:0;padding-top:0}
+.bl-wrap{overflow-wrap:anywhere}
+.bl-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,200px) minmax(90px,130px);gap:12px;align-items:end;padding:10px 0;border-top:1px solid var(--color-line)}
+.bl-split:first-of-type{border-top:0}
+@media (max-width:640px){.bl-split{grid-template-columns:1fr}}
+
+/* cdoc-2 Invoice / Credit Note (inside the live .tn-doc frame) */
+.tn-doc .bl-doc-co{margin:0;font-size:12px;line-height:1.5;color:var(--color-copy)}
+.tn-doc .bl-doc-ref{display:grid;grid-template-columns:max-content 1fr;gap:2px 14px;margin:0;font-size:13px}
+.tn-doc .bl-doc-ref dt{color:var(--color-quiet)}
+.tn-doc .bl-doc-ref dd{margin:0;color:var(--color-ink)}

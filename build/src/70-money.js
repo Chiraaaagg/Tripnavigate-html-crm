@@ -137,7 +137,7 @@
   }
   /** Legacy Accounts status pill (To check queue). kind: ok | info | warn | neutral | danger */
   const GLYPH = { ok: '●', info: '◐', warn: '↩', neutral: '–', danger: '✕' };
-  const pill = (kind, text, sr, glyph) => `<span class="status-pill ${kind}"><span class="status-glyph" aria-hidden="true">${glyph || GLYPH[kind]}</span>${sr ? `<span class="visually-hidden">${E(sr)}: </span>` : ''}${E(text)}</span>`;
+  const pill = (kind, text) => TN.accUI.st(E(text), kind);
 
   function pageHeader(title, desc, actions, eyebrow = 'Accounts') {
     return `<header class="mb-5 flex flex-col gap-4 font-sans sm:flex-row sm:items-end sm:justify-between" data-slot="page-header"><div class="min-w-0"><p class="m-0 mb-1 text-sm font-medium text-quiet">${E(eyebrow)}</p><h1 class="m-0 text-2xl leading-tight font-display tracking-heading text-ink max-sm:text-xl">${E(title)}</h1>${desc ? `<p class="m-0 mt-1.5 text-base text-quiet">${desc}</p>` : ''}</div>${actions ? `<div class="flex min-w-min flex-wrap items-center gap-2 max-sm:[&>*]:flex-1">${actions}</div>` : ''}</header>`;
@@ -204,24 +204,35 @@
   const hereHref = (q) => `#${TN.path().split('?')[0]}${q ? '?' + q : ''}`;
   function pushNotice(to, text, deal, href) { D.notices.unshift({ id: 'n-m' + Date.now() + Math.random().toString(36).slice(2, 5), to, kind: 'notice', text, deal, href, at: nowStamp() }); }
   const rupees = (v) => { const n = Number(String(v || '').replace(/[₹,\s]/g, '')); return Number.isFinite(n) && n > 0 ? Math.round(n) : null; };
-  const toggleBtn = (label, key, variant = 'secondary') => `<button type="button" class="${BTN} ${VAR[variant]} h-11 px-4 text-md min-h-11" data-slot="button" data-act="money-toggle" data-key="${E(key)}" aria-expanded="${S.open[key] ? 'true' : 'false'}">${E(label)}</button>`;
-  const primaryBig = (label, act, data = {}) => `<button type="button" class="${BTN.replace(' whitespace-nowrap', '')} ${VAR.primary} px-4 text-md h-auto min-h-11 py-2 whitespace-normal" data-slot="button" data-act="${act}"${attrs(data)}>${E(label)}</button>`;
-  /** Inline "return with reason" form, as the live Department costs return form. */
-  function reasonForm(key, act, id, title, label, hint, submit) {
-    if (!S.open[key]) return '';
-    const err = S.err[key]; const v = S.val[key] || '';
-    return `<form data-act="${act}" data-id="${E(id)}" data-key="${E(key)}" novalidate aria-label="${E(title)}" class="flex flex-col gap-3">${err ? errorSummary('Check the reason', [[`${key}-reason`, err]]) : ''}${field({ id: `${key}-reason`, name: 'reason', label, hint, kind: 'textarea', value: v, error: err })}<div><button type="submit" class="${BTN} ${VAR.danger} ${SIZE.md}" data-slot="button">${E(submit)}</button></div></form>`;
-  }
-  function readReason(form) {
-    const key = form.dataset.key; const v = String(new FormData(form).get('reason') || '').trim();
-    S.val[key] = v;
-    if (v.length < 10) { S.err[key] = 'Write 10 to 500 characters.'; TN.refresh(); focusLater(`${key}-reason`); return null; }
-    delete S.err[key]; delete S.val[key]; S.open[key] = false; return v;
-  }
   function focusLater(id) { setTimeout(() => { const el = document.getElementById(id); if (el) el.focus(); }, 30); }
-  TN.act('money-toggle', (el) => { const k = el.dataset.key; S.open[k] = !S.open[k]; TN.refresh(); const b = document.querySelector(`[data-act="money-toggle"][data-key="${k}"]`); if (b) b.focus({ focusVisible: true }); });
   TN.act('money-focus', (el) => { const t = document.getElementById(el.dataset.target); if (t) t.focus(); });
   TN.act('money-file', (el) => TN.toast(`${el.dataset.file} opened in a new tab. Every opening is recorded.`));
+  /* ------------------------------------------------------------------
+     Redesign (16 Nov 2026, Agent D): every list here follows the C2 work-list
+     pattern through TN.accUI (60-accounts.js): section tab strip, one toolbar
+     (search, chips, sort), one-line rows with Details on demand, Approve /
+     Return on approval rows, and the reason box in a dialog.
+     ------------------------------------------------------------------ */
+  const AU = TN.accUI;
+  const ui = TN.ui;
+  const text = (t) => `<span class="text-sm text-copy">${t}</span>`;
+  const quietText = (t) => `<span class="text-sm text-quiet">${t}</span>`;
+  const nextCell = (t, btnHtml) => `<div class="flex flex-col items-start gap-1.5">${t ? text(t) : ''}${btnHtml || ''}</div>`;
+  const whoCell = (k, sub) => `${E(name(k))}${sub ? `<span class="block text-sm whitespace-nowrap text-quiet">${sub}</span>` : ''}`;
+  const dateCell = (iso) => (iso ? `<span class="whitespace-nowrap">${E(F.date(iso))}</span>` : '<span class="text-quiet">—</span>');
+  const dealCell = (id) => `<span class="whitespace-nowrap">${ui.rowLink(`/app/accounts/deals/${id}`, E(id))}</span>`;
+  const smallBtn = (label, act, id, sr, extra = {}) => ui.button(label, { size: 'sm', act, data: { id }, srLabel: sr ? ' ' + E(sr) : '', ...extra });
+  /** Reason boxes (Return / Refuse / Not in the bank statement / write-off) open in one dialog. */
+  const REASONS = {
+    'sp-ret': (id) => ({ act: 'money-sp-return', title: 'Return the payment request?', effect: `${E(id)} goes back to the department that raised it. No money moves.`, label: 'Why are you returning it?', hint: '10 to 500 characters. The department reads it.', confirmLabel: 'Return with this reason', danger: true }),
+    'sp-rej': (id) => ({ act: 'money-sp-reject', title: 'Payment not in the bank statement?', effect: `${E(id)} goes back to To pay with your note.`, label: 'What did you find?', hint: '10 to 500 characters. The person who recorded it reads it.', confirmLabel: 'Send back with this reason', danger: true }),
+    'si-ret': (id) => ({ act: 'money-si-return', title: 'Return the supplier original?', effect: 'Purchase reads your reason and uploads a corrected original.', label: 'Why are you returning it?', hint: '10 to 500 characters. Purchase reads it.', confirmLabel: 'Return with this reason', danger: true }),
+    'doc-ret': (id) => ({ act: 'money-doc-return', title: 'Return the document?', effect: `${E(id)} goes back to the person who made it.`, label: 'What needs fixing?', hint: '10 to 500 characters. The person who made it reads it.', confirmLabel: 'Return with this reason', danger: true }),
+    'fu-ref': (id) => ({ act: 'money-fu-refuse', title: 'Refuse the funding request?', effect: `${E(id)} is refused. Purchase waits for the customer’s money.`, label: 'Why are you refusing it?', hint: '10 to 500 characters. Purchase reads it.', confirmLabel: 'Refuse with this reason', danger: true }),
+    'cx-wo': (id) => ({ act: 'money-cx-writeoff', title: 'Ask the Manager to write it off?', effect: 'The branch Manager decides. Nothing is written off until then.', label: 'Why should the company write it off?', hint: '10 to 500 characters. The branch Manager decides.', confirmLabel: 'Send to the Manager' }),
+  };
+  Object.keys(REASONS).forEach((k) => TN.act(`money-${k}-open`, (el) => AU.reasonDialog({ ...REASONS[k](el.dataset.id), id: el.dataset.id })));
+  function readReason(form) { const v = AU.dialogReason(form); if (v) TN.closeOverlay(); return v; }
 
   /** Drawer form opener. o: { title, description, formId, act, body(values, errors), submit, data } */
   function drawerForm(o, values = {}, errors = null) {
@@ -254,60 +265,59 @@
      1. Customer dues and collections (+ trip closure tab)
      ================================================================== */
   function ageing(i) {
-    if (i.status === 'paid') return pill('ok', 'Paid', 'Ageing');
-    if (onHoldDeal(i.deal)) return pill('neutral', 'On hold: cancellation requested', 'Ageing', '⏸');
+    if (i.status === 'paid') return ['Paid', 'success'];
+    if (onHoldDeal(i.deal)) return ['On hold: cancellation requested', 'neutral'];
     const d = daysOverdue(i);
-    if (d > 30) return pill('danger', `${d} days overdue`, 'Ageing');
-    if (d > 0) return pill('warn', `${F.plural(d, 'day')} overdue`, 'Ageing', '!');
-    if (d === 0) return pill('warn', 'Due today', 'Ageing', '!');
-    return pill('info', `Due in ${F.plural(-d, 'day')}`, 'Ageing');
+    if (d > 30) return [`${d} days overdue`, 'danger'];
+    if (d > 0) return [`${F.plural(d, 'day')} overdue`, 'warning'];
+    if (d === 0) return ['Due today', 'warning'];
+    return [`Due in ${F.plural(-d, 'day')}`, 'info'];
   }
-  function duesPage(params, q) {
-    const tab = q.tab || 'overdue';
-    if (tab === 'closure') return closurePage(q);
+  const DUE_TABS = [['overdue', 'Overdue'], ['soon', 'Due in 7 days'], ['open', 'All open'], ['paid', 'Paid'], ['closure', 'Trip closure']];
+  const DUE_SORTS = {
+    due: { label: 'Oldest due first', cmp: (a, b) => a.due.localeCompare(b.due) },
+    still: { label: 'Largest still due first', cmp: (a, b) => (b.amount - b.paid) - (a.amount - a.paid) },
+    deal: { label: 'Deal reference', cmp: (a, b) => a.deal.localeCompare(b.deal) || a.due.localeCompare(b.due) },
+  };
+  function duesSets() {
     const all = D.instalments.map((i, n) => ({ ...i, n }));
-    const overdue = all.filter((i) => i.status !== 'paid' && daysOverdue(i) >= 0 && !onHoldDeal(i.deal));
-    const soon = all.filter((i) => i.status !== 'paid' && daysOverdue(i) < 0 && daysOverdue(i) >= -7);
-    const open = all.filter((i) => i.status !== 'paid');
-    const paid = all.filter((i) => i.status === 'paid');
-    const list = { overdue, soon, open, paid }[tab] || overdue;
-    const toCheck = D.money.transfers.filter((t) => t.allocStatus === 'proposed').length;
+    return {
+      overdue: all.filter((i) => i.status !== 'paid' && daysOverdue(i) >= 0 && !onHoldDeal(i.deal)),
+      soon: all.filter((i) => i.status !== 'paid' && daysOverdue(i) < 0 && daysOverdue(i) >= -7),
+      open: all.filter((i) => i.status !== 'paid'),
+      paid: all.filter((i) => i.status === 'paid'),
+    };
+  }
+  const dueChips = (tab, sets) => DUE_TABS.map(([k, l]) => ({ href: `/app/accounts/dues?tab=${k}`, label: l, count: k === 'closure' ? closable().filter((d) => d.tripStatus === 'travelled').length : k === 'paid' ? undefined : sets[k].length, current: tab === k }));
+  const duesHeader = (primary = true) => AU.listHeader('in', 'Customer dues', 'What each customer still owes. The Deal’s salesperson follows up; the Manager is told after 3 days overdue. Only verified receipts reduce a due.', isAcc() ? ui.button('Split a customer transfer', { variant: primary ? 'primary' : 'secondary', act: 'money-alloc-open', attrs: { 'aria-haspopup': 'dialog' } }) : '');
+  function duesPage(params, q) {
+    const tab = DUE_TABS.some(([k]) => k === q.tab) ? q.tab : 'overdue';
+    if (tab === 'closure') return closurePage(q);
+    const sets = duesSets();
+    const r = AU.applyQuery(sets[tab], q, { text: (i) => { const d = TN.deal(i.deal); const c = customerOf(i.deal); return [i.deal, i.label, d && d.destination, c && c.name].join(' '); }, sorts: DUE_SORTS, def: 'due' });
     const unalloc = D.money.transfers.filter((t) => t.allocStatus !== 'approved');
+    const toCheck = D.money.transfers.filter((t) => t.allocStatus === 'proposed').length;
     const sum = (arr) => arr.reduce((s, i) => s + (i.amount - i.paid), 0);
-    const octVerified = D.receipts.filter((r) => r.status === 'verified' && r.date.startsWith('2026-10')).reduce((s, r) => s + r.amount, 0);
-    const actions = isAcc() ? btn('Split a customer transfer', { variant: 'secondary', act: 'money-alloc-open' }) : '';
-    const rows = list.map((i) => {
-      const d = TN.deal(i.deal); const c = customerOf(i.deal); const due = i.amount - i.paid;
-      const esc = i.status !== 'paid' && daysOverdue(i) >= 3 && !onHoldDeal(i.deal) ? `<span class="fin-sub">Branch Manager told</span>` : '';
+    const octVerified = D.receipts.filter((x) => x.status === 'verified' && x.date.startsWith('2026-10')).reduce((s, x) => s + x.amount, 0);
+    const rows = r.list.map((i) => {
+      const d = TN.deal(i.deal); const c = customerOf(i.deal); const due = i.amount - i.paid; const [word, tone] = ageing(i);
+      const told = i.status !== 'paid' && daysOverdue(i) >= 3 && !onHoldDeal(i.deal) ? 'Branch Manager told' : i.paid > 0 && i.status !== 'paid' ? 'Part paid' : '';
+      const next = i.status === 'paid' ? quietText('Nothing to do')
+        : isAcc() ? nextCell('', `<div class="flex flex-wrap items-center gap-2">${ui.button('Record receipt', { size: 'sm', href: `/app/accounts/deals/${i.deal}?tab=receipts`, srLabel: ` for ${E(i.deal)} ${E(i.label)}` })}<button type="button" class="${LINK} cursor-pointer border-0 bg-transparent p-0 text-sm" data-act="money-remind" data-i="${i.n}">Remind<span class="sr-only"> ${E(name(d.owner))} about ${E(i.deal)}</span></button></div>`)
+          : quietText('The salesperson follows up; Accounts records the receipt.');
       return [
-        `${dealLink(i.deal, '?tab=money')}<span class="fin-sub">${E(c ? c.name : '')} · ${E(d ? d.destination : '')}</span>`,
-        `${E(i.label)}${i.status === 'part_paid' || (i.paid > 0 && i.status !== 'paid') ? '<span class="fin-sub">Part paid</span>' : ''}`,
-        E(F.date(i.due)),
-        F.inr(i.amount),
-        `<strong>${F.inr(due)}</strong>${i.paid && due ? `<span class="fin-sub">${F.inr(i.paid)} paid</span>` : ''}`,
-        ageing(i) + esc,
-        `${E(name(d.owner))}${isAcc() && i.status !== 'paid' ? `<span class="fin-sub"><button type="button" class="${LINK} cursor-pointer border-0 bg-transparent p-0 text-sm" data-act="money-remind" data-i="${i.n}">Remind<span class="visually-hidden"> ${E(name(d.owner))} about ${E(i.deal)}</span></button></span>` : '<span class="fin-sub">Sales owner</span>'}`,
-        i.status === 'paid' ? quiet('Nothing to do') : `<a class="${LINK_STRONG}" href="#/app/accounts/deals/${E(i.deal)}?tab=receipts">Record receipt<span class="visually-hidden"> for ${E(i.deal)} ${E(i.label)}</span></a>`,
+        `${ui.rowLink(`/app/accounts/deals/${i.deal}?tab=dues`, E(i.deal))} <span class="text-copy">· ${E(i.label)}</span><span class="block text-sm text-quiet">${E(c ? c.name : '')} · ${E(d ? d.destination : '')}</span>`,
+        dateCell(i.due), F.inr(i.amount), `<strong>${F.inr(due)}</strong>${i.paid && due ? `<span class="block text-sm font-normal text-quiet">${F.inr(i.paid)} paid</span>` : ''}`,
+        AU.st(word, tone, told), next, whoCell(d.owner, 'Sales owner'),
       ];
     });
-    return pageHeader('Customer dues', 'What each customer still owes, instalment by instalment. The Deal’s salesperson follows up; the Manager is told when an instalment is 3 days overdue. Only verified receipts reduce a due.', actions)
-      + stats([
-        ['Overdue now', F.inr(sum(overdue)), F.plural(overdue.length, 'instalment')],
-        ['Due in the next 7 days', F.inr(sum(soon)), F.plural(soon.length, 'instalment')],
-        ['Verified in October', F.inr(octVerified), 'Customer receipts checked by a second person'],
-      ])
-      + (unalloc.length && isAcc() ? notice('info', `${F.plural(unalloc.length, 'customer transfer')} to split across bookings`, `<p>${unalloc.map((t) => `${E(t.payer)} · ${F.inr(t.amount)} · ${E(t.ref)} (${t.allocStatus === 'proposed' ? `split proposed by ${E(name(t.proposedBy))}: a different Accounts person checks it` : 'not split yet'})`).join('<br>')}</p><p><button type="button" class="${LINK_STRONG} cursor-pointer border-0 bg-transparent p-0" data-act="money-alloc-open">${toCheck ? 'Check the proposed split' : 'Split a customer transfer'}</button></p>`, { className: 'mb-4' }) : '')
-      + tabs('Customer dues filters', [
-        { label: 'Overdue', href: '#/app/accounts/dues?tab=overdue', count: overdue.length, current: tab === 'overdue' },
-        { label: 'Due in 7 days', href: '#/app/accounts/dues?tab=soon', count: soon.length, current: tab === 'soon' },
-        { label: 'All open', href: '#/app/accounts/dues?tab=open', count: open.length, current: tab === 'open' },
-        { label: 'Paid', href: '#/app/accounts/dues?tab=paid', current: tab === 'paid' },
-        { label: 'Trip closure', href: '#/app/accounts/dues?tab=closure', count: closable().filter((d) => d.tripStatus === 'travelled').length, current: false },
-      ])
-      + (rows.length ? finTable(`${F.plural(rows.length, 'instalment')} · ${{ overdue: 'Overdue, oldest first', soon: 'Due in the next 7 days', open: 'All open instalments', paid: 'Paid' }[tab]}`,
-        [['Deal'], ['Instalment'], ['Due'], ['Amount', 1], ['Still due', 1], ['Ageing'], ['Follow-up'], ['Next step']], rows)
-        : empty(tab === 'overdue' ? 'Nothing overdue' : 'No instalments here', 'Instalments appear here from the payment plan Sales entered and Accounts approved.'))
-      + `<details class="mt-8 font-sans text-sm text-quiet"><summary class="cursor-pointer rounded-chip font-medium text-copy ${FV}">How is “still due” worked out?</summary><p class="m-0 mt-4">Still due is the instalment amount less verified receipts allocated to it. Payments reported by Sales and receipts waiting for verification do not count, and cheques count only after the bank clears them.</p></details>`;
+    return duesHeader() + AU.sectionTabs('in', '/app/accounts/dues')
+      + stats([['Overdue now', F.inr(sum(sets.overdue)), F.plural(sets.overdue.length, 'instalment')], ['Due in the next 7 days', F.inr(sum(sets.soon)), F.plural(sets.soon.length, 'instalment')], ['Verified in October', F.inr(octVerified), 'Customer receipts checked by a second person']])
+      + (unalloc.length && isAcc() ? notice('info', `${F.plural(unalloc.length, 'customer transfer')} to split across bookings`, `<p>${unalloc.map((t) => `${E(t.payer)} · ${F.inr(t.amount)} · ${E(t.ref)} (${t.allocStatus === 'proposed' ? `split proposed by ${E(name(t.proposedBy))}: a different Accounts person checks it` : 'not split yet'})`).join('<br>')}</p>${toCheck ? `<p><button type="button" class="${LINK_STRONG} cursor-pointer border-0 bg-transparent p-0" data-act="money-alloc-open">Check the proposed split</button></p>` : ''}`, { className: 'mb-4' }) : '')
+      + AU.toolbar({ id: 'du', label: 'Find a due', search: { name: 'q', value: q.q, placeholder: 'Deal reference, customer or trip', label: 'Find a due' }, chipsLabel: 'Customer dues filters', chips: dueChips(tab, sets), sort: { name: 'sort', value: r.sort, options: AU.sortOptions(DUE_SORTS) } })
+      + (rows.length ? ui.table({ label: 'Customer dues', top: true, columns: ['Instalment', 'Due', { label: 'Amount', numeric: true }, { label: 'Still due', numeric: true }, 'Status', 'Next step', 'Follow-up'], rows, footer: AU.pagerFor(rows.length, 'instalment') })
+        : AU.emptyCard({ icon: 'inbox', title: r.needle ? 'No due matches' : tab === 'overdue' ? 'Nothing overdue' : 'No instalments here', text: r.needle ? 'Nothing in this list matches your search.' : 'Instalments appear here from the payment plan Sales entered and Accounts approved.' }))
+      + `<details class="mt-4 font-sans text-sm text-quiet"><summary class="cursor-pointer rounded-chip font-medium text-copy ${FV}">How is “still due” worked out?</summary><p class="m-0 mt-3">Still due is the instalment amount less verified receipts allocated to it. Payments reported by Sales and receipts waiting for verification do not count, and cheques count only after the bank clears them.</p></details>`;
   }
   TN.act('money-remind', (el) => {
     const i = D.instalments[Number(el.dataset.i)]; const d = TN.deal(i.deal); const c = customerOf(i.deal);
@@ -402,9 +412,8 @@
     const done = items.filter((i) => i.done).length; const pct = Math.round((done / items.length) * 100);
     return `<section id="${id}" aria-labelledby="${id}-heading" class="flex flex-col" data-slot="progress-checklist"><div class="flex items-baseline justify-between gap-2.5"><h3 id="${id}-heading" tabindex="-1" class="m-0 text-md font-semibold text-ink outline-none">${E(title)}</h3><span class="text-sm text-quiet">${done} of ${items.length} done</span></div><div role="progressbar" aria-labelledby="${id}-heading" aria-valuemin="0" aria-valuemax="${items.length}" aria-valuenow="${done}" aria-valuetext="${done} of ${items.length} done" class="mt-2.5 mb-3.5 h-2 overflow-hidden rounded-full bg-wash"><div class="h-full rounded-full bg-brand transition-[width] duration-(--ui-duration-base) motion-reduce:transition-none ${WIDTH[Math.round(pct / 5)]}"></div></div><ul class="m-0 grid list-none grid-cols-1 gap-x-4.5 gap-y-1.5 p-0 sm:grid-cols-2">${items.map((it) => `<li class="m-0"><a href="${E(it.href)}" class="group flex w-full cursor-pointer items-start gap-2 border-0 bg-transparent py-1.25 text-left text-sm text-copy no-underline ${FV}">${it.done ? ic('circle-check', 'mt-0.5 size-4 shrink-0 text-status-success') : ic('circle', 'mt-0.5 size-4 shrink-0 text-quiet')}<span class="min-w-0"><span class="font-semibold group-hover:underline">${E(it.label)}</span><span class="sr-only">${it.done ? ': done' : ': not done'}</span>${!it.done && it.why ? `<span class="text-quiet"> · ${E(it.why)}</span>` : ''}</span></a></li>`).join('')}</ul></section>`;
   }
-  function closurePage() {
-    const deals = closable();
-    const travelled = deals.filter((d) => d.tripStatus === 'travelled');
+  function closurePage(q = {}) {
+    const deals = closable().filter((d) => !q.q || `${d.id} ${d.title}`.toLowerCase().includes(String(q.q).toLowerCase()));
     const cards = deals.map((d) => {
       const items = checklist(d); const ready = items.every((i) => i.done); const c = TN.customer(d.customer);
       const closed = d.tripStatus === 'closed';
@@ -417,18 +426,12 @@
         badge: closed ? badge('success', `Closed by ${name(d.closedBy)} on ${F.day(d.closedAt)}`, 'Trip status') : ready ? badge('info', 'Travelled: ready to close', 'Trip status') : badge('warning', 'Travelled: closure checklist open', 'Trip status'),
         body: summary([['Travelled', `${F.date(d.start)} to ${F.date(d.end)} · ${E(c.name)} · ${d.adults} adults`], ['Customer money', `${F.inr(received)} verified${refunded ? ` · ${F.inr(refunded)} refunded` : ''} · price ${F.inr(d.sellingPrice)}`], ['Supplier payments verified', F.inr(cost)], ['Sales owner', E(name(d.owner))]])
           + `<div class="rounded-control border border-line bg-canvas px-4 py-3.5">${progressChecklist('chk-' + d.id, 'Closure checklist', items)}</div>`,
-        foot: closed ? '' : !isAcc() ? '' : `<div class="flex flex-wrap gap-2">${ready ? primaryBig('Close trip', 'money-close-trip', { 'data-id': d.id }) : blocked('Close trip', 'Finish the checklist first. Open an item to see what is left.', 'close-why-' + d.id)}</div>`,
+        foot: closed || !isAcc() ? '' : `<div class="flex flex-wrap gap-2">${ready ? ui.button('Close trip', { variant: 'primary', act: 'money-close-trip', data: { id: d.id }, attrs: { 'aria-haspopup': 'dialog' } }) : blocked('Close trip', 'Finish the checklist first. Open an item to see what is left.', 'close-why-' + d.id)}</div>`,
       });
     });
-    return pageHeader('Customer dues', 'What each customer still owes, instalment by instalment. The Deal’s salesperson follows up; the Manager is told when an instalment is 3 days overdue.', '')
-      + tabs('Customer dues filters', [
-        { label: 'Overdue', href: '#/app/accounts/dues?tab=overdue', count: D.instalments.filter((i) => i.status !== 'paid' && daysOverdue(i) >= 0 && !onHoldDeal(i.deal)).length },
-        { label: 'Due in 7 days', href: '#/app/accounts/dues?tab=soon' },
-        { label: 'All open', href: '#/app/accounts/dues?tab=open' },
-        { label: 'Paid', href: '#/app/accounts/dues?tab=paid' },
-        { label: 'Trip closure', href: '#/app/accounts/dues?tab=closure', count: travelled.length, current: true },
-      ])
-      + notice('info', null, '<p>A trip becomes Travelled the day after it ends. Accounts closes it when every receipt and supplier payment is verified, every supplier invoice is in and no refund is open. Closing does not post anything to Tally.</p>', { className: 'mb-4' })
+    return duesHeader(false) + AU.sectionTabs('in', '/app/accounts/dues')
+      + AU.toolbar({ id: 'tc', label: 'Find a travelled trip', search: { name: 'q', value: q.q, placeholder: 'Deal reference or trip', label: 'Find a travelled trip' }, chipsLabel: 'Customer dues filters', chips: dueChips('closure', duesSets()) })
+      + `<p class="m-0 mb-4 font-sans text-sm text-quiet">A trip becomes Travelled the day after it ends. Accounts closes it when every receipt and supplier payment is verified, every supplier invoice is in and no refund is open. Closing does not post anything to Tally.</p>`
       + (cards.length ? cardList('Travelled trips', cards) : empty('No travelled trips', 'A trip appears here the day after it ends.'));
   }
   TN.act('money-close-trip', (el) => {
@@ -459,24 +462,51 @@
     on_hold: ['warning', 'On hold: supplier bank details changed'],
   };
   const SP_TABS = [['requested', 'To approve'], ['waiting_manager', 'Waiting for Manager'], ['approved', 'To pay'], ['paid', 'To verify'], ['verified', 'Verified'], ['returned', 'Returned'], ['on_hold', 'On hold'], ['all', 'All']];
-  function spPage(p, q) {
-    const tab = q.tab || (TN.is('manager') ? 'waiting_manager' : 'requested');
-    const rows = D.supplierPayments.filter((x) => tab === 'all' || x.status === tab).sort((a, b) => a.dueBy.localeCompare(b.dueBy));
-    const items = rows.map(spCard);
-    return pageHeader('Supplier payments', 'Payment requests from Purchase and Flight. Accounts approves up to ₹50,000, counted across the Deal and supplier; the branch Manager approves above that. Money is paid from the bank outside the CRM; record each payment with its bank reference.')
-      + `<div class="mb-4"><p class="m-0 flex gap-2 text-sm text-quiet">${ic('lock', 'mt-0.5 size-3.5 shrink-0 text-faint')}<span>Approving a request does not move money. There are no automatic payouts.</span></p></div>`
-      + tabs('Supplier payment filters', SP_TABS.map(([k, l]) => ({ label: l, href: `#/app/accounts/supplier-payments?tab=${k}`, count: k === 'all' ? 0 : D.supplierPayments.filter((x) => x.status === k).length, current: tab === k })))
-      + (items.length ? cardList(`${SP_TABS.find((t) => t[0] === tab)[1]}, earliest due first`, items) : empty('Nothing here', tab === 'requested' ? 'New payment requests from Purchase and Flight appear here.' : 'No supplier payment is in this state.'));
+  const SP_SORTS = {
+    due: { label: 'Pay by, soonest first', cmp: (a, b) => a.dueBy.localeCompare(b.dueBy) },
+    oldest: { label: 'Oldest waiting first', cmp: (a, b) => (a.raisedAt || '').localeCompare(b.raisedAt || '') },
+    amount: { label: 'Largest amount first', cmp: (a, b) => b.amount - a.amount },
+  };
+  // Chip order: the tabs with work first (at most four show; the rest sit under "More").
+  const SP_CHIPS = [['requested', 'To approve'], ['approved', 'To pay'], ['paid', 'To verify'], ['waiting_manager', 'Waiting for Manager'], ['verified', 'Verified'], ['returned', 'Returned'], ['on_hold', 'On hold'], ['all', 'All']];
+  function spNext(p) {
+    const tot = counted(p);
+    if (p.status === 'waiting_manager') return TN.is('manager') ? nextCell('The branch Manager approves it', ui.button('Open Approvals', { size: 'sm', href: '/app/approvals' })) : quietText('The branch Manager approves it. Accounts cannot approve it.');
+    if (p.status === 'on_hold') return quietText('On hold until the branch Manager approves the new bank details. Do not pay meanwhile.');
+    if (!isAcc()) return quietText({ requested: 'Accounts approves it', approved: 'Accounts records the payment', paid: 'Another Accounts person verifies it' }[p.status] || 'Nothing to do');
+    if (p.status === 'requested') return tot > LIMIT ? quietText(`Needs the branch Manager: ${F.inr(tot)} counted together, above ₹50,000.`) : AU.rowActions({ id: p.id, approveAct: 'money-sp-approve', returnAct: 'money-sp-ret-open', approveLabel: 'Approve', returnLabel: 'Return', sr: p.id });
+    if (p.status === 'approved') return nextCell('Pay from the bank, then record it', smallBtn('Record payment', 'money-sp-pay', p.id, p.id, { attrs: { 'aria-haspopup': 'dialog' } }));
+    if (p.status === 'paid') return p.paidBy === ME() ? AU.blockedBtn(`Verify<span class="sr-only"> ${E(p.id)}</span>`, 'You recorded this payment. Another Accounts person must do this step.') : AU.rowActions({ id: p.id, approveAct: 'money-sp-verify', returnAct: 'money-sp-rej-open', approveLabel: 'Verify', returnLabel: 'Not in the bank statement', sr: p.id });
+    return quietText('Nothing to do');
   }
-  function spCard(p) {
-    const s = TN.service(p.service); const sup = TN.supplier(p.supplier); const d = TN.deal(p.deal);
-    const [tone, text] = SP_STATUS[p.status]; const tot = counted(p);
-    const dueDays = F.daysFrom(p.dueBy);
-    const body = summary([
-      ['Amount', `<strong>${F.inr(p.amount)}</strong> · ${E(p.part)}`, 0],
+  function spPage(p, q) {
+    const tab = SP_CHIPS.some(([k]) => k === q.tab) ? q.tab : TN.is('manager') ? 'waiting_manager' : 'requested';
+    const r = AU.applyQuery(D.supplierPayments.filter((x) => tab === 'all' || x.status === tab), q, { text: (x) => [x.id, x.deal, TN.supplier(x.supplier).name, (TN.service(x.service) || {}).title].join(' '), sorts: SP_SORTS, def: 'due' });
+    const rows = [];
+    r.list.forEach((x) => {
+      const sup = TN.supplier(x.supplier); const [tone, word] = SP_STATUS[x.status]; const dueDays = F.daysFrom(x.dueBy);
+      const when = ['requested', 'approved', 'waiting_manager'].includes(x.status) ? (dueDays < 0 ? `${-dueDays} days late` : dueDays === 0 ? 'today' : `in ${F.plural(dueDays, 'day')}`) : '';
+      rows.push([
+        `<span class="font-semibold whitespace-nowrap text-ink">${E(x.id)}</span> <span class="text-copy">· ${E(sup.name)}</span><span class="block text-sm text-quiet">${E(x.part)} · ${E(name(x.raisedBy))} (${x.raisedBy === 'flight' ? 'Flight' : 'Purchase'})</span>${AU.detailToggle('sp-' + x.id, 'for ' + x.id)}`,
+        `${dateCell(x.dueBy)}${when ? `<span class="block text-sm text-quiet">${when}</span>` : ''}`,
+        F.inr(x.amount), AU.st(word, tone, counted(x) > LIMIT && ['requested', 'waiting_manager'].includes(x.status) ? `${F.inr(counted(x))} counted` : ''),
+        spNext(x), dealCell(x.deal),
+      ]);
+      rows.push(AU.detailRow('sp-' + x.id, 6, spDetail(x)));
+    });
+    return AU.listHeader('out', 'Supplier payments', 'Accounts approves up to ₹50,000 counted across the Deal and supplier; the branch Manager above. Approving does not move money: pay from the bank, then record it.')
+      + AU.sectionTabs('out', '/app/accounts/supplier-payments')
+      + AU.toolbar({ id: 'sp', label: 'Find a supplier payment', search: { name: 'q', value: q.q, placeholder: 'Request, Deal reference or supplier', label: 'Find a supplier payment' }, chipsLabel: 'Supplier payment filters',
+        chips: SP_CHIPS.map(([k, l]) => ({ href: `/app/accounts/supplier-payments?tab=${k}`, label: l, count: k === 'all' ? undefined : D.supplierPayments.filter((x) => x.status === k).length, current: tab === k })),
+        sort: { name: 'sort', value: r.sort, options: AU.sortOptions(SP_SORTS) } })
+      + (rows.length ? ui.table({ label: 'Supplier payments', top: true, columns: ['Request', 'Pay by', { label: 'Amount', numeric: true }, 'Status', 'Next step', 'Deal'], rows, footer: AU.pagerFor(r.list.length, 'payment request') })
+        : AU.emptyCard({ icon: 'inbox', title: r.needle ? 'No payment matches' : 'Nothing here', text: r.needle ? 'Nothing in this list matches your search.' : tab === 'requested' ? 'New payment requests from Purchase and Flight appear here.' : 'No supplier payment is in this state.' }));
+  }
+  function spDetail(p) {
+    const s = TN.service(p.service); const sup = TN.supplier(p.supplier); const d = TN.deal(p.deal); const tot = counted(p);
+    return summary([
       ['For', `${E(s ? s.title : '')}<span class="block text-sm text-quiet">${E(d.title)}</span>`],
       ['Supplier', `${E(sup.name)}${sup.bank === 'approved' ? ' · bank details approved' : sup.bank === 'not_needed' ? ' · paid through the portal' : sup.bank === 'changed' ? ' · <strong>bank details changed, waiting for the Manager</strong>' : ' · bank details not approved yet'}`],
-      ['Pay by', `${F.date(p.dueBy)}${['requested', 'approved', 'waiting_manager'].includes(p.status) ? ` · ${dueDays < 0 ? `${-dueDays} days late` : dueDays === 0 ? 'today' : `in ${F.plural(dueDays, 'day')}`}` : ''}`],
       ['Counted for approval', `${F.inr(tot)} to ${E(sup.name)} on this Deal · ${tot > LIMIT ? 'above ₹50,000: the branch Manager approves' : 'up to ₹50,000: Accounts approves'}`],
       ['Requested', `${E(name(p.raisedBy))} (${p.raisedBy === 'flight' ? 'Flight' : 'Purchase'}) · ${F.date(p.raisedAt)}`],
       ['Supplier bill or proforma', fileLink(p.invoice)],
@@ -485,31 +515,8 @@
       p.verifiedBy ? ['Verified', `${E(name(p.verifiedBy))} against the bank statement`] : null,
       p.funding ? ['Company funding', `<a class="${LINK}" href="#/app/accounts/funding">${E(p.funding)}</a> · paid before the customer’s money arrives`] : null,
       p.returnReason ? ['Returned because', E(p.returnReason)] : null,
+      p.note ? ['Note', E(p.note)] : null,
     ]);
-    let foot = '';
-    const notes = [];
-    if (p.note) notes.push(E(p.note));
-    if (p.status === 'waiting_manager') foot = notice('info', 'Waiting for the branch Manager', `<p>Above ₹50,000 counted across this Deal and supplier, so the branch Manager approves it.${TN.is('manager') ? ` <a class="${LINK_STRONG}" href="#/app/approvals">Open Approvals</a>` : ' Accounts cannot approve it.'}</p>`);
-    if (p.status === 'on_hold') foot = notice('warning', 'On hold', `<p>${E(sup.name)} changed its bank details. Payments to this supplier stay on hold until the branch Manager approves the new details. Do not pay the old or the new account meanwhile.</p>`);
-    if (isAcc()) {
-      if (p.status === 'requested') {
-        foot = tot > LIMIT ? notice('info', 'Needs the branch Manager', `<p>Counted together this is ${F.inr(tot)}, above ₹50,000.</p>`)
-          : `<div class="flex flex-col gap-3"><div class="flex flex-wrap gap-2">${primaryBig('Approve payment', 'money-sp-approve', { 'data-id': p.id })}${toggleBtn('Return to the department', 'sp-ret-' + p.id)}</div>${reasonForm('sp-ret-' + p.id, 'money-sp-return', p.id, 'Return the payment request', 'Why are you returning it?', '10 to 500 characters. The department reads it.', 'Return with this reason')}</div>`;
-      }
-      if (p.status === 'approved') foot = `<div class="flex flex-wrap gap-2">${primaryBig('Record payment', 'money-sp-pay', { 'data-id': p.id })}</div><p class="m-0 text-sm text-quiet">Pay from the bank first, then record the bank reference and the proof here.</p>`;
-      if (p.status === 'paid') {
-        foot = p.paidBy === ME()
-          ? `<ul class="m-0 flex list-none flex-col gap-1 p-0 text-sm text-quiet"><li>You recorded this payment, so another Accounts person must verify it.</li></ul>${blocked('Verify payment', 'You recorded this payment. Another Accounts person must do this step.', 'spv-' + p.id)}`
-          : `<div class="flex flex-col gap-3"><div class="flex flex-wrap gap-2">${primaryBig('Verify payment', 'money-sp-verify', { 'data-id': p.id })}${toggleBtn('Not in the bank statement', 'sp-rej-' + p.id)}</div>${reasonForm('sp-rej-' + p.id, 'money-sp-reject', p.id, 'Payment not found', 'What did you find?', '10 to 500 characters. The person who recorded it reads it.', 'Send back with this reason')}</div>`;
-      }
-    }
-    return article({
-      label: `Supplier payment ${p.id} ${F.inr(p.amount)}`, anchor: p.id,
-      head: `${dealLink(p.deal)} <span class="font-normal text-copy">· ${E(p.id)} · ${E(sup.name)}</span>`,
-      badge: badge(tone, text, 'Payment'),
-      body: body + (notes.length ? `<ul class="m-0 flex list-none flex-col gap-1 p-0 text-sm text-quiet">${notes.map((n) => `<li>${n}</li>`).join('')}</ul>` : ''),
-      foot,
-    });
   }
   TN.act('money-sp-approve', (el) => {
     const p = D.supplierPayments.find((x) => x.id === el.dataset.id);
@@ -583,64 +590,73 @@
     });
     return out;
   }
-  function siPage(p, q) {
-    const tab = q.tab || 'uploaded';
-    const missing = missingInvoices();
-    let content;
-    if (tab === 'missing') {
-      content = missing.length ? finTable(`${F.plural(missing.length, 'invoice')} missing · trips already ended`, [['Deal'], ['Service'], ['Supplier'], ['Trip ended'], ['Cost', 1], ['Next step']], missing.map(({ d, s }) => [
-        `${dealLink(d.id)}<span class="fin-sub">${E(d.title)}</span>`, E(s.title), E(TN.supplier(s.supplier).name), `${F.date(d.end)}<span class="fin-sub">${-F.daysFrom(d.end)} days ago</span>`, F.inr(s.cost),
-        isAcc() ? `<button type="button" class="${LINK_STRONG} cursor-pointer border-0 bg-transparent p-0" data-act="money-si-remind" data-s="${E(s.id)}">Remind Purchase</button><span class="fin-sub"><button type="button" class="${LINK} cursor-pointer border-0 bg-transparent p-0 text-sm" data-act="money-si-upload" data-s="${E(s.id)}">Upload one sent to Accounts</button></span>` : quiet('Purchase uploads it'),
-      ])) : empty('No invoice missing', 'After a trip ends, every hotel, transfer and activity needs the supplier’s original invoice.');
-    } else {
-      const rows = D.supplierInvoices.filter((x) => tab === 'all' || x.status === tab);
-      content = rows.length ? cardList('Supplier invoices', rows.map(siCard)) : empty('Nothing to check', 'Originals uploaded by Purchase appear here.');
-    }
-    return pageHeader('Supplier invoices', 'Original invoices and credit notes from suppliers, uploaded by Purchase. Check each against the cost and the payment, then accept or return it. Tally keeps the official accounts and GST.')
-      + tabs('Supplier invoice filters', [
-        { label: 'To check', href: '#/app/accounts/supplier-invoices?tab=uploaded', count: D.supplierInvoices.filter((x) => x.status === 'uploaded').length, current: tab === 'uploaded' },
-        { label: 'Missing after the trip', href: '#/app/accounts/supplier-invoices?tab=missing', count: missing.length, current: tab === 'missing' },
-        { label: 'Accepted', href: '#/app/accounts/supplier-invoices?tab=accepted', current: tab === 'accepted' },
-        { label: 'Returned', href: '#/app/accounts/supplier-invoices?tab=returned', current: tab === 'returned' },
-        { label: 'All', href: '#/app/accounts/supplier-invoices?tab=all', current: tab === 'all' },
-      ]) + content;
-  }
-  function siCard(x) {
+  const SI_CHIPS = [['uploaded', 'To check'], ['missing', 'Missing after the trip'], ['accepted', 'Accepted'], ['returned', 'Returned'], ['all', 'All']];
+  const SI_SORTS = {
+    oldest: { label: 'Oldest first', cmp: (a, b) => (a.date || '').localeCompare(b.date || '') },
+    amount: { label: 'Largest amount first', cmp: (a, b) => b.amount - a.amount },
+  };
+  function siCheck(x) {
     const s = TN.service(x.service); const sup = TN.supplier(x.supplier);
-    const pays = D.supplierPayments.filter((p) => p.service === x.service && ['paid', 'verified'].includes(p.status));
-    const paid = pays.reduce((t, p) => t + p.amount, 0);
-    let check;
+    const paid = D.supplierPayments.filter((p) => p.service === x.service && ['paid', 'verified'].includes(p.status)).reduce((t, p) => t + p.amount, 0);
     if (x.kind === 'Credit note') {
       const rf = D.refunds.find((r) => r.creditNote === x.id || (r.deal === x.deal && r.kind === 'Supplier recovery' && r.amount === x.amount));
-      check = rf ? `${pill('ok', 'Matches the supplier recovery', 'Check', '●')}<span class="block text-sm text-quiet">${E(rf.id)} · ${F.inr(rf.amount)} to come back from ${E(sup.name)}</span>` : pill('warn', 'No supplier recovery recorded for it', 'Check', '!');
+      return { short: rf ? 'Matches the supplier recovery' : 'No supplier recovery recorded for it', html: rf ? `${pill('ok', 'Matches the supplier recovery')}<span class="block text-sm text-quiet">${E(rf.id)} · ${F.inr(rf.amount)} to come back from ${E(sup.name)}</span>` : pill('warn', 'No supplier recovery recorded for it') };
+    }
+    const diffCost = x.amount - (s.cost || 0); const diffPaid = x.amount - paid;
+    const parts = [
+      diffCost === 0 ? pill('ok', `Matches the cost ${F.inr(s.cost)}`) : pill('warn', `${diffCost > 0 ? 'Above' : 'Below'} the cost ${F.inr(s.cost)} by ${F.inr(Math.abs(diffCost))}`),
+      paid === 0 ? pill('neutral', 'Not paid yet') : diffPaid === 0 ? pill('ok', `Matches payments ${F.inr(paid)}`) : pill('warn', `Payments ${F.inr(paid)} differ by ${F.inr(Math.abs(diffPaid))}`),
+    ];
+    return { short: diffCost === 0 ? (paid === 0 ? 'Matches the cost · not paid yet' : diffPaid === 0 ? 'Matches cost and payments' : 'Payments differ') : `${diffCost > 0 ? 'Above' : 'Below'} the cost`, html: `<span class="flex flex-wrap gap-2">${parts.join('')}</span>` };
+  }
+  function siPage(p, q) {
+    const tab = SI_CHIPS.some(([k]) => k === q.tab) ? q.tab : 'uploaded';
+    const missing = missingInvoices();
+    const chips = SI_CHIPS.map(([k, l]) => ({ href: `/app/accounts/supplier-invoices?tab=${k}`, label: l, count: k === 'uploaded' ? D.supplierInvoices.filter((x) => x.status === 'uploaded').length : k === 'missing' ? missing.length : undefined, current: tab === k }));
+    let content; let sort = 'oldest'; const needle = String(q.q || '').toLowerCase();
+    if (tab === 'missing') {
+      const list = missing.filter(({ d, s }) => !needle || `${d.id} ${d.title} ${s.title} ${TN.supplier(s.supplier).name}`.toLowerCase().includes(needle));
+      content = list.length ? ui.table({ label: 'Supplier invoices missing after the trip', top: true, columns: ['Service', 'Trip ended', { label: 'Cost', numeric: true }, 'Status', 'Next step', 'Deal'], footer: AU.pagerFor(list.length, 'invoice'),
+        rows: list.map(({ d, s }) => [
+          `<span class="font-semibold text-ink">${E(s.title)}</span><span class="block text-sm text-quiet">${E(TN.supplier(s.supplier).name)}</span>`,
+          `${dateCell(d.end)}<span class="block text-sm text-quiet">${-F.daysFrom(d.end)} days ago</span>`, F.inr(s.cost), AU.st('Original missing', 'warning'),
+          isAcc() ? `<div class="flex flex-wrap items-center gap-2">${ui.button('Remind Purchase', { size: 'sm', act: 'money-si-remind', data: { s: s.id }, srLabel: ' about ' + E(s.title) })}${ui.button('Upload one sent to Accounts', { size: 'sm', variant: 'ghost', act: 'money-si-upload', data: { s: s.id }, attrs: { 'aria-haspopup': 'dialog' } })}</div>` : quietText('Purchase uploads it'),
+          dealCell(d.id)] ) })
+        : AU.emptyCard({ title: 'No invoice missing', text: 'After a trip ends, every hotel, transfer and activity needs the supplier’s original invoice.' });
     } else {
-      const diffCost = x.amount - (s.cost || 0); const diffPaid = x.amount - paid;
-      check = [
-        diffCost === 0 ? pill('ok', `Matches the cost ${F.inr(s.cost)}`, 'Cost check') : pill('warn', `${diffCost > 0 ? 'Above' : 'Below'} the cost ${F.inr(s.cost)} by ${F.inr(Math.abs(diffCost))}`, 'Cost check', '!'),
-        paid === 0 ? pill('neutral', 'Not paid yet', 'Payment check') : diffPaid === 0 ? pill('ok', `Matches payments ${F.inr(paid)}`, 'Payment check') : pill('warn', `Payments ${F.inr(paid)} differ by ${F.inr(Math.abs(diffPaid))}`, 'Payment check', '!'),
-      ].join(' ');
+      const r = AU.applyQuery(D.supplierInvoices.filter((x) => tab === 'all' || x.status === tab), q, { text: (x) => [x.deal, x.number, x.kind, TN.supplier(x.supplier).name].join(' '), sorts: SI_SORTS, def: 'oldest' });
+      sort = r.sort;
+      const rows = [];
+      r.list.forEach((x) => {
+        const sup = TN.supplier(x.supplier); const chk = siCheck(x); const sr = `${x.kind} ${x.number}`;
+        const next = !isAcc() || x.status !== 'uploaded' ? quietText(x.status === 'uploaded' ? 'Accounts checks it' : 'Nothing to do')
+          : x.by === ME() ? quietText('You uploaded this original, so another Accounts person must check it.')
+            : AU.rowActions({ id: x.id, approveAct: 'money-si-accept', returnAct: 'money-si-ret-open', approveLabel: 'Accept', returnLabel: 'Return', sr });
+        rows.push([
+          `<span class="font-semibold text-ink">${E(x.kind)} ${E(x.number)}</span><span class="block text-sm text-quiet">${E(sup.name)} · uploaded by ${E(name(x.by))} (${x.by === 'purchase' ? 'Purchase' : 'Accounts'})</span>${AU.detailToggle('si-' + x.id, 'for ' + sr)}`,
+          dateCell(x.date), F.inr(x.amount), AU.st(SI_STATUS[x.status][1], SI_STATUS[x.status][0], chk.short), next, dealCell(x.deal),
+        ]);
+        rows.push(AU.detailRow('si-' + x.id, 6, siDetail(x, chk)));
+      });
+      content = rows.length ? ui.table({ label: 'Supplier invoices', top: true, columns: ['Invoice', 'Dated', { label: 'Amount', numeric: true }, 'Status', 'Next step', 'Deal'], rows, footer: AU.pagerFor(r.list.length, 'invoice') })
+        : AU.emptyCard({ icon: 'inbox', title: r.needle ? 'No invoice matches' : 'Nothing to check', text: r.needle ? 'Nothing in this list matches your search.' : 'Originals uploaded by Purchase appear here.' });
     }
-    let foot = '';
-    if (isAcc() && x.status === 'uploaded') {
-      foot = x.by === ME() ? `<ul class="m-0 flex list-none flex-col gap-1 p-0 text-sm text-quiet"><li>You uploaded this original, so another Accounts person must check it.</li></ul>`
-        : `<div class="flex flex-col gap-3"><div class="flex flex-wrap gap-2">${primaryBig(x.kind === 'Credit note' ? 'Accept credit note' : 'Accept invoice', 'money-si-accept', { 'data-id': x.id })}${toggleBtn('Return to Purchase', 'si-ret-' + x.id)}</div>${reasonForm('si-ret-' + x.id, 'money-si-return', x.id, 'Return the supplier original', 'Why are you returning it?', '10 to 500 characters. Purchase reads it.', 'Return with this reason')}</div>`;
-    }
-    return article({
-      label: `${x.kind} ${x.number}`, anchor: x.id,
-      head: `${dealLink(x.deal)} <span class="font-normal text-copy">· ${E(x.kind)} ${E(x.number)} · ${E(sup.name)}</span>`,
-      badge: badge(...SI_STATUS[x.status], x.kind),
-      body: summary([
-        ['Amount', `<strong>${F.inr(x.amount)}</strong>${x.gst ? ` · GST shown on it ${F.inr(x.gst)}` : ' · no GST shown'}`],
-        ['For', `${E(s.title)}<span class="block text-sm text-quiet">${E(s.detail)}</span>`],
-        ['Dated', F.date(x.date)],
-        ['File', fileLink(x.file)],
-        ['Check', check],
-        ['Uploaded', `${E(name(x.by))}${x.by === 'purchase' ? ' (Purchase)' : ' (Accounts)'}`],
-        x.checkedBy ? ['Checked', E(name(x.checkedBy))] : null,
-        x.returnReason ? ['Returned because', E(x.returnReason)] : null,
-      ]) + (x.note ? `<ul class="m-0 flex list-none flex-col gap-1 p-0 text-sm text-quiet"><li>${E(x.note)}</li></ul>` : ''),
-      foot,
-    });
+    return AU.listHeader('out', 'Supplier invoices', 'Original invoices and credit notes from suppliers. Check each against the cost and the payment; Tally keeps the official accounts and GST.')
+      + AU.sectionTabs('out', '/app/accounts/supplier-invoices')
+      + AU.toolbar({ id: 'si', label: 'Find a supplier invoice', search: { name: 'q', value: q.q, placeholder: 'Deal reference, supplier or invoice number', label: 'Find a supplier invoice' }, chipsLabel: 'Supplier invoice filters', chips, sort: tab === 'missing' ? null : { name: 'sort', value: sort, options: AU.sortOptions(SI_SORTS) } })
+      + content;
+  }
+  function siDetail(x, chk) {
+    const s = TN.service(x.service);
+    return summary([
+      ['Amount', `<strong>${F.inr(x.amount)}</strong>${x.gst ? ` · GST shown on it ${F.inr(x.gst)}` : ' · no GST shown'}`],
+      ['For', `${E(s.title)}<span class="block text-sm text-quiet">${E(s.detail)}</span>`],
+      ['File', fileLink(x.file)],
+      ['Check', chk.html],
+      x.checkedBy ? ['Checked', E(name(x.checkedBy))] : null,
+      x.returnReason ? ['Returned because', E(x.returnReason)] : null,
+      x.note ? ['Note', E(x.note)] : null,
+    ]);
   }
   TN.act('money-si-accept', (el) => {
     const x = D.supplierInvoices.find((i) => i.id === el.dataset.id);
@@ -694,52 +710,48 @@
     const max = D.documents.map((d) => (d.id.match(rx) || [])[1]).filter(Boolean).map(Number).reduce((a, b) => Math.max(a, b), 0);
     return `HC/JDH/${adv ? 'ADV/' : ''}26-27/${String(max + 1).padStart(4, '0')}`;
   }
-  function docPage(p, q) {
-    const tab = q.tab || 'waiting_accounts';
-    const rows = D.documents.filter((d) => tab === 'all' || d.status === tab || (tab === 'draft' && d.status === 'returned'));
-    return pageHeader('Invoices and vouchers', 'Invoice, Advance Invoice and hotel voucher for customers. Accounts approves each one; then the salesperson downloads or prints it and sends it to the customer. The tax invoice is issued from Tally.', isAcc() ? btn('Create document', { variant: 'primary', act: 'money-doc-new' }) : '')
-      + `<div class="mb-5 flex flex-col gap-2 font-sans text-base text-copy [&_p]:m-0" data-slot="finance-header-lines"><p class="fin-disclaimer" role="note"><span aria-hidden="true">ⓘ </span>Invoice and Advance Invoice are not tax invoices. The tax invoice is issued from Tally.</p></div>`
-      + tabs('Document filters', [
-        { label: 'To approve', href: '#/app/accounts/documents?tab=waiting_accounts', count: D.documents.filter((d) => d.status === 'waiting_accounts').length, current: tab === 'waiting_accounts' },
-        { label: 'Approved, not sent', href: '#/app/accounts/documents?tab=approved', count: D.documents.filter((d) => d.status === 'approved').length, current: tab === 'approved' },
-        { label: 'Drafts', href: '#/app/accounts/documents?tab=draft', count: D.documents.filter((d) => d.status === 'draft' || d.status === 'returned').length, current: tab === 'draft' },
-        { label: 'Sent', href: '#/app/accounts/documents?tab=sent', current: tab === 'sent' },
-        { label: 'All', href: '#/app/accounts/documents?tab=all', current: tab === 'all' },
-      ])
-      + (rows.length ? cardList('Documents', rows.map(docCard)) : empty('Nothing here', tab === 'waiting_accounts' ? 'Documents sent for approval appear here.' : 'No document is in this state.', 'file-text'));
+  const DOC_CHIPS = [['waiting_accounts', 'To approve'], ['approved', 'Approved, not sent'], ['draft', 'Drafts'], ['sent', 'Sent'], ['all', 'All']];
+  const DOC_SORTS = {
+    oldest: { label: 'Oldest first', cmp: (a, b) => (a.date || '').localeCompare(b.date || '') },
+    newest: { label: 'Newest first', cmp: (a, b) => (b.date || '').localeCompare(a.date || '') },
+  };
+  const docIn = (d, tab) => tab === 'all' || d.status === tab || (tab === 'draft' && d.status === 'returned');
+  function docNext(x) {
+    const sr = `${x.kind} ${x.id}`;
+    if (x.status === 'approved') return nextCell('Download or print it from Preview, send it, then', smallBtn('Mark as sent', 'money-doc-sent', x.id, sr, { attrs: { 'aria-haspopup': 'dialog' } }));
+    if (!isAcc()) return quietText(x.status === 'waiting_accounts' ? 'Accounts approves it' : 'Nothing to do');
+    if (x.status === 'waiting_accounts') return x.createdBy === ME() || x.submittedBy === ME() ? quietText('You made this document, so another Accounts person must approve it.') : AU.rowActions({ id: x.id, approveAct: 'money-doc-approve', returnAct: 'money-doc-ret-open', approveLabel: 'Approve', returnLabel: 'Return', sr });
+    if (x.status === 'draft' || x.status === 'returned') return smallBtn('Send for approval', 'money-doc-submit', x.id, sr);
+    return quietText('Nothing to do');
   }
-  function docCard(x) {
-    const d = TN.deal(x.deal); const c = TN.customer(d.customer);
-    const open = btn('Preview', { variant: 'secondary', size: 'lg', icon: 'file-text', act: 'money-doc-open', attrs: { 'data-id': x.id } });
-    let foot = open;
-    if (isAcc()) {
-      if (x.status === 'waiting_accounts') {
-        foot = x.createdBy === ME() || x.submittedBy === ME()
-          ? `<ul class="m-0 flex list-none flex-col gap-1 p-0 text-sm text-quiet"><li>You made this document, so another Accounts person must approve it.</li></ul><div class="flex flex-wrap gap-2">${open}</div>`
-          : `<div class="flex flex-col gap-3"><div class="flex flex-wrap gap-2">${primaryBig('Approve document', 'money-doc-approve', { 'data-id': x.id })}${open}${toggleBtn('Return with a reason', 'doc-ret-' + x.id)}</div>${reasonForm('doc-ret-' + x.id, 'money-doc-return', x.id, 'Return the document', 'What needs fixing?', '10 to 500 characters. The person who made it reads it.', 'Return with this reason')}</div>`;
-      } else if (x.status === 'draft' || x.status === 'returned') {
-        foot = `<div class="flex flex-wrap gap-2">${primaryBig('Send for approval', 'money-doc-submit', { 'data-id': x.id })}${open}</div>`;
-      }
-    }
-    if (x.status === 'approved') {
-      foot = `<div class="flex flex-wrap gap-2">${btn('Download PDF', { variant: 'secondary', size: 'lg', icon: 'download', act: 'money-doc-pdf', attrs: { 'data-id': x.id } })}${btn('Print', { variant: 'secondary', size: 'lg', icon: 'printer', act: 'money-doc-print', attrs: { 'data-id': x.id } })}${primaryBig('Mark as sent', 'money-doc-sent', { 'data-id': x.id })}</div><p class="m-0 text-sm text-quiet">The CRM does not message customers yet. Send it yourself, then mark it as sent.</p>`;
-    }
-    const s = x.service ? TN.service(x.service) : null;
-    return article({
-      label: `${x.kind} ${x.id}`, anchor: x.id,
-      head: `${dealLink(x.deal)} <span class="font-normal text-copy">· ${E(x.kind)} ${E(x.id)}</span>`,
-      badge: badge(...DOC_STATUS[x.status], 'Document'),
-      body: summary([
+  function docPage(p, q) {
+    const tab = DOC_CHIPS.some(([k]) => k === q.tab) ? q.tab : 'waiting_accounts';
+    const r = AU.applyQuery(D.documents.filter((d) => docIn(d, tab)), q, { text: (x) => { const c = TN.customer(TN.deal(x.deal).customer); return [x.id, x.kind, x.deal, c.name].join(' '); }, sorts: DOC_SORTS, def: 'oldest' });
+    const rows = [];
+    r.list.forEach((x) => {
+      const d = TN.deal(x.deal); const c = TN.customer(d.customer); const s = x.service ? TN.service(x.service) : null;
+      rows.push([
+        `<button type="button" class="cursor-pointer rounded-chip border-0 bg-transparent p-0 text-left font-semibold text-brand-strong underline-offset-4 hover:underline ${FV}" data-act="money-doc-open" data-id="${E(x.id)}" aria-haspopup="dialog">${E(x.kind)}<span class="block text-sm font-normal whitespace-nowrap text-quiet">${E(x.id)}</span><span class="sr-only"> (preview)</span></button>${AU.detailToggle('doc-' + x.id, 'for ' + x.kind + ' ' + x.id)}`,
+        dateCell(x.date),
+        x.amount != null ? F.inr(x.amount) : quietText('No prices'),
+        AU.st(DOC_STATUS[x.status][1], DOC_STATUS[x.status][0], `Made by ${E(name(x.createdBy))}`),
+        docNext(x), dealCell(x.deal),
+      ]);
+      rows.push(AU.detailRow('doc-' + x.id, 6, summary([
         ['For', `${E(c.name)} · ${E(d.title)}`],
         x.amount != null ? ['Amount', `<strong>${F.inr(x.amount)}</strong>${x.kind === 'Advance Invoice' ? ' · against money received' : ' · whole trip'}`] : ['Hotel', `${E(s.title)} · confirmation ${E(s.confirmationNo || 'not recorded')}`],
-        ['Dated', F.date(x.date)],
-        ['Made by', E(name(x.createdBy))],
         x.approvedBy ? ['Approved', E(name(x.approvedBy))] : null,
         x.sentBy ? ['Sent', `${E(name(x.sentBy))}${x.sentHow ? ` · ${E(x.sentHow)}` : ''}${x.sentAt ? ` · ${F.date(x.sentAt)}` : ''}`] : null,
         x.returnReason ? ['Returned because', E(x.returnReason)] : null,
-      ]),
-      foot,
+      ]) + `<div class="flex flex-wrap gap-2">${btn('Preview', { variant: 'secondary', icon: 'file-text', act: 'money-doc-open', attrs: { 'data-id': x.id } })}${['approved', 'sent'].includes(x.status) ? btn('Download PDF', { variant: 'secondary', icon: 'download', act: 'money-doc-pdf', attrs: { 'data-id': x.id } }) + btn('Print', { variant: 'secondary', icon: 'printer', act: 'money-doc-print', attrs: { 'data-id': x.id } }) : ''}</div>${x.status === 'approved' ? '<p class="m-0 text-sm text-quiet">The CRM does not message customers yet. Send it yourself, then mark it as sent.</p>' : ''}`));
     });
+    return AU.listHeader('in', 'Invoices and vouchers', 'Accounts approves each one; then it is downloaded or printed and sent. Invoice and Advance Invoice are not tax invoices: the tax invoice is issued from Tally.', isAcc() ? ui.button('Create document', { variant: 'primary', act: 'money-doc-new', attrs: { 'aria-haspopup': 'dialog' } }) : '')
+      + AU.sectionTabs('in', '/app/accounts/documents')
+      + AU.toolbar({ id: 'dc', label: 'Find a document', search: { name: 'q', value: q.q, placeholder: 'Number, Deal reference or customer', label: 'Find a document' }, chipsLabel: 'Document filters',
+        chips: DOC_CHIPS.map(([k, l]) => ({ href: `/app/accounts/documents?tab=${k}`, label: l, count: ['sent', 'all'].includes(k) ? undefined : D.documents.filter((d) => docIn(d, k)).length, current: tab === k })),
+        sort: { name: 'sort', value: r.sort, options: AU.sortOptions(DOC_SORTS) } })
+      + (rows.length ? ui.table({ label: 'Customer documents', top: true, columns: ['Document', 'Dated', { label: 'Amount', numeric: true }, 'Status', 'Next step', 'Deal'], rows, footer: AU.pagerFor(r.list.length, 'document') })
+        : AU.emptyCard({ icon: 'file-text', title: r.needle ? 'No document matches' : 'Nothing here', text: r.needle ? 'Nothing in this list matches your search.' : tab === 'waiting_accounts' ? 'Documents sent for approval appear here.' : 'No document is in this state.' }));
   }
   TN.act('money-doc-open', (el) => TN.openDocument(el.dataset.id));
   TN.act('money-doc-approve', (el) => {
@@ -957,48 +969,60 @@
      5. Company-funded bookings
      ================================================================== */
   const FU_STATUS = { requested: ['info', 'Waiting for Accounts approval'], waiting_manager: ['neutral', 'Waiting for the branch Manager'], approved: ['warning', 'Approved: recover from the next receipt'], refused: ['danger', 'Refused'], recovered: ['success', 'Recovered from the customer’s money'] };
+  const FU_CHIPS = [['requested', 'To approve'], ['waiting_manager', 'Waiting for Manager'], ['approved', 'To recover'], ['recovered', 'Recovered'], ['refused', 'Refused'], ['all', 'All']];
+  const FU_SORTS = {
+    oldest: { label: 'Oldest waiting first', cmp: (a, b) => (a.at || '').localeCompare(b.at || '') },
+    amount: { label: 'Largest amount first', cmp: (a, b) => b.amount - a.amount },
+  };
+  const gaWords = (s) => (s.kind !== 'hotel' ? '' : s.goAhead === 'given' ? 'Go-ahead given' : s.goAhead === 'refused' ? 'Go-ahead on hold' : 'Waiting for the go-ahead');
+  function fundNext(f) {
+    if (f.status === 'waiting_manager') return TN.is('manager') ? nextCell('The branch Manager decides', ui.button('Open Approvals', { size: 'sm', href: '/app/approvals' })) : quietText('Above ₹50,000, so the branch Manager decides.');
+    if (!isAcc()) return quietText(f.status === 'requested' ? 'Accounts approves it' : f.status === 'approved' ? 'Recovered from the next customer receipt' : 'Nothing to do');
+    if (f.status === 'requested') return f.amount > LIMIT ? quietText('Needs the branch Manager: above ₹50,000.') : AU.rowActions({ id: f.id, approveAct: 'money-fu-approve', returnAct: 'money-fu-ref-open', approveLabel: 'Approve', returnLabel: 'Refuse', sr: f.id });
+    if (f.status === 'approved') return recoverable(f).length ? smallBtn('Mark recovered', 'money-fu-recover', f.id, f.id) : AU.blockedBtn(`Mark recovered<span class="sr-only"> ${E(f.id)}</span>`, 'No verified customer receipt on this Deal since the funding. It is recovered from the next one.');
+    return quietText('Nothing to do');
+  }
   function fundPage(p, q) {
-    const tab = q.tab || (TN.is('manager') ? 'waiting_manager' : 'requested');
-    const rows = D.funding.filter((f) => tab === 'all' || f.status === tab);
-    return pageHeader('Company funding', 'When a supplier must be paid before the customer’s money arrives, the company pays first. Accounts approves up to ₹50,000; the branch Manager approves above that. It is recovered from the next customer receipt on that Deal.')
-      + tabs('Company funding filters', [['requested', 'To approve'], ['waiting_manager', 'Waiting for Manager'], ['approved', 'To recover'], ['recovered', 'Recovered'], ['refused', 'Refused'], ['all', 'All']].map(([k, l]) => ({ label: l, href: `#/app/accounts/funding?tab=${k}`, count: k === 'all' ? 0 : D.funding.filter((f) => f.status === k).length, current: tab === k })))
-      + (rows.length ? cardList('Funding requests', rows.map(fundCard)) : empty('Nothing here', 'Funding requests from Purchase appear here.'));
+    const tab = FU_CHIPS.some(([k]) => k === q.tab) ? q.tab : TN.is('manager') ? 'waiting_manager' : 'requested';
+    const r = AU.applyQuery(D.funding.filter((f) => tab === 'all' || f.status === tab), q, { text: (f) => [f.id, f.deal, (TN.service(f.service) || {}).title, f.reason].join(' '), sorts: FU_SORTS, def: 'oldest' });
+    const rows = [];
+    r.list.forEach((f) => {
+      const s = TN.service(f.service);
+      rows.push([
+        `<span class="font-semibold whitespace-nowrap text-ink">${E(f.id)}</span> <span class="text-copy">· ${E(s.title)}</span><span class="block text-sm text-quiet">Requested by ${E(name(f.requestedBy))}</span>${AU.detailToggle('fu-' + f.id, 'for ' + f.id)}`,
+        dateCell(f.at), F.inr(f.amount), AU.st(FU_STATUS[f.status][1], FU_STATUS[f.status][0], gaWords(s)), fundNext(f), dealCell(f.deal),
+      ]);
+      rows.push(AU.detailRow('fu-' + f.id, 6, fundDetail(f)));
+    });
+    return AU.listHeader('out', 'Company funding', 'The company pays a supplier before the customer’s money arrives. Accounts approves up to ₹50,000, the branch Manager above; it is recovered from the next customer receipt.')
+      + AU.sectionTabs('out', '/app/accounts/funding')
+      + AU.toolbar({ id: 'fu', label: 'Find a funding request', search: { name: 'q', value: q.q, placeholder: 'Request, Deal reference or service', label: 'Find a funding request' }, chipsLabel: 'Company funding filters',
+        chips: FU_CHIPS.map(([k, l]) => ({ href: `/app/accounts/funding?tab=${k}`, label: l, count: k === 'all' ? undefined : D.funding.filter((f) => f.status === k).length, current: tab === k })),
+        sort: { name: 'sort', value: r.sort, options: AU.sortOptions(FU_SORTS) } })
+      + (rows.length ? ui.table({ label: 'Company funding', top: true, columns: ['Request', 'Requested', { label: 'Amount', numeric: true }, 'Status', 'Next step', 'Deal'], rows, footer: AU.pagerFor(r.list.length, 'request') })
+        : AU.emptyCard({ icon: 'inbox', title: r.needle ? 'No request matches' : 'Nothing here', text: r.needle ? 'Nothing in this list matches your search.' : 'Funding requests from Purchase appear here.' }));
   }
   /** Verified customer money on the funded Deal since the funding: receipts, or a checked split of a transfer. */
   const recoverable = (f) => [
     ...D.receipts.filter((r) => r.deal === f.deal && r.status === 'verified' && r.date >= f.at),
     ...D.money.transfers.filter((t) => t.allocStatus === 'approved' && t.date >= f.at && t.allocations.some((p) => D.instalments[p.k].deal === f.deal)),
   ];
-  function fundCard(f) {
+  function fundDetail(f) {
     const s = TN.service(f.service); const d = TN.deal(f.deal);
     const due = D.instalments.filter((i) => i.deal === f.deal && i.status !== 'paid').sort((a, b) => a.due.localeCompare(b.due))[0];
-    const ga = s.kind === 'hotel' ? (s.goAhead === 'given' ? pill('ok', 'Go-ahead given', 'Hotel go-ahead') : s.goAhead === 'refused' ? pill('danger', 'Go-ahead refused', 'Hotel go-ahead') : pill('info', 'Waiting for Accounts go-ahead', 'Hotel go-ahead')) : quiet('Not needed for this service');
-    let foot = '';
-    if (f.status === 'waiting_manager') foot = notice('info', 'Waiting for the branch Manager', `<p>Above ₹50,000, so the branch Manager decides.${TN.is('manager') ? ` <a class="${LINK_STRONG}" href="#/app/approvals">Open Approvals</a>` : ''}</p>`);
-    if (isAcc()) {
-      if (f.status === 'requested') foot = f.amount > LIMIT ? notice('info', 'Needs the branch Manager', '<p>Above ₹50,000.</p>') : `<div class="flex flex-col gap-3"><div class="flex flex-wrap gap-2">${primaryBig('Approve funding', 'money-fu-approve', { 'data-id': f.id })}${toggleBtn('Refuse with a reason', 'fu-ref-' + f.id)}</div>${reasonForm('fu-ref-' + f.id, 'money-fu-refuse', f.id, 'Refuse the funding request', 'Why are you refusing it?', '10 to 500 characters. Purchase reads it.', 'Refuse with this reason')}</div>`;
-      if (f.status === 'approved') {
-        const rcs = recoverable(f);
-        foot = `<div class="flex flex-wrap gap-2">${rcs.length ? primaryBig('Mark recovered', 'money-fu-recover', { 'data-id': f.id }) : blocked('Mark recovered', 'No verified customer receipt on this Deal since the funding. It is recovered from the next one.', 'fu-rec-' + f.id)}${s.kind === 'hotel' && s.goAhead !== 'given' ? btn('Give hotel go-ahead', { variant: 'secondary', size: 'lg', act: 'money-fu-goahead', attrs: { 'data-id': f.id } }) : ''}</div>`;
-      }
-    }
-    return article({
-      label: `Funding ${f.id} ${F.inr(f.amount)}`, anchor: f.id,
-      head: `${dealLink(f.deal)} <span class="font-normal text-copy">· ${E(f.id)} · ${E(s.title)}</span>`,
-      badge: badge(...FU_STATUS[f.status], 'Funding'),
-      body: summary([
-        ['Amount', `<strong>${F.inr(f.amount)}</strong> · ${f.amount > LIMIT ? 'above ₹50,000: the branch Manager approves' : 'up to ₹50,000: Accounts approves'}`],
-        ['Why now', E(f.reason)],
-        ['Customer money expected', due ? `${E(due.label)} ${F.inr(due.amount - due.paid)} due ${F.date(due.due)}` : 'Fully paid'],
-        ['Recover from', E(f.recoverFrom)],
-        ['Requested', `${E(name(f.requestedBy))} · ${F.date(f.at)}`],
-        ['Hotel go-ahead', ga],
-        f.approvedBy ? ['Approved', E(name(f.approvedBy))] : null,
-        f.refuseReason ? ['Refused because', E(f.refuseReason)] : null,
-        ['Trip', `${E(d.title)} · starts ${F.date(d.start)}`],
-      ]) + `<ul class="m-0 flex list-none flex-col gap-1 p-0 text-sm text-quiet"><li>Approving funding does not give the hotel go-ahead. Accounts gives it separately.</li></ul>`,
-      foot,
-    });
+    const ga = s.kind === 'hotel' ? (s.goAhead === 'given' ? pill('ok', 'Go-ahead given') : s.goAhead === 'refused' ? pill('danger', 'Go-ahead refused') : pill('info', 'Waiting for Accounts go-ahead')) : quiet('Not needed for this service');
+    return summary([
+      ['Amount', `<strong>${F.inr(f.amount)}</strong> · ${f.amount > LIMIT ? 'above ₹50,000: the branch Manager approves' : 'up to ₹50,000: Accounts approves'}`],
+      ['Why now', E(f.reason)],
+      ['Customer money expected', due ? `${E(due.label)} ${F.inr(due.amount - due.paid)} due ${F.date(due.due)}` : 'Fully paid'],
+      ['Recover from', E(f.recoverFrom)],
+      ['Requested', `${E(name(f.requestedBy))} · ${F.date(f.at)}`],
+      ['Hotel go-ahead', ga],
+      f.approvedBy ? ['Approved', E(name(f.approvedBy))] : null,
+      f.refuseReason ? ['Refused because', E(f.refuseReason)] : null,
+      ['Trip', `${E(d.title)} · starts ${F.date(d.start)}`],
+    ]) + `<p class="m-0 text-sm text-quiet">Approving funding does not give the hotel go-ahead. Accounts gives it separately.</p>`
+      + (isAcc() && f.status === 'approved' && s.kind === 'hotel' && s.goAhead !== 'given' ? `<div>${btn('Give hotel go-ahead', { variant: 'secondary', act: 'money-fu-goahead', attrs: { 'data-id': f.id } })}</div>` : '');
   }
   TN.act('money-fu-approve', (el) => {
     const f = D.funding.find((x) => x.id === el.dataset.id);
@@ -1029,14 +1053,54 @@
     'Customer refund': { requested: ['neutral', 'Waiting for the branch Manager'], approved: ['warning', 'Approved: pay the refund'], paid: ['info', 'Paid: a different person verifies'], verified: ['success', 'Refund paid and verified'] },
     'Supplier recovery': { requested: ['neutral', 'Waiting for the branch Manager'], approved: ['warning', 'Waiting for the supplier’s money'], paid: ['info', 'Received: a different person verifies'], verified: ['success', 'Recovered and verified'] },
   };
+  const RF_CHIPS = [['approved', 'To pay or receive'], ['paid', 'To verify'], ['verified', 'Done'], ['all', 'All']];
+  const RF_SORTS = {
+    oldest: { label: 'Oldest first', cmp: (a, b) => a.id.localeCompare(b.id) },
+    amount: { label: 'Largest amount first', cmp: (a, b) => b.amount - a.amount },
+  };
+  function rfNext(r) {
+    const cust = r.kind === 'Customer refund';
+    if (!isAcc()) return quietText(r.status === 'requested' ? 'The branch Manager approves it' : r.status === 'verified' ? 'Nothing to do' : 'Accounts records and verifies it');
+    if (r.status === 'approved') return nextCell(cust ? 'Pay from the bank first, then record it' : 'Record it when the supplier’s money shows in the bank', smallBtn(cust ? 'Record refund paid' : 'Record money received', 'money-rf-pay', r.id, r.id, { attrs: { 'aria-haspopup': 'dialog' } }));
+    if (r.status === 'paid') return r.paidBy === ME() ? AU.blockedBtn(`Verify<span class="sr-only"> ${E(r.id)}</span>`, `You recorded this ${cust ? 'refund' : 'recovery'}. Another Accounts person must do this step.`) : smallBtn(cust ? 'Verify refund' : 'Verify recovery', 'money-rf-verify', r.id, r.id);
+    if (r.status === 'requested') return quietText('The branch Manager approves it');
+    return quietText('Nothing to do');
+  }
   function rfPage(p, q) {
-    const tab = q.tab || 'approved';
-    const rows = D.refunds.filter((r) => tab === 'all' || r.status === tab);
+    const tab = RF_CHIPS.some(([k]) => k === q.tab) ? q.tab : 'approved';
+    const party = (r) => (r.kind === 'Customer refund' ? TN.customer(r.party).name : TN.supplier(r.party).name);
+    const r = AU.applyQuery(D.refunds.filter((x) => tab === 'all' || x.status === tab), q, { text: (x) => [x.id, x.deal, x.kind, party(x)].join(' '), sorts: RF_SORTS, def: 'oldest' });
     const cancels = D.cancellations.filter((c) => !['closed'].includes(c.status));
-    return pageHeader('Refunds and recoveries', 'Money going back to customers after a cancellation the branch Manager approved, and money suppliers return on a credit note. Record what was actually paid or received; a different Accounts person verifies it. Write-offs need the branch Manager.')
+    const rows = [];
+    r.list.forEach((x) => {
+      const [tone, word] = RF_STATUS[x.kind][x.status];
+      rows.push([
+        `<span class="font-semibold whitespace-nowrap text-ink">${E(x.id)}</span> <span class="text-copy">· ${E(x.kind)}</span><span class="block text-sm text-quiet">${E(party(x))}</span>${AU.detailToggle('rf-' + x.id, 'for ' + x.id)}`,
+        dateCell(x.paidAt), F.inr(x.amount), AU.st(word, tone, x.kind === 'Customer refund' ? 'To the customer' : 'From the supplier'), rfNext(x), dealCell(x.deal),
+      ]);
+      rows.push(AU.detailRow('rf-' + x.id, 6, rfDetail(x)));
+    });
+    return AU.listHeader('in', 'Refunds and recoveries', 'Money back to customers after a cancellation the branch Manager approved, and money suppliers return on a credit note. A different Accounts person verifies each one.')
+      + AU.sectionTabs('in', '/app/accounts/refunds')
       + (cancels.length ? `<section class="mb-5" aria-labelledby="money-cancel-h"><h2 id="money-cancel-h" class="m-0 mb-3 text-lg font-semibold text-ink">Cancellations being settled</h2>${cardList('Cancellations', cancels.map(cancelCard))}</section>` : '')
-      + tabs('Refund filters', [['approved', 'To pay or receive'], ['paid', 'To verify'], ['verified', 'Done'], ['all', 'All']].map(([k, l]) => ({ label: l, href: `#/app/accounts/refunds?tab=${k}`, count: k === 'all' || k === 'verified' ? 0 : D.refunds.filter((r) => r.status === k).length, current: tab === k })))
-      + (rows.length ? cardList('Refunds and recoveries', rows.map(rfCard)) : empty('Nothing here', 'Refunds appear after the branch Manager approves a cancellation.'));
+      + AU.toolbar({ id: 'rf', label: 'Find a refund', search: { name: 'q', value: q.q, placeholder: 'Refund, Deal reference or name', label: 'Find a refund' }, chipsLabel: 'Refund filters',
+        chips: RF_CHIPS.map(([k, l]) => ({ href: `/app/accounts/refunds?tab=${k}`, label: l, count: k === 'all' || k === 'verified' ? undefined : D.refunds.filter((x) => x.status === k).length, current: tab === k })),
+        sort: { name: 'sort', value: r.sort, options: AU.sortOptions(RF_SORTS) } })
+      + (rows.length ? ui.table({ label: 'Refunds and recoveries', top: true, columns: ['Refund', 'Paid or received', { label: 'Amount', numeric: true }, 'Status', 'Next step', 'Deal'], rows, footer: AU.pagerFor(r.list.length, 'refund') })
+        : AU.emptyCard({ icon: 'inbox', title: r.needle ? 'No refund matches' : 'Nothing here', text: r.needle ? 'Nothing in this list matches your search.' : 'Refunds appear after the branch Manager approves a cancellation.' }));
+  }
+  function rfDetail(r) {
+    const d = TN.deal(r.deal); const cust = r.kind === 'Customer refund';
+    return summary([
+      ['Amount', `<strong>${F.inr(r.amount)}</strong> · ${cust ? 'to the customer' : 'from the supplier'}`],
+      ['Why', E(r.note)],
+      ['Trip', E(d.title)],
+      r.payTo ? ['Pay to', E(r.payTo)] : null,
+      r.creditNote ? ['Credit note', `<a class="${LINK}" href="#/app/accounts/supplier-invoices?tab=all">${E(r.creditNote)}</a>`] : null,
+      r.approvedBy ? ['Approved', `${E(name(r.approvedBy))} (branch Manager)`] : null,
+      r.paidBy ? [cust ? 'Paid' : 'Received', `${r.paidAt ? F.date(r.paidAt) + ' · ' : ''}${E(r.fromAccount || '')} · ${E(r.bankRef)}<span class="block text-sm text-quiet">Recorded by ${E(name(r.paidBy))}${r.proof ? ` · proof ${fileLink(r.proof)}` : ''}</span>`] : null,
+      r.verifiedBy ? ['Verified', E(name(r.verifiedBy))] : null,
+    ]);
   }
   function cancelCard(c) {
     const d = TN.deal(c.deal); const cu = TN.customer(d.customer);
@@ -1046,7 +1110,7 @@
     let foot = '';
     if (c.status === 'waiting_manager') foot = notice('info', 'Waiting for the branch Manager', `<p>Nothing is paid or written off until the Manager approves the cancellation.${TN.is('manager') ? ` <a class="${LINK_STRONG}" href="#/app/approvals">Open Approvals</a>` : ''}</p>`);
     if (isAcc() && c.status === 'approved' && owes > 0) {
-      foot = `<div class="flex flex-col gap-3"><div class="flex flex-wrap gap-2">${btn('Add to customer dues', { variant: 'primary', size: 'lg', act: 'money-cx-due', attrs: { 'data-id': c.id } })}${toggleBtn('Ask the Manager to write it off', 'cx-wo-' + c.id)}</div>${reasonForm('cx-wo-' + c.id, 'money-cx-writeoff', c.id, 'Ask for a write-off', 'Why should the company write it off?', '10 to 500 characters. The branch Manager decides.', 'Send to the Manager')}</div>`;
+      foot = `<div class="flex flex-wrap gap-2">${btn('Add to customer dues', { variant: 'secondary', act: 'money-cx-due', attrs: { 'data-id': c.id } })}${btn('Ask the Manager to write it off', { variant: 'ghost', act: 'money-cx-wo-open', attrs: { 'data-id': c.id, 'aria-haspopup': 'dialog' } })}</div>`;
     }
     return article({
       label: `Cancellation ${d.id}`, anchor: c.id,
@@ -1078,35 +1142,6 @@
     pushNotice(['manager'], `Write-off asked for ${c.deal} by ${TN.me().name}: ${r}`, c.deal, '#/app/approvals');
     TN.toast('Sent to the branch Manager.'); TN.refresh();
   });
-  function rfCard(r) {
-    const d = TN.deal(r.deal);
-    const party = r.kind === 'Customer refund' ? TN.customer(r.party).name : TN.supplier(r.party).name;
-    const [tone, text] = RF_STATUS[r.kind][r.status];
-    const cust = r.kind === 'Customer refund';
-    let foot = '';
-    if (isAcc()) {
-      if (r.status === 'approved') foot = `<div class="flex flex-wrap gap-2">${primaryBig(cust ? 'Record refund paid' : 'Record money received', 'money-rf-pay', { 'data-id': r.id })}</div><p class="m-0 text-sm text-quiet">${cust ? 'Pay from the bank first, then record the reference here.' : 'Record it when the supplier’s money shows in the bank.'}</p>`;
-      if (r.status === 'paid') foot = r.paidBy === ME()
-        ? `<ul class="m-0 flex list-none flex-col gap-1 p-0 text-sm text-quiet"><li>You recorded this, so another Accounts person must verify it.</li></ul>${blocked('Verify', `You recorded this ${cust ? 'refund' : 'recovery'}. Another Accounts person must do this step.`, 'rfv-' + r.id)}`
-        : `<div class="flex flex-wrap gap-2">${primaryBig(cust ? 'Verify refund' : 'Verify recovery', 'money-rf-verify', { 'data-id': r.id })}</div>`;
-    }
-    return article({
-      label: `${r.kind} ${r.id} ${F.inr(r.amount)}`, anchor: r.id,
-      head: `${dealLink(r.deal)} <span class="font-normal text-copy">· ${E(r.id)} · ${E(r.kind)} · ${E(party)}</span>`,
-      badge: badge(tone, text, r.kind),
-      body: summary([
-        ['Amount', `<strong>${F.inr(r.amount)}</strong> · ${cust ? 'to the customer' : 'from the supplier'}`],
-        ['Why', E(r.note)],
-        ['Trip', E(d.title)],
-        r.payTo ? ['Pay to', E(r.payTo)] : null,
-        r.creditNote ? ['Credit note', `<a class="${LINK}" href="#/app/accounts/supplier-invoices?tab=all">${E(r.creditNote)}</a>`] : null,
-        r.approvedBy ? ['Approved', `${E(name(r.approvedBy))} (branch Manager)`] : null,
-        r.paidBy ? [cust ? 'Paid' : 'Received', `${r.paidAt ? F.date(r.paidAt) + ' · ' : ''}${E(r.fromAccount || '')} · ${E(r.bankRef)}<span class="block text-sm text-quiet">Recorded by ${E(name(r.paidBy))}${r.proof ? ` · proof ${fileLink(r.proof)}` : ''}</span>`] : null,
-        r.verifiedBy ? ['Verified', E(name(r.verifiedBy))] : null,
-      ]),
-      foot,
-    });
-  }
   TN.act('money-rf-pay', (el) => openRfPay(el.dataset.id));
   function openRfPay(id, values = {}, errors) {
     const r = D.refunds.find((x) => x.id === id); const cust = r.kind === 'Customer refund';
@@ -1160,20 +1195,26 @@
     const done = ok.filter((r) => D.money.exported[r.id]);
     return { fresh, done, held };
   }
+  /* D11: the Tally page shows only the method that is switched on; tabs only while both are on.
+     This branch uses the export pack (CSV for Excel); the Tally file method is switched off. */
+  D.money.tallyMethods = D.money.tallyMethods || { csv: true, file: false };
   function tallyPage(p, q) {
-    const period = q.period || '2026-10';
+    const period = PERIODS.some(([k]) => k === q.period) ? q.period : '2026-10';
     const { fresh, done, held } = tallyRows(period);
     const types = ['Receipt', 'Purchase', 'Debit Note', 'Payment'];
     const tot = (t) => fresh.filter((r) => r.type === t).reduce((s, r) => s + r.amount, 0);
     const label = (PERIODS.find((x) => x[0] === period) || [0, period])[1];
     const hist = D.money.exports.filter((x) => x.period === period);
-    return pageHeader('Tally export', 'A pack of checked money and supplier bills for the Tally team. Only verified receipts, accepted supplier bills and verified payments go in. The pack is not proof that Tally posted them.', isAcc() ? `${btn('Download Excel', { variant: 'secondary', icon: 'file-spreadsheet', act: 'money-tally-xls', attrs: { 'data-period': period } })}${btn('Mark as exported', { variant: 'primary', act: 'money-tally-mark', attrs: { 'data-period': period } })}` : '')
-      + `<section class="mb-4 rounded-card border border-line bg-card px-4.5 py-4 font-sans shadow-card" aria-labelledby="tally-period-h"><h2 id="tally-period-h" class="m-0 mb-2 text-lg font-semibold text-ink">Period</h2><div class="flex flex-col gap-2 sm:flex-row sm:items-end"><div class="min-w-0 flex-1">${field({ id: 'tally-period', name: 'period', label: 'Month', kind: 'select', value: period, change: 'money-tally-period', options: PERIODS })}</div></div><p class="m-0 mt-2 text-sm text-quiet">Holiday Chacha Pvt LTD · Jodhpur branch · ledger names as agreed with the Tally team.</p></section>`
+    const m = D.money.tallyMethods;
+    const methodTabs = m.csv && m.file ? ui.tabs({ label: 'Tally methods', cls: 'mb-4', items: [{ href: '/app/accounts/tally?method=file', label: 'Tally file', current: q.method === 'file' }, { href: '/app/accounts/tally', label: 'CSV export', current: q.method !== 'file' }] }) : '';
+    return AU.listHeader('tally', 'Tally export', 'Checked money and supplier bills for the Tally team. Only verified and accepted items go in; the pack is not proof that Tally posted them.', isAcc() ? `${btn('Download Excel', { variant: 'secondary', icon: 'file-spreadsheet', act: 'money-tally-xls', attrs: { 'data-period': period } })}${btn('Mark as exported', { variant: 'primary', act: 'money-tally-mark', attrs: { 'data-period': period } })}` : '')
+      + AU.sectionTabs('tally', '/app/accounts/tally') + methodTabs
+      + `<div class="mb-4 flex flex-col gap-2 font-sans sm:flex-row sm:items-end sm:justify-between"><div class="flex items-center gap-2"><label class="text-sm whitespace-nowrap text-quiet" for="tally-period">Month</label><select id="tally-period" name="period" data-change="money-tally-period" class="${CONTROL} cursor-pointer">${PERIODS.map(([v, l]) => `<option value="${v}"${v === period ? ' selected' : ''}>${l}</option>`).join('')}</select></div><p class="m-0 text-sm text-quiet">Holiday Chacha Pvt LTD · Jodhpur branch · ledger names as agreed with the Tally team.</p></div>`
       + stats([['Receipts', F.inr(tot('Receipt')), F.plural(fresh.filter((r) => r.type === 'Receipt').length, 'voucher')], ['Supplier bills', F.inr(tot('Purchase') - tot('Debit Note')), `${F.plural(fresh.filter((r) => r.type === 'Purchase' || r.type === 'Debit Note').length, 'voucher')}, credit notes taken off`], ['Payments', F.inr(tot('Payment')), `${F.plural(fresh.filter((r) => r.type === 'Payment').length, 'voucher')}, supplier payments and refunds`]])
       + (held.length ? notice('warning', `${F.plural(held.length, 'item')} left out: not checked yet`, `<ul class="m-0 flex list-disc flex-col gap-1 pl-5">${held.map((r) => `<li>${E(r.type)} ${E(r.no)} · ${E(r.party)} · ${F.inr(r.amount)}: ${E(r.why)}</li>`).join('')}</ul><p>They go in a later pack once a second Accounts person has checked them.</p>`, { className: 'mb-4' }) : '')
       + (done.length ? notice('locked', `${F.plural(done.length, 'voucher')} already exported`, `<p>${done.map((r) => E(r.no)).join(', ')}. Exported rows are never exported twice.</p>`, { className: 'mb-4' }) : '')
-      + (fresh.length ? finTable(`${F.plural(fresh.length, 'voucher')} to export · ${E(label)}`, [['Voucher type'], ['Date'], ['Number'], ['Debit ledger'], ['Credit ledger'], ['Amount', 1], ['Narration']], fresh.map((r) => [`<strong>${E(r.type)}</strong>`, E(F.date(r.date)), `<span class="fin-mono">${E(r.no)}</span>`, E(r.ledgerDr), E(r.ledgerCr), F.inr(r.amount), `<span class="fin-sub">${E(r.narration)}</span>`]))
-        + `<p class="m-0 mt-3 text-sm text-quiet">${types.filter((t) => tot(t)).map((t) => `${t} total ${F.inr(tot(t))}`).join(' · ')}</p>`
+      + (fresh.length ? ui.table({ label: `Vouchers to export, ${label}`, top: true, columns: ['Voucher type', 'Date', 'Number', 'Debit ledger', 'Credit ledger', { label: 'Amount', numeric: true }, 'Narration'], caption: `${F.plural(fresh.length, 'voucher')} to export · ${E(label)} · ${types.filter((t) => tot(t)).map((t) => `${t} total ${F.inr(tot(t))}`).join(' · ')}`,
+        rows: fresh.map((r) => [`<strong>${E(r.type)}</strong>`, dateCell(r.date), `<span class="fin-mono">${E(r.no)}</span>`, E(r.ledgerDr), E(r.ledgerCr), F.inr(r.amount), `<span class="text-sm text-quiet">${E(r.narration)}</span>`]) })
         : empty('Nothing new to export', `Every checked item for ${label} is already exported.`, 'file-spreadsheet'))
       + `<section class="fin-card mt-8" aria-labelledby="tally-hist-h"><h2 id="tally-hist-h">Exports for ${E(label)}</h2>${hist.length ? `<ul class="m-0 flex list-none flex-col gap-2 p-0">${hist.map((h) => `<li class="m-0">${E(h.id)} · ${F.plural(h.rows, 'voucher')} · marked as exported by ${E(name(h.by))} on ${E(F.dateTime(h.at))}</li>`).join('')}</ul>` : '<p class="hint">Not exported yet.</p>'}</section>`;
   }
@@ -1229,5 +1270,19 @@
   TN.homeRow({ roles: ACC, section: sec, label: 'Travelled trips with open closure items', href: '#/app/accounts/dues?tab=closure', count: () => D.deals.filter((d) => d.tripStatus === 'travelled' && !checklist(d).every((i) => i.done)).length });
 
   /* Exposed for other areas (read-only helpers). */
-  TN.money = { checklist, counted, nextNumber, docHtml };
+  TN.money = { checklist, counted, nextNumber, docHtml, docStatus: DOC_STATUS, rfStatus: RF_STATUS,
+    cancelStatus: { requested: ['neutral', 'Requested by Sales'], charges_entered: ['neutral', 'Supplier charges entered'], waiting_manager: ['neutral', 'Waiting for the branch Manager'], approved: ['warning', 'Approved: settle the money'], refund_paid: ['success', 'Refund paid'], write_off_asked: ['neutral', 'Write-off waiting for the Manager'], closed: ['success', 'Settled'] } };
+
+  /* Counts for the Accounts section tab strips: what this person can act on now. */
+  const mgr = () => TN.is('manager');
+  const accCounts70 = {
+    '/app/accounts/dues': () => D.instalments.filter((i) => i.status !== 'paid' && daysOverdue(i) >= 0 && !onHoldDeal(i.deal)).length,
+    '/app/accounts/documents': () => D.documents.filter((x) => x.status === 'waiting_accounts' && otherPerson(x.createdBy) && otherPerson(x.submittedBy || 'none')).length,
+    '/app/accounts/refunds': () => (mgr() ? 0 : D.refunds.filter((r) => r.status === 'approved' || (r.status === 'paid' && otherPerson(r.paidBy))).length),
+    '/app/accounts/supplier-payments': () => (mgr() ? D.supplierPayments.filter((p) => p.status === 'waiting_manager').length : D.supplierPayments.filter((p) => (p.status === 'requested' && !needsManager(p)) || p.status === 'approved' || (p.status === 'paid' && otherPerson(p.paidBy))).length),
+    '/app/accounts/supplier-invoices': () => D.supplierInvoices.filter((x) => x.status === 'uploaded' && otherPerson(x.by)).length + missingInvoices().length,
+    '/app/accounts/funding': () => (mgr() ? D.funding.filter((f) => f.status === 'waiting_manager').length : D.funding.filter((f) => f.status === 'requested' && f.amount <= LIMIT).length),
+  };
+  Object.assign(TN.accCount = TN.accCount || {}, accCounts70);
+  if (TN.setAccCount) Object.entries(accCounts70).forEach(([h, f]) => TN.setAccCount(h, f));
 })();

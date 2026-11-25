@@ -23,27 +23,6 @@
     admin:    {},
   };
 
-  /* ---------- Deal scope for the chips ---------- */
-  const deptOf = { purchase: 'purchase', flight: 'flight', visa: 'visa' };
-  function dealScope() {
-    const r = TN.role; const p = me();
-    const deals = TN.DATA.deals;
-    const services = Object.values(TN.DATA.services);
-    const assigned = (d) => services.some((s) => s.deal === d.id && s.assignee === r);
-    if (r === 'sales') {
-      const owned = deals.filter((d) => d.owner === p);
-      const asg = deals.filter((d) => d.owner !== p && assigned(d));
-      return { visible: owned.length + asg.length, owned: owned.length, assigned: asg.length };
-    }
-    if (deptOf[r]) {
-      const vis = deals.filter((d) => services.some((s) => s.deal === d.id && s.dept === deptOf[r] && (s.assignee === r || s.assignee == null)) && d.accountsReview === 'approved');
-      return { visible: vis.length, owned: 0, assigned: deals.filter(assigned).length };
-    }
-    if (r === 'manager') return { visible: deals.length, owned: 0, assigned: 0 };
-    if (r === 'accounts' || r === 'checker') return { visible: deals.filter((d) => d.submittedAt).length, owned: 0, assigned: 0 };
-    return { visible: 0, owned: 0, assigned: 0 };
-  }
-
   /* ---------- Live "What needs you" rows, counted from TN.DATA ---------- */
   function liveRows() {
     const R = ROLES[TN.role] || {};
@@ -53,16 +32,16 @@
     const deals = D.deals.filter(mine);
     const scope = R.branchManager ? 'your deals and branches' : 'your deals';
     const rows = [];
-    const deptQueue = (dept) => Object.values(D.services).filter((s) => s.dept === dept && D.deals.find((d) => d.id === s.deal && d.accountsReview === 'approved') && ((s.assignee == null && s.taskStatus === 'new') || (s.assignee === dept && s.taskStatus === 'in_progress'))).length;
-    if (R.bookings) rows.push({ label: 'Booking drafts you can continue', count: deals.filter((d) => ['in_progress', 'ready_to_submit', 'returned'].includes(d.bookingState)).length, href: '/app/deals', action: 'Open deals', icon: 'hourglass' });
+    const deptQueue = (dept) => TN.deskQueueCount(dept); // shared with the menu count (12-shell.js)
+    if (R.bookings) rows.push({ label: 'Booking drafts you can continue', count: deals.filter((d) => ['in_progress', 'ready_to_submit', 'returned'].includes(d.bookingState)).length, href: '/app/deals?filter=drafts', action: 'Open deals', icon: 'hourglass' });
     if (R.purchase) rows.push({ label: 'Purchase tasks not taken yet, or yours in progress', count: deptQueue('purchase'), href: '/app/purchase', action: 'Open Purchase tasks', icon: 'clipboard-list' });
     if (R.flight) rows.push({ label: 'Flight tasks not taken yet, or yours in progress', count: deptQueue('flight'), href: '/app/flight', action: 'Open Flight tasks', icon: 'plane' });
     if (R.accounts) rows.push({ label: 'Bookings to review in your companies', count: D.deals.filter((d) => d.bookingState === 'waiting_for_accounts').length, href: '/app/accounts?filter=needs_review', action: 'Open To check', icon: 'clipboard-check' });
     if (R.bookings) {
       rows.push(
-        { label: `Returned by Accounts (${scope})`, count: deals.filter((d) => d.bookingState === 'returned').length, href: '/app/deals', action: 'Open deals', icon: 'undo-2' },
-        { label: `Booking drafts missing details (${scope})`, count: deals.filter((d) => d.bookingState === 'in_progress' && (d.sellingPrice == null || !d.services.length)).length, href: '/app/deals', action: 'Open deals', icon: 'list-checks' },
-        { label: `Confirmed deals needing a booking (${scope})`, count: deals.filter((d) => ['not_started', 'quotation_accepted'].includes(d.bookingState)).length, href: '/app/deals', action: 'Open deals', icon: 'briefcase' },
+        { label: `Returned by Accounts (${scope})`, count: deals.filter((d) => d.bookingState === 'returned').length, href: '/app/deals?filter=returned', action: 'Open deals', icon: 'undo-2' },
+        { label: `Booking drafts missing details (${scope})`, count: deals.filter((d) => d.bookingState === 'in_progress' && (d.sellingPrice == null || !d.services.length)).length, href: '/app/deals?filter=missing_details', action: 'Open deals', icon: 'list-checks' },
+        { label: `Confirmed deals needing a booking (${scope})`, count: deals.filter((d) => ['not_started', 'quotation_accepted'].includes(d.bookingState)).length, href: '/app/deals?filter=needs_booking', action: 'Open deals', icon: 'briefcase' },
       );
     }
     if (R.quotations) {
@@ -89,11 +68,11 @@
     const path = String(href).replace(/^#/, '').split('?')[0];
     return TN.navItems().filter((i) => path === i.href || path.startsWith(i.href + '/')).sort((a, b) => b.href.length - a.href.length)[0];
   }
-  function pendingRows() {
+  function pendingRows(countsOnly) {
     const role = TN.role;
     const rows = TN.homeRows.filter((r) => !r.roles || r.roles.includes(role)).map((r) => {
       let n = 0; try { n = typeof r.count === 'function' ? r.count() : r.count; } catch (e) { n = 0; }
-      const nav = navFor(r.href || '/app');
+      const nav = countsOnly ? null : navFor(r.href || '/app'); // countsOnly: no menu lookup (the menu itself asks for these counts)
       return { label: r.label, count: Number(n) || 0, href: r.href, action: r.action || (nav ? 'Open ' + nav.label : 'Open'), icon: r.icon || (nav ? nav.icon : 'circle') };
     });
     const has = (prefix) => rows.some((r) => String(r.href || '').replace(/^#/, '').startsWith(prefix));
@@ -101,6 +80,9 @@
     if ((TN.DATA.notices || []).some((n) => (n.to || []).includes(role))) rows.push({ label: 'Reminders and notices you have not read', count: TN.unreadNotices().length, href: '/app/notices', action: 'Open notices', icon: 'bell' });
     return rows;
   }
+
+  /** Every Home row for the current role ({ label, count, href, action, icon }), live first. Used by Accounts section counts. */
+  TN.homeAllRows = () => [...liveRows(), ...pendingRows(true)];
 
   function primaryAction() {
     const R = ROLES[TN.role] || {};
@@ -114,44 +96,76 @@
     return { href: '/app/deals', label: 'Go to deals' };
   }
 
-  const CHIP = 'inline-flex min-h-9 max-w-full items-center gap-2 rounded-control border border-line bg-card px-3 py-1.5 text-base text-copy no-underline hover:border-line-strong hover:bg-wash hover:text-ink ' + U.FOCUS;
+  /* ---------- Home (16 Nov 2026 redesign, design plan 2.2) ----------
+     "What needs you" first; each row opens the filtered list; the row button is named for the count
+     ("Verify 2 receipts"); rows with nothing waiting have no button and fold under the table; the page's one
+     primary button is the top waiting row's button. The Deal ownership chips are gone (SL-1, DM-18). */
+  const BUTTONS = [
+    [/^Booking drafts you can continue/, 'Open', 'draft'], [/^Booking drafts missing details/, 'Complete', 'draft'],
+    [/^Returned by Accounts/, 'Fix', 'booking'], [/^Confirmed deals needing a booking/, 'Start', 'booking'],
+    [/tasks not taken yet, or yours in progress/, 'Open', 'task'], [/^Bookings to review/, 'Review', 'booking'],
+    [/^Quotation drafts to finish/, 'Finish', 'draft'], [/^Accepted quotations to link/, 'Link', 'quotation'],
+    [/^Receipts to verify/, 'Verify', 'receipt'], [/^Reported payments to check/, 'Check', 'payment'],
+    [/^Department costs to review/, 'Review', 'cost'], [/^Customer payments overdue/, 'Open', 'deal'],
+    [/^Changes waiting for the customer/, 'Open', 'change'], [/^Hotels waiting for the Accounts go-ahead/, 'Review', 'hotel'],
+    [/^Customer instalments overdue/, 'Open', 'instalment'], [/^Customer transfers to split/, 'Check', 'transfer'],
+    [/^Supplier payments to approve/, 'Approve', 'payment'], [/^Supplier payments to pay/, 'Pay', 'payment'],
+    [/^Supplier payments to verify/, 'Verify', 'payment'], [/^Supplier invoices to check/, 'Check', 'invoice'],
+    [/^Customer documents to approve/, 'Approve', 'document'], [/^Company funding to approve/, 'Approve', 'request'],
+    [/^Refunds and recoveries/, 'Open', 'refund'], [/^Travelled trips ready to close/, 'Close', 'trip'],
+    [/^Travelled trips with open closure/, 'Open', 'trip'], [/^Tickets to mark done/, 'Open', 'ticket'],
+    [/costs returned by Accounts/, 'Fix', 'cost'], [/^Travellers waiting for a visa result/, 'Open', 'traveller'],
+    [/^Big switches waiting/, 'Review', ['switch', 'switches']], [/^Staff invitations not accepted/, 'Open', 'invitation'],
+    [/^Hotel tasks waiting for Accounts go-ahead/, 'Open', 'task'], [/^Hotel costs above budget/, 'Review', 'cost'],
+    [/^Costs above budget waiting/, 'Open', 'task'], [/^Supplier invoices missing/, 'Open', 'task'],
+    [/^Payment requests returned/, 'Fix', 'request'], [/^Supplier bank details to approve/, 'Review', 'supplier'],
+    [/^Suppliers to verify/, 'Verify', 'supplier'], [/^(Approvals waiting|Requests to approve)/, 'Open', 'approval'],
+    [/^Escalations/, 'Open', 'escalation'], [/^Reminders and notices/, 'Read', 'notice'],
+  ];
+  /** Button text named for the count: row.button(n) wins, then the table above, then "Open n waiting". */
+  function buttonText(r) {
+    const n = r.count;
+    if (typeof r.button === 'function') { try { return r.button(n); } catch (e) { /* fall through */ } }
+    const hit = BUTTONS.find(([rx]) => rx.test(r.label));
+    if (!hit) return `Open ${nf.format(n)} waiting`;
+    const [one, many] = Array.isArray(hit[2]) ? hit[2] : [hit[2], hit[2] + 's'];
+    return `${hit[1]} ${nf.format(n)} ${n === 1 ? one : many}`;
+  }
 
   function whatNeedsYou(rows) {
+    const waiting = rows.filter((r) => r.count > 0);
+    const quiet = rows.filter((r) => !(r.count > 0));
     let body;
-    if (!rows.length) {
+    if (!waiting.length) {
       body = U.card(U.emptyState({ icon: 'sparkles', title: 'Nothing needs you right now', description: 'New work appears here when it is assigned to you.' }));
     } else {
       body = U.table({
-        label: 'What needs you: counts', cardCls: 'overflow-hidden', firstNoLabel: true,
+        label: 'What needs you', cardCls: 'overflow-hidden', firstNoLabel: true,
         columns: ['What needs you', { label: 'Waiting', numeric: true }, { label: 'Next step', cls: 'text-right' }],
-        rows: rows.map((r) => [
+        rows: waiting.map((r) => [
           `<span class="flex items-center gap-2.5 font-medium text-ink">${TN.ic(r.icon, 'size-4 shrink-0 text-brand')}${esc(r.label)}</span>`,
-          U.waiting(r.count > 0 ? nf.format(r.count) : 0),
-          { html: U.button(esc(r.action), { href: r.href, size: 'sm', srLabel: ': ' + esc(r.label) }), cls: 'text-right' },
+          U.waiting(nf.format(r.count)),
+          { html: U.button(esc(buttonText(r)), { href: r.href, size: 'sm', srLabel: ': ' + esc(r.label) }), cls: 'text-right' },
         ]),
       });
     }
-    return `<section aria-labelledby="needs-heading">${U.sectionTitle('What needs you', 'needs-heading')}${body}</section>`;
+    const rest = quiet.length ? U.fold({ id: 'home-nothing-waiting', cls: 'mt-4', summary: `Nothing waiting in ${TN.fmt.plural(quiet.length, 'other list')}`, body: `<ul class="m-0 flex list-none flex-col gap-2 p-0">${quiet.map((r) => `<li class="m-0 flex items-center gap-2.5 text-copy">${TN.ic(r.icon, 'size-4 shrink-0 text-quiet')}<span>${esc(r.label)}</span></li>`).join('')}</ul>` }) : '';
+    return `<section aria-labelledby="needs-heading"><h2 id="needs-heading" class="sr-only">What needs you</h2>${body}${rest}</section>`;
   }
 
   TN.page('/app', {
     nav: '/app', title: 'Home',
     render() {
       const rows = [...liveRows(), ...pendingRows()];
-      const primary = primaryAction();
-      const c = dealScope();
-      const chips = [
-        { label: 'Deals you can open', value: c.visible, href: '/app/deals' },
-        { label: 'Owned by you', value: c.owned, href: '/app/deals?filter=owned' },
-        { label: 'Assigned to you', sr: ', owned by someone else', value: c.assigned, href: '/app/deals?filter=assigned' },
-      ];
+      const top = rows.find((r) => r.count > 0);
+      const fallback = primaryAction();
+      const total = rows.filter((r) => r.count > 0).length;
       return U.page(
         U.pageHeader({
           title: `Welcome, ${esc(TN.me().name)}`,
-          description: rows.some((r) => r.count > 0) ? 'Work is waiting for you below.' : 'Nothing needs you right now.',
-          actions: U.button(esc(primary.label), { href: primary.href, variant: 'primary' }),
+          description: total ? `${TN.fmt.plural(total, 'list has', 'lists have')} work waiting for you.` : 'Nothing needs you right now.',
+          actions: top ? U.button(esc(buttonText(top)), { href: top.href, variant: 'primary', srLabel: ': ' + esc(top.label) }) : U.button(esc(fallback.label), { href: fallback.href, variant: 'primary' }),
         })
-        + `<section aria-labelledby="deals-heading" class="mb-6"><h2 id="deals-heading" class="sr-only">Your deals</h2><ul class="m-0 flex list-none flex-wrap gap-2 p-0">${chips.map((ch) => `<li class="m-0 max-w-full"><a class="${CHIP}" href="#${ch.href}"><span>${ch.label}${ch.sr ? `<span class="sr-only">${ch.sr}</span>` : ''}</span><strong class="font-semibold text-ink tabular-nums">${nf.format(ch.value)}</strong></a></li>`).join('')}</ul></section>`
         + whatNeedsYou(rows)
         + `<details class="group mt-6 rounded-card border border-dashed border-line-strong bg-card"><summary class="flex min-h-11 cursor-pointer list-none items-center gap-2.5 rounded-card px-4.5 py-2.5 text-base font-medium text-copy hover:bg-wash [&::-webkit-details-marker]:hidden ${U.FOCUS}">${TN.ic('info', 'size-4 shrink-0 text-status-info')}What this CRM does not do yet</summary><section aria-label="Not available yet" class="border-t border-line px-4.5 py-3"><p class="m-0 text-base text-copy">Customer e-mails and WhatsApp messages are not sent from the CRM yet: download or print the document and send it yourself. Train bookings are not in the CRM yet. Sales leads, follow-ups and stages stay in Bitrix.</p></section></details>`,
       );

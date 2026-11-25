@@ -289,3 +289,6 @@
    under 1024px; the live <main> gives 20px under 768px and 32px above). */
 @media(max-width:639px){.bf-app{margin:-4px -6px 0}}
 @media(min-width:768px) and (max-width:1023px){.bf-app{margin:-12px -12px 0}}
+/* O1 (owner-approved 16 Nov 2026): the sticky "Submit booking and create tasks" moves focus to the real submit
+   button; show the same focus ring even when the jump started from a mouse click. */
+.bf #submitBtn:focus{outline:2px solid var(--brand);outline-offset:2px}

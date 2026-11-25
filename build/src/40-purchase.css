@@ -10,3 +10,11 @@
 .purchase-progress-status { font-size: 12px; line-height: 16px; color: var(--color-quiet, #64748b); }
 .purchase-progress-reason { max-width: 180px; font-size: 11px; line-height: 16px; color: var(--color-quiet, #64748b); overflow-wrap: anywhere; }
 @media (max-width: 600px) { .purchase-progress { padding: 20px 4px; } .purchase-progress-step { padding: 0 3px; } .purchase-progress-label { font-size: 11px; line-height: 16px; } .purchase-progress-status { font-size: 10px; } .purchase-progress-circle { width: 32px; height: 32px; } .purchase-progress-line { top: 15px; } }
+/* Desk queues (C2 toolbar, 16 Nov 2026): the search field takes the free width on desktop. */
+@media (min-width: 640px) { .desk-toolbar-search { flex: 1 1 18rem; min-width: 0; max-width: 32rem; } }
+/* Desk queue columns: keep the status badge and next step readable (badges wrapped one letter per line). */
+@media (min-width: 640px) {
+  .desk-status { min-width: 11rem; }
+  .desk-next { min-width: 9rem; max-width: 14rem; }
+  .desk-what { min-width: 9rem; max-width: 15rem; }
+}
